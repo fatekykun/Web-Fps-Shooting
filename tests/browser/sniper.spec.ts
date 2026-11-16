@@ -6,6 +6,22 @@ import { avatarParts, standingAnchor } from '@breakpoint/shared/avatar';
 import { movementConfig } from '@breakpoint/shared';
 
 async function enter(page: Page) {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'breakpoint.settings.v1',
+      JSON.stringify({ scopeStyle: 'optic' }),
+    ),
+  );
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'breakpoint.graphics.v2',
+      JSON.stringify({
+        preset: 'quality',
+        adaptive: false,
+        antiAliasing: 'off',
+      }),
+    ),
+  );
   await page.clock.install({ time: new Date('2026-11-15T00:00:00Z') });
   await page.goto('/');
   const button = page.getByRole('button', { name: 'ENTER TRAINING' });
@@ -17,6 +33,44 @@ async function enter(page: Page) {
   await page.clock.runFor(300);
   await page.keyboard.press('4');
   await page.clock.runFor(300);
+}
+
+async function sampleSight(page: Page) {
+  await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
+    canvas.dataset.sightSample = '';
+    requestAnimationFrame(() => {
+      const gl = canvas.getContext('webgl2')!;
+      const values = [
+        [0.08, 0.3],
+        [0.08, 0.5],
+        [0.12, 0.7],
+        [0.52, 0.5],
+        [0.5, 0.55],
+      ].map(([x, y]) => {
+        const pixel = new Uint8Array(4);
+        gl.readPixels(
+          Math.floor(x! * canvas.width),
+          Math.floor(y! * canvas.height),
+          1,
+          1,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          pixel,
+        );
+        return Array.from(pixel);
+      });
+      canvas.dataset.sightSample = JSON.stringify(values);
+    });
+  });
+  await page.clock.runFor(32);
+  return page
+    .locator('canvas')
+    .evaluate(
+      (canvas) =>
+        JSON.parse(
+          (canvas as HTMLCanvasElement).dataset.sightSample!,
+        ) as number[][],
+    );
 }
 
 test('sniper scope, bolt lockout, five-round reload and movement remain responsive', async ({
@@ -33,6 +87,7 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   await page.screenshot({ path: 'test-results/bp04-sniper-model.png' });
   const hipSpread = await number('spread');
   const baseFov = await number('fov');
+  const peripheralBefore = await sampleSight(page);
   await page.mouse.down({ button: 'right' });
   await page.clock.runFor(80);
   await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '0');
@@ -58,6 +113,19 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   ).toBeCloseTo(4, 1);
   expect(await number('spread')).toBeLessThan(hipSpread / 100);
   await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '1');
+  const scopedPixels = await sampleSight(page);
+  expect(
+    peripheralBefore
+      .slice(0, 3)
+      .flat()
+      .some((value) => value > 20),
+  ).toBe(true);
+  expect(scopedPixels.slice(0, 3)).toEqual(peripheralBefore.slice(0, 3));
+  expect(scopedPixels.slice(3)).not.toEqual(peripheralBefore.slice(3));
+  const shadows = await page
+    .locator('.scope-lens')
+    .evaluate((el) => getComputedStyle(el).boxShadow);
+  expect(shadows).not.toContain('1280px');
   await page.screenshot({ path: 'test-results/bp04-sniper-scope.png' });
   await page.mouse.down();
   await page.clock.runFor(96);
@@ -100,7 +168,9 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   expect(await number('spread')).toBeGreaterThan(0.01);
   await page.keyboard.down('Shift');
   await page.clock.runFor(800);
-  expect(await number('ads')).toBeLessThan(0.02);
+  // HUD ADS is sampled at 4 Hz; the optical view itself must already be gone.
+  expect(await number('ads')).toBeLessThan(0.05);
+  await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '0');
   expect(Number(await page.getByTestId('speed').textContent())).toBeGreaterThan(
     7,
   );
@@ -112,7 +182,8 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
     'data-state',
     'sliding',
   );
-  expect(await number('ads')).toBeLessThan(0.02);
+  expect(await number('ads')).toBeLessThan(0.05);
+  await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '0');
   await page.keyboard.press('Space');
   await page.clock.runFor(256);
   await expect(page.getByTestId('movement-state')).toHaveText('AIRBORNE');
@@ -128,6 +199,16 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
 test('sniper damage, kills, ammo and shot effects are server-confirmed in an eight-player room', async ({
   page,
 }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'breakpoint.graphics.v2',
+      JSON.stringify({
+        preset: 'performance',
+        adaptive: false,
+        antiAliasing: 'off',
+      }),
+    ),
+  );
   const peers: Room<unknown, RoomState>[] = [];
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -146,10 +227,10 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
       });
       peers.push(peer);
       peer.onMessage('shot', (shot: ServerShot) => {
-        if (i === 0) shots.push(shot);
+        if (!shots.some((event) => event.id === shot.id)) shots.push(shot);
       });
       peer.onMessage('kill', (kill: KillEvent) => {
-        if (i === 0) kills.push(kill);
+        if (!kills.some((event) => event.id === kill.id)) kills.push(kill);
       });
       peer.onMessage('correction', () => {});
       peer.onMessage('notice', () => {});
@@ -158,6 +239,7 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
     await page.getByRole('button', { name: 'START SESSION' }).click();
     await page.getByRole('button', { name: 'BACK TO ARENA' }).click();
     await page.getByRole('button', { name: 'ENTER ROOM' }).click();
+    await expect(page.locator('.crosshair')).toBeVisible();
     await page.keyboard.press('4');
     await expect(page.getByTestId('weapon-status')).toHaveAttribute(
       'data-weapon',
@@ -200,6 +282,8 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
       victim: 'Target0',
       headshot: true,
     });
+    // Kill and shot are separate server messages; wait for both deliveries.
+    await expect.poll(() => shots.length).toBeGreaterThan(0);
     expect(shots[0]).toMatchObject({ weapon: 'sniper', shooter: shooter.id });
     expect(shots[0]!.traces).toHaveLength(1);
     await expect(page.getByTestId('weapon-status')).toHaveAttribute(

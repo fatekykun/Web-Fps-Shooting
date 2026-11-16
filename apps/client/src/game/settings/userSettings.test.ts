@@ -128,3 +128,30 @@ it('adds a sniper binding even when all spare number keys are already customized
   for (const action of actions)
     expect(normalized[action]).toBe(bindings[action]);
 });
+
+it('defaults old or invalid scope settings to classic while preserving other preferences', () => {
+  expect(defaultUserSettings().scopeStyle).toBe('classic');
+  for (const scopeStyle of [undefined, null, 'bad', 1, 'classic']) {
+    const value = normalizeUserSettings({ scopeStyle, fov: 103, muted: true });
+    expect(value.scopeStyle).toBe('classic');
+    expect(value.fov).toBe(103);
+    expect(value.muted).toBe(true);
+  }
+  expect(normalizeUserSettings({ scopeStyle: 'optic' }).scopeStyle).toBe(
+    'optic',
+  );
+});
+
+it('saves and restores either scope style', () => {
+  const data = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => data.set(key, value),
+  });
+  for (const scopeStyle of ['optic', 'classic'] as const) {
+    expect(saveUserSettings({ ...defaultUserSettings(), scopeStyle })).toBe(
+      true,
+    );
+    expect(loadUserSettings().scopeStyle).toBe(scopeStyle);
+  }
+});

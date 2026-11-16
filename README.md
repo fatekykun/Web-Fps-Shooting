@@ -279,15 +279,27 @@ are discarded; holding fire never queues another shot. Switching away preserves
 the cooldown. Switching weapons cancels a reload without spending reserve ammo.
 Bindings can be changed in Settings; existing customized controls are preserved.
 
-The scope uses a circular native-resolution reticle over the existing camera.
+Choose **Settings → Display → Sniper scope style**:
+
+- **Optical / lens-only zoom:** magnifies only the lens; surroundings stay at normal zoom.
+- **Classic / whole-view zoom (default):** magnifies the lens and background together, like a traditional CODM-style scope.
+
+The choice is saved on this browser. Older saved settings default to Classic;
+Restore Defaults also selects Classic. Both styles keep the raise-to-eye animation
+and circular native-resolution reticle.
 Actual **4× magnification** uses `2 atan(tan(baseFov / 2) / 4)` and respects your
 custom hip FOV. ADS, camera zoom, overlay and sensitivity blend smoothly; release
 right mouse to restore your FOV. The rifle rises and centers its hollow eyepiece
 at the eye before the optic opens. Zoom follows the raise, and the scope view
 takes over through the tube's opening; releasing aim reverses the same path.
-The rifle remains opaque, then is hidden once the optic masks the handoff.
-There is no second scene render, scope render target, blur or temporal
-history. Pixel textures retain nearest filtering and HUD text remains native.
+The surrounding world stays visible at your normal FOV while only the glass
+magnifies the target in Optical mode. An opaque scope rim, subtle glass reflection
+and edge shading frame both styles. Optical keeps the rifle visible around the
+optic; Classic hands over to the whole zoomed view when the scope reaches the eye.
+There is no fullscreen black mask, peripheral blur or temporal history. Optical
+uses one pooled lens-sized render target only while scoping, composited before
+the selected world AA. Classic uses the existing single world view. Pixel textures
+retain nearest filtering and HUD text stays native.
 
 Scoped walking is **45% of normal speed (2.25 m/s)**. Sprinting, sliding,
 backsliding, diving and posture recovery suppress the scope; holding aim restores

@@ -23,9 +23,12 @@ Camera zoom uses tangent-based magnification relative to the user's configured
 hip FOV. Render-frequency ADS also drives zoom-scaled sensitivity and the circular
 native-resolution scope overlay through a DOM ref; React still receives normal
 4 Hz telemetry/event updates. The opaque viewmodel rises and centers its hollow
-eyepiece before the native scope takes over, and is hidden at full scope. The
-scope introduces no additional world render, target, AA mode, blur or temporal
-history. Sniper geometry shares the box primitive, nearest-filtered textures and
+eyepiece before the native scope takes over. Classic is the default presentation,
+zooming the whole view and hiding the model at handoff. Optional Optical keeps the
+rifle visible around the optic. A lens-sized world render supplies magnification
+inside the glass; its peripheral camera keeps the player's hip FOV. Composition precedes the
+existing world AA, with no new AA mode, blur or temporal history. Sniper geometry
+shares the box primitive, nearest-filtered textures and
 material with the other pooled models: 60 instances, 720 triangles, one draw when
 visible. Only the bolt handle's instance matrix changes during cycling.
 
@@ -97,7 +100,7 @@ texture assets are allocated. Raw reports: `test-results/bp04-rifle-native.json`
 now accepts `--weapon rifle|smg|shotgun|sniper`. These local training results do not
 replace eight-human network play, audio mix/balance tuning or longer profiling.
 
-### BP-04 ADS animation follow-up — 2026-11-17
+### BP-04 ADS animation follow-up — 2026-11-17 (before lens-only rendering)
 
 Right-click now raises the rifle from the hip, centers the eyepiece, then brings
 it toward the eye. Camera magnification starts after the raise begins, rather
@@ -132,6 +135,88 @@ AA/shadows/adaptive-off setup averaged **59.75 FPS**, with a minimum rolling 1%
 low of **32.26 FPS** over 74 samples / 20 seconds, including walk/fire/ADS/reload.
 Raw report: `test-results/bp04-ads-sniper-native.json`. This remains a short local
 training measurement, with the same hardware/multiplayer limits as above.
+
+### BP-04 optical scope and visible peripheral vision — 2026-11-17
+
+The latest scope replaces the fullscreen dark surround with a local metal rim,
+restrained lens reflection and edge shading. Peripheral scenery stays visible at
+the configured hip FOV; magnification is confined to the circular glass. The
+existing raise-to-eye animation, custom FOV, recoil and sensitivity remain aligned
+with the central aim ray. The opaque weapon remains visible around the optic.
+
+`OpticScope.ts` copies the player's pose into a normal-FOV peripheral camera and
+a zoomed lens camera. The square lens projection compensates for aperture size,
+preserving true apparent 4x magnification even as the opening animates or the
+viewport changes shape. A single pooled nearest-filtered linear-color target is
+sized to 86% of the smaller world dimension (620x620 at Quality 1280x720). It is
+reused across ADS and resized only for world-resolution changes. Its MSAA sample
+count follows the existing renderer target; unsupported modes retain the existing
+fallback. The normal world render updates shadows once; the lens reuses those
+shadow maps. The circular composite is scissored to the aperture and inserted
+before the existing FXAA/SMAA chain, so AA remains exclusive and covers both views.
+Native HUD/reticle rendering is unchanged.
+
+The additional world render and composite run only while the lens is visible.
+Inactive optics add no draws. Scope attachments/materials are disposed with the
+renderer. The extra target and world pass are a deliberate visual-quality cost;
+earlier single-view profile numbers above describe the prior implementation.
+Weapon ownership, ammo, hit validation, movement and match rules are unchanged.
+
+New unit tests cover magnification at 65/85/110 base FOV across lens sizes,
+peripheral pose preservation, inactive cost, stable allocations during ADS,
+MSAA attachment changes and restored rendering state. Browser checks compare
+actual peripheral pixels before/after ADS and require them to stay unchanged,
+while pixels inside the optic must change. Captures retain the raise-to-eye
+sequence and full scope at `test-results/bp04-sniper-scope.png`.
+
+Validation: 239 unit/integration tests across 38 files passed. The optical pixel
+and movement scenario, AA/preset/resize scenario and eight-player server combat
+scenario passed across the focused browser runs. All five modes (OFF, FXAA, SMAA,
+MSAA 2X, MSAA 4X) rendered valid lens pixels without WebGL errors; settings switches
+and resizing were checked while using the optic. The room test waits for pointer
+capture and independently delivered shot/kill events, and uses the Performance
+preset so SwiftShader does not starve the client's real-time control packets.
+Build/typecheck, lint, formatting and whitespace checks passed.
+
+A fresh native UHD 620 / i7-8650U, Chrome 157.0.8103.79 ANGLE D3D11 profile at
+Quality 1280x720, high textures, AA/shadows/adaptive off averaged **59.65 FPS**.
+The minimum rolling 1% low was **23.79 FPS** in the 20-second walk/fire/ADS/reload
+sample (74 readings, after warmup). This measures the new additional lens render;
+the older single-view results are historical. Mean FPS stayed close to the prior
+59.75 run, while transient lows remain in the data. It is a short offline sample,
+not a full-match or universal device guarantee. Raw report:
+`test-results/bp04-optic-native.json`. Native profiling ran after functional tests
+completed; SwiftShader browser-test FPS is excluded from this measurement.
+
+### BP-04 selectable scope styles — 2026-11-17
+
+Settings → Display → Sniper scope style now offers Optical (lens-only zoom) and
+Classic (whole-view zoom). Classic is the default, including existing preferences
+without this new field and Restore Defaults. The `scopeStyle` preference is
+validated and persisted with other user settings; invalid values fall back to
+Classic without changing unrelated preferences or bindings.
+
+Both modes share ADS, magnification, sensitivity, raise-to-eye motion and the
+native rim/reticle. Optical uses the existing peripheral/lens renderer and keeps
+the weapon visible around the optic. Classic renders the already-zoomed gameplay
+camera over the entire screen and hides the model when the sight takes over,
+avoiding a solid tube obstructing the target. Classic skips the additional lens
+world/composite draws. Switching back to Optical reuses its pooled resources.
+There is no fullscreen black mask in either mode. Graphics presets and server
+combat rules are unchanged.
+
+Unit coverage checks safe defaults/migration, both persisted values and model
+visibility for both styles. Browser coverage compares actual peripheral pixels
+in both modes, verifies lower Classic draw counts and switching back without
+extra lens draws, checks persistence after reload and Restore Defaults, and
+retains Optical AA/resize coverage. Screenshots are
+`test-results/bp04-scope-style-classic.png` and `bp04-scope-style-optic.png`.
+
+Verification: 242 unit/integration tests across 38 files passed, plus the two
+browser scenarios for AA/resize and scope-style rendering/persistence/reset.
+Production build, typecheck and lint passed. No native performance benchmark was
+repeated for this preference-only change: Optical retains the measured renderer
+above; Classic's lower draw count is checked in the browser.
 
 ## BP-03 — camera-facing slide jumps
 

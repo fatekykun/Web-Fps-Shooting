@@ -19,7 +19,12 @@ import {
 } from './PerformanceMonitor';
 import { PracticeCombat, type CombatSnapshot } from '../combat/PracticeCombat';
 import { WeaponViewmodel } from '../weapons/WeaponViewmodel';
-import { sniperZoom } from '../weapons/SniperScope';
+import {
+  sniperZoom,
+  sniperScopeBlend,
+  sniperScopeDiameter,
+} from '../weapons/SniperScope';
+import type { OpticView } from '../rendering/OpticScope';
 import type { RoomView } from '@breakpoint/shared/network';
 import type { NetworkSession } from '../networking/NetworkSession';
 import { RemotePlayers } from '../networking/RemotePlayers';
@@ -68,6 +73,11 @@ interface GameCallbacks {
 
 /** Composes systems and owns their lifetimes; game rules remain in the systems. */
 export class Game {
+  private readonly opticView: OpticView = {
+    baseFov: 85,
+    blend: 0,
+    diameter: 86,
+  };
   private readonly rendering: GameRenderer;
   private readonly arena: TrainingArena;
   private readonly physics: PhysicsWorld;
@@ -421,6 +431,7 @@ export class Game {
       this.input.locked && armed,
       this.userSettings.reducedMotion ? 0.2 : 1,
       this.movement.state,
+      this.userSettings.scopeStyle,
     );
     if (this.input.locked)
       this.callbacks.onReticle(
@@ -436,11 +447,22 @@ export class Game {
         weapons.ads,
         armed && weapons.config.scopeMagnification ? weapons.ads : 0,
       );
+    const hasScope =
+      this.input.locked &&
+      armed &&
+      !!weapons.config.scopeMagnification &&
+      this.userSettings.scopeStyle === 'optic';
+    if (hasScope) {
+      this.opticView.baseFov = this.userSettings.fov;
+      this.opticView.blend = sniperScopeBlend(weapons.ads);
+      this.opticView.diameter = sniperScopeDiameter(weapons.ads);
+    }
     this.rendering.render(
       this.arena.scene,
       this.camera.camera,
       delta * 1000,
       this.input.locked && armed ? this.viewmodel : null,
+      hasScope ? this.opticView : null,
     );
     this.monitor.record(delta * 1000, performance.now() - start);
     const info = this.rendering.renderer.info.render;

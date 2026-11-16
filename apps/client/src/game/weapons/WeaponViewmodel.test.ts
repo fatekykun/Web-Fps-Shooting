@@ -48,62 +48,71 @@ it('pools the sniper into one draw with sharp textures and animates its bolt wit
   }
 });
 
-it('brings the sniper eyepiece to the eye before the model hands off, preserving hip and other weapons', () => {
-  const model = new WeaponViewmodel(),
-    weapons = new WeaponController(() => {});
-  try {
-    weapons.switchWeapon('sniper');
-    weapons.step(
-      0.2,
-      {
-        fire: false,
-        firePressed: false,
-        aim: false,
-        reloadPressed: false,
-        switchTo: null,
-      },
-      { speed: 0, grounded: true, verticalSpeed: 0 },
-    );
-    const mesh = model.scene.getObjectByName('weapon-sniper') as InstancedMesh;
-    const root = mesh.parent!;
-    model.update(weapons, 0, 1 / 60, true);
-    const hip = root.position.clone();
-    weapons.ads = 0.7;
-    model.update(weapons, 0, 1 / 60, true);
-    expect(root.visible).toBe(true);
-    expect(root.position.y).toBeGreaterThan(hip.y);
-    expect(root.position.z).toBeGreaterThan(hip.z);
-    expect(Math.abs(root.position.x)).toBeLessThan(0.001);
-    const material = Array.isArray(mesh.material)
-      ? mesh.material[0]!
-      : mesh.material;
-    expect(material.opacity).toBe(1);
-    weapons.ads = 0.85;
-    model.update(weapons, 0, 1 / 60, true);
-    expect(root.visible).toBe(false);
-    expect(material.opacity).toBe(1);
-    expect(material.transparent).toBe(false);
-    weapons.ads = 1;
-    model.update(weapons, 0, 1 / 60, true);
-    expect(root.visible).toBe(false);
-    weapons.ads = 0.7;
-    model.update(weapons, 0, 1 / 60, true);
-    expect(root.visible).toBe(true);
-    expect(material.opacity).toBe(1);
-    weapons.ads = 0;
-    model.update(weapons, 0, 1 / 60, true);
-    expect(root.position.toArray()).toEqual(hip.toArray());
-    weapons.switchWeapon('rifle');
-    weapons.ads = 1;
-    model.update(weapons, 0, 1 / 60, true);
-    expect(root.visible).toBe(true);
-    const rifle = model.scene.getObjectByName('weapon-rifle') as InstancedMesh;
-    expect(
-      Array.isArray(rifle.material)
-        ? rifle.material[0]!.transparent
-        : rifle.material.transparent,
-    ).toBe(false);
-  } finally {
-    model.dispose();
-  }
-});
+it.each(['optic', 'classic'] as const)(
+  'raises the sniper and preserves the correct model visibility for %s',
+  (style) => {
+    const model = new WeaponViewmodel(),
+      weapons = new WeaponController(() => {});
+    try {
+      weapons.switchWeapon('sniper');
+      weapons.step(
+        0.2,
+        {
+          fire: false,
+          firePressed: false,
+          aim: false,
+          reloadPressed: false,
+          switchTo: null,
+        },
+        { speed: 0, grounded: true, verticalSpeed: 0 },
+      );
+      const mesh = model.scene.getObjectByName(
+        'weapon-sniper',
+      ) as InstancedMesh;
+      const root = mesh.parent!;
+      const update = () =>
+        model.update(weapons, 0, 1 / 60, true, 1, 'walking', style);
+      update();
+      const hip = root.position.clone();
+      weapons.ads = 0.7;
+      update();
+      expect(root.visible).toBe(true);
+      expect(root.position.y).toBeGreaterThan(hip.y);
+      expect(root.position.z).toBeGreaterThan(hip.z);
+      expect(Math.abs(root.position.x)).toBeLessThan(0.001);
+      const material = Array.isArray(mesh.material)
+        ? mesh.material[0]!
+        : mesh.material;
+      expect(material.opacity).toBe(1);
+      weapons.ads = 0.85;
+      update();
+      expect(root.visible).toBe(style === 'optic');
+      expect(material.opacity).toBe(1);
+      expect(material.transparent).toBe(false);
+      weapons.ads = 1;
+      update();
+      expect(root.visible).toBe(style === 'optic');
+      weapons.ads = 0.7;
+      update();
+      expect(root.visible).toBe(true);
+      expect(material.opacity).toBe(1);
+      weapons.ads = 0;
+      update();
+      expect(root.position.toArray()).toEqual(hip.toArray());
+      weapons.switchWeapon('rifle');
+      weapons.ads = 1;
+      update();
+      expect(root.visible).toBe(true);
+      const rifle = model.scene.getObjectByName(
+        'weapon-rifle',
+      ) as InstancedMesh;
+      expect(
+        Array.isArray(rifle.material)
+          ? rifle.material[0]!.transparent
+          : rifle.material.transparent,
+      ).toBe(false);
+    } finally {
+      model.dispose();
+    }
+  },
+);

@@ -25,6 +25,7 @@ import {
 import type { WeaponController } from './WeaponController';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import type { GraphicsSettings } from '../rendering/graphicsConfig';
+import type { ScopeStyle } from '../settings/userSettings';
 import {
   sniperRaise,
   sniperEyePosition,
@@ -215,6 +216,7 @@ export class WeaponViewmodel {
     active: boolean,
     motion = 1,
     movement: MovementState = 'walking',
+    scopeStyle: ScopeStyle = 'classic',
   ): void {
     if (this.selected !== weapons.selected) {
       this.selected = weapons.selected;
@@ -228,8 +230,9 @@ export class WeaponViewmodel {
     const ads = weapons.ads;
     const scoped = !!weapons.config.scopeMagnification;
     const raise = scoped ? sniperRaise(ads) : ads;
-    const handoff = scoped ? sniperScopeBlend(ads) : 0;
-    this.root.visible = active && handoff < 1;
+    this.root.visible =
+      active &&
+      (!scoped || scopeStyle === 'optic' || sniperScopeBlend(ads) < 1);
     if (weapons.selected === 'sniper') {
       const progress = weapons.cycleProgress;
       const pull = weapons.cycling ? Math.sin(Math.PI * progress) : 0;

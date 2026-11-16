@@ -418,6 +418,7 @@ export function App() {
           className="sniper-scope"
           ref={scope}
           data-testid="sniper-scope"
+          data-style={preferences.scopeStyle}
           aria-hidden="true"
         >
           <div className="scope-lens">
