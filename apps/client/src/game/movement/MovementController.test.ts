@@ -1,0 +1,349 @@
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import {
+  movementConfig as config,
+  type MovementInput,
+} from '@breakpoint/shared';
+import { initializePhysics, PhysicsWorld } from '../physics/PhysicsWorld';
+import type { ArenaBox } from '../maps/arenaLayout';
+import { arenaBoxes, spawn } from '../maps/arenaLayout';
+import { MovementController } from './MovementController';
+
+const idle: MovementInput = { forward: 0, right: 0, yaw: 0 };
+const running: MovementInput = { forward: 1, right: 0, yaw: 0, sprint: true };
+const floor: ArenaBox = {
+  position: [0, -0.5, 0],
+  size: [200, 1, 200],
+  color: 0,
+};
+const dt = config.fixedStep;
+const speed = (player: MovementController) =>
+  Math.hypot(player.velocity.x, player.velocity.z);
+
+describe('movement transitions with real Rapier collision', () => {
+  const worlds: PhysicsWorld[] = [];
+  beforeAll(initializePhysics);
+  afterEach(() => {
+    worlds.forEach((world) => world.dispose());
+    worlds.length = 0;
+  });
+
+  function make(
+    boxes: readonly ArenaBox[] = [floor],
+    position = { x: 0, y: 0.91, z: 0 },
+  ) {
+    const world = new PhysicsWorld(boxes, position);
+    worlds.push(world);
+    const player = new MovementController(world);
+    return player;
+  }
+  function steps(
+    player: MovementController,
+    count: number,
+    input: MovementInput = idle,
+  ) {
+    for (let i = 0; i < count; i++) player.step(input, dt);
+  }
+  function run(player: MovementController) {
+    steps(player, 10);
+    steps(player, 60, running);
+  }
+
+  it('accelerates to sprint speed and releases smoothly toward walking speed', () => {
+    const player = make();
+    run(player);
+    expect(player.state).toBe('sprinting');
+    expect(speed(player)).toBeCloseTo(8, 1);
+    player.step({ ...running, sprint: false }, dt);
+    expect(player.state).toBe('walking');
+    expect(speed(player)).toBeGreaterThan(7.5);
+    steps(player, 120, { ...running, sprint: false });
+    expect(speed(player)).toBeCloseTo(5, 1);
+  });
+
+  it('accepts a slide tap across different grounded simulation phases in the Depot', () => {
+    for (let phase = 60; phase < 85; phase++) {
+      const player = make(arenaBoxes, { ...spawn });
+      steps(player, phase, running);
+      player.step({ ...running, slidePressed: true }, dt);
+      steps(player, 5, running);
+      expect(
+        player.state,
+        `slide phase ${phase}, grounded ${player.physics.grounded}`,
+      ).toBe('sliding');
+    }
+  });
+
+  it('maintains sprint momentum across the Depot floor without swallowed frames', () => {
+    const player = make(arenaBoxes, { ...spawn });
+    steps(player, 60, running);
+    for (let i = 0; i < 80; i++) {
+      player.step(running, dt);
+      expect(speed(player), `unobstructed frame ${i}`).toBeGreaterThan(7.9);
+    }
+  });
+
+  it('slides with momentum, smoothly lowers the capsule, then jumps without a walk-speed reset', () => {
+    const player = make();
+    run(player);
+    player.step({ ...running, slidePressed: true }, dt);
+    expect(player.state).toBe('sliding');
+    expect(speed(player)).toBeGreaterThan(9.5);
+    expect(player.physics.halfHeight).toBeGreaterThan(config.slideHalfHeight);
+    expect(player.previousEyeOffset - player.eyeOffset).toBeLessThanOrEqual(
+      2 * config.postureSpeed * dt + 0.0001,
+    );
+    steps(player, 9, running);
+    expect(player.physics.halfHeight).toBeCloseTo(config.slideHalfHeight);
+    expect(player.physics.position.y).toBeGreaterThan(0.86);
+    expect(player.physics.position.y).toBeLessThan(0.92);
+    const before = speed(player);
+    player.step({ ...running, jumpPressed: true }, dt);
+    expect(player.state).toBe('airborne');
+    expect(player.velocity.y).toBeGreaterThan(6);
+    expect(speed(player)).toBeGreaterThan(before * 0.95);
+    expect(player.physics.grounded).toBe(false);
+  });
+
+  it('cancels a slide into recovery without erasing momentum, and enforces cooldown', () => {
+    const player = make();
+    run(player);
+    player.step({ ...running, slidePressed: true }, dt);
+    steps(player, 8, running);
+    const before = speed(player);
+    player.step({ ...running, slidePressed: true }, dt);
+    expect(player.state).toBe('recovering');
+    expect(speed(player)).toBeGreaterThan(before * 0.9);
+    steps(player, 18, running);
+    expect(player.state).toBe('sprinting');
+    player.step({ ...running, slidePressed: true }, dt);
+    expect(player.state).toBe('sprinting');
+    steps(player, 10, running);
+    // The early press is buffered until the cooldown finishes, without a second press.
+    expect(player.state).toBe('sliding');
+  });
+
+  it('backslides while keeping the camera direction unchanged', () => {
+    const player = make();
+    run(player);
+    const input = { ...running, forward: -1, slidePressed: true };
+    player.step(input, dt);
+    expect(player.state).toBe('backsliding');
+    expect(player.velocity.z).toBeGreaterThan(5.5);
+    expect(speed(player)).toBeLessThanOrEqual(config.backslideSpeed + 0.01);
+    expect(input.yaw).toBe(0);
+  });
+
+  it('allows a short W-to-S transition before the backslide press', () => {
+    const player = make();
+    run(player);
+    steps(player, 5, { ...running, forward: -1 });
+    expect(speed(player)).toBeLessThan(config.slideMinimumSpeed);
+    player.step({ ...running, forward: -1, slidePressed: true }, dt);
+    expect(player.state).toBe('backsliding');
+    expect(player.velocity.z).toBeGreaterThan(5.5);
+  });
+
+  it('rejects low-speed and airborne slide/dive boosts', () => {
+    const player = make();
+    steps(player, 10);
+    player.step({ ...running, slidePressed: true, divePressed: true }, dt);
+    steps(player, 10, running);
+    expect(player.state).toBe('sprinting');
+    run(player);
+    player.step({ ...running, jumpPressed: true }, dt);
+    const before = speed(player);
+    player.step({ ...running, slidePressed: true, divePressed: true }, dt);
+    expect(player.state).toBe('airborne');
+    expect(speed(player)).toBeLessThanOrEqual(before + 0.1);
+    expect(player.physics.halfHeight).toBe(config.capsuleHalfHeight);
+  });
+
+  it('bunny hops repeatedly with bounded air steering and retained takeoff momentum', () => {
+    const player = make();
+    run(player);
+    const before = speed(player);
+    player.step({ ...running, jump: true }, dt);
+    expect(speed(player)).toBeGreaterThan(before * 0.95);
+    let jumps = 1;
+    let previousY = player.velocity.y;
+    for (let i = 0; i < 600; i++) {
+      player.step({ ...running, right: i % 60 < 30 ? 1 : -1, jump: true }, dt);
+      if (player.velocity.y > 5 && previousY <= 0) jumps++;
+      previousY = player.velocity.y;
+      expect(speed(player)).toBeLessThanOrEqual(
+        config.maxHorizontalSpeed + 0.01,
+      );
+    }
+    expect(jumps).toBeGreaterThan(5);
+    expect(player.wallJumps).toBe(0);
+  });
+
+  it('buffers a short jump press before landing', () => {
+    const player = make([floor], { x: 0, y: 3, z: 0 });
+    for (let i = 0; i < 120 && player.physics.position.y > 1.1; i++)
+      player.step(idle, dt);
+    expect(player.physics.grounded).toBe(false);
+    player.step({ ...idle, jumpPressed: true }, dt);
+    let highestVelocity = player.velocity.y;
+    for (let i = 0; i < 10; i++) {
+      player.step(idle, dt);
+      highestVelocity = Math.max(highestVelocity, player.velocity.y);
+    }
+    expect(highestVelocity).toBeGreaterThan(5);
+  });
+
+  it('allows a coyote-time jump just after walking off a ledge', () => {
+    const ledge: ArenaBox = {
+      position: [0, -0.5, 0],
+      size: [4, 1, 4],
+      color: 0,
+    };
+    const player = make([ledge]);
+    steps(player, 10);
+    for (let i = 0; i < 120 && player.physics.grounded; i++)
+      player.step(running, dt);
+    expect(player.physics.grounded).toBe(false);
+    player.step({ ...running, jumpPressed: true }, dt);
+    expect(player.velocity.y).toBeGreaterThan(6);
+  });
+
+  it('dives airborne, stays low until landing, and recovers to sprint without a velocity reset', () => {
+    const player = make();
+    run(player);
+    player.step({ ...running, divePressed: true }, dt);
+    expect(player.state).toBe('diving');
+    expect(player.velocity.y).toBeGreaterThan(3);
+    expect(player.physics.grounded).toBe(false);
+    steps(player, 12, { ...running, jump: true });
+    expect(player.physics.halfHeight).toBeCloseTo(config.diveHalfHeight);
+    expect(player.state).toBe('diving');
+    // Holding jump cannot cancel a dive's mandatory landing/recovery interval.
+    steps(player, 18, running);
+    expect(player.state).toBe('diving');
+    steps(player, 40, running);
+    expect(player.state).toBe('sprinting');
+    expect(player.physics.halfHeight).toBeCloseTo(config.capsuleHalfHeight);
+    expect(speed(player)).toBeGreaterThan(3);
+    steps(player, 60, running);
+    expect(speed(player)).toBeCloseTo(config.sprintSpeed, 1);
+  });
+
+  it('enforces dive recovery even when jump is held on landing', () => {
+    const player = make();
+    run(player);
+    player.step({ ...running, divePressed: true }, dt);
+    for (let i = 0; i < 120 && player.state === 'diving'; i++)
+      player.step({ ...running, jump: true }, dt);
+    expect(player.state).toBe('recovering');
+    steps(player, 8, { ...running, jump: true });
+    expect(player.state).toBe('recovering');
+    expect(player.velocity.y).toBe(0);
+    steps(player, 8, { ...running, jump: true });
+    expect(player.state).toBe('airborne');
+    expect(player.velocity.y).toBeGreaterThan(0);
+  });
+
+  it('detects a ceiling by its contact normal, stops ascent and falls normally', () => {
+    const ceiling: ArenaBox = {
+      position: [0, 2.75, 0],
+      size: [20, 1, 20],
+      color: 0,
+    };
+    const player = make([floor, ceiling]);
+    steps(player, 10);
+    player.step({ ...idle, jumpPressed: true }, dt);
+    let touchedCeiling = false;
+    for (let i = 0; i < 100; i++) {
+      player.step(idle, dt);
+      expect(player.physics.position.y).toBeLessThan(1.4);
+      touchedCeiling ||= player.physics.hitCeiling;
+    }
+    expect(touchedCeiling).toBe(true);
+    expect(player.physics.grounded).toBe(true);
+  });
+
+  it('preserves capsule feet and rejects standing underneath an overhang', () => {
+    const roof: ArenaBox = { position: [0, 1.6, 0], size: [4, 1, 4], color: 0 };
+    const player = make([floor, roof]);
+    player.physics.resize(config.slideHalfHeight);
+    const anchor = player.physics.position.y;
+    expect(player.physics.canStand()).toBe(false);
+    expect(player.physics.resize(config.capsuleHalfHeight)).toBe(false);
+    expect(player.physics.halfHeight).toBe(config.slideHalfHeight);
+    expect(player.physics.position.y).toBe(anchor);
+    player.physics.move({ x: 4, y: -0.03, z: 0 });
+    expect(player.physics.canStand()).toBe(true);
+    expect(player.physics.resize(config.capsuleHalfHeight)).toBe(true);
+  });
+
+  it('keeps recovery low under a roof and stands automatically after exiting', () => {
+    const roof: ArenaBox = {
+      position: [0, 1.6, -14],
+      size: [4, 1, 12],
+      color: 0,
+    };
+    const player = make([floor, roof]);
+    steps(player, 10);
+    steps(player, 60, running);
+    player.step({ ...running, slidePressed: true }, dt);
+    expect(player.state).toBe('sliding');
+    steps(player, 55, running);
+    expect(player.state).toBe('recovering');
+    expect(player.physics.halfHeight).toBeLessThan(config.capsuleHalfHeight);
+    expect(player.physics.canStand()).toBe(false);
+    player.step({ ...running, jumpPressed: true }, dt);
+    expect(player.velocity.y).toBe(0);
+    steps(player, 260, running);
+    expect(player.physics.position.z).toBeLessThan(-17);
+    expect(player.state).toBe('sprinting');
+    expect(player.physics.halfHeight).toBeCloseTo(config.capsuleHalfHeight);
+  });
+
+  it('wall jumps away from the normal and preserves tangential momentum', () => {
+    const wall: ArenaBox = {
+      position: [1, 10, 0],
+      size: [0.5, 20, 30],
+      color: 0,
+    };
+    const player = make([floor, wall], { x: 0.35, y: 5, z: 0 });
+    player.velocity.z = -5;
+    player.step({ ...idle, jumpPressed: true }, dt);
+    expect(player.wallJumps).toBe(1);
+    expect(player.velocity.x).toBeLessThan(-6.5);
+    expect(player.velocity.z).toBeLessThan(-4.8);
+    expect(player.velocity.y).toBeGreaterThan(6);
+    steps(player, 16);
+    player.physics.move({ x: 10, y: 0, z: 0 });
+    player.step({ ...idle, jumpPressed: true }, dt);
+    expect(player.wallJumps).toBe(1);
+  });
+
+  it('prevents infinite alternating wall jumps and resets the allowance only on landing', () => {
+    const walls: ArenaBox[] = [-0.75, 0.75].map((x) => ({
+      position: [x, 10, 0],
+      size: [0.3, 20, 30],
+      color: 0,
+    }));
+    const player = make([floor, ...walls], { x: 0.1, y: 10, z: 0 });
+    for (let i = 0; i < 70; i++)
+      player.step({ ...idle, jumpPressed: i % 15 === 0 }, dt);
+    expect(player.wallJumps).toBe(config.maxWallJumps);
+    steps(player, 300);
+    expect(player.physics.grounded).toBe(true);
+    expect(player.wallJumps).toBe(0);
+  });
+
+  it('freezes momentum and interpolation during a pause in midair', () => {
+    const player = make();
+    run(player);
+    player.step({ ...running, jump: true }, dt);
+    const velocity = { ...player.velocity };
+    const position = { ...player.physics.position };
+    player.synchronize();
+    expect(player.velocity).toEqual(velocity);
+    expect(player.previousPosition).toEqual(position);
+    expect(player.previousEyeOffset).toBe(player.eyeOffset);
+    player.step(idle, dt);
+    expect(player.velocity.y).toBeCloseTo(velocity.y - config.gravity * dt);
+  });
+});

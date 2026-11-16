@@ -1,0 +1,20 @@
+{
+  "name": "@breakpoint/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./movement/*": "./src/movement/*.ts",
+    "./physics": "./src/physics/PhysicsWorld.ts",
+    "./maps": "./src/maps/arenaLayout.ts",
+    "./network": "./src/network/protocol.ts",
+    "./weapons/*": "./src/weapons/*.ts",
+    "./combat": "./src/combat/networkCombat.ts",
+    "./avatar": "./src/combat/avatar.ts",
+    "./match": "./src/config/match.ts"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0"
+  }
+}

@@ -1,0 +1,112 @@
+import type { GameTelemetry } from '../game/core/Game';
+import { movementConfig } from '@breakpoint/shared';
+
+export function Telemetry({ stats }: { stats: GameTelemetry | null }) {
+  return (
+    <aside
+      className="telemetry"
+      aria-label="Live performance metrics"
+      data-fps={stats?.fps}
+      data-frame-ms={stats?.frameMs}
+      data-low-fps={stats?.lowFps}
+      data-cpu-ms={stats?.cpuMs}
+      data-draws={stats?.drawCalls}
+      data-triangles={stats?.triangles}
+      data-heap-mb={stats?.heapMb}
+    >
+      <div className="fps-line">
+        <span className="perf-icon">▥</span>
+        <strong data-testid="fps">{stats ? Math.round(stats.fps) : '—'}</strong>
+        <span>FPS</span>
+        <span className="perf-badge">LIVE</span>
+      </div>
+      <dl>
+        <div>
+          <dt>FRAME / 1% LOW</dt>
+          <dd>
+            {stats
+              ? `${stats.frameMs.toFixed(1)} ms / ${Math.round(stats.lowFps)}`
+              : '—'}
+          </dd>
+        </div>
+        <div>
+          <dt>CPU SUBMIT</dt>
+          <dd>{stats ? `${stats.cpuMs.toFixed(2)} ms` : '—'}</dd>
+        </div>
+        <div>
+          <dt>DRAWS / TRIS</dt>
+          <dd>
+            {stats
+              ? `${stats.drawCalls} / ${stats.triangles.toLocaleString()}`
+              : '—'}
+          </dd>
+        </div>
+        <div>
+          <dt>JS HEAP</dt>
+          <dd>
+            {stats?.heapMb != null ? `${stats.heapMb.toFixed(1)} MB` : 'N/A'}
+          </dd>
+        </div>
+      </dl>
+      {stats?.network && (
+        <div
+          className="render-readout"
+          data-testid="network-status"
+          data-peers={stats.network.peers}
+          data-ack={stats.network.ack}
+        >
+          <span>
+            {stats.network.peers} PEERS / ACK {stats.network.ack}
+          </span>
+          <span>NET 60 / 20</span>
+        </div>
+      )}
+      <div
+        className="render-readout"
+        data-testid="render-resolution"
+        data-width={stats?.renderWidth}
+        data-height={stats?.renderHeight}
+        data-output-width={stats?.outputWidth}
+        data-output-height={stats?.outputHeight}
+        data-preset={stats?.graphicsPreset}
+        data-world-draws={stats?.worldDrawCalls}
+        data-draws={stats?.drawCalls}
+      >
+        <span>
+          WORLD {stats ? `${stats.renderWidth} × ${stats.renderHeight}` : '—'}
+        </span>
+        <span>{stats?.adaptiveResolution ? 'AUTO' : 'FIXED'} / NEAREST</span>
+      </div>
+      <div
+        className="position-readout"
+        data-testid="position"
+        data-x={stats?.x}
+        data-y={stats?.y}
+        data-z={stats?.z}
+        data-state={stats?.movementState}
+        data-half-height={stats?.halfHeight}
+        data-wall-jumps={stats?.wallJumps}
+      >
+        XYZ{' '}
+        {stats
+          ? `${stats.x.toFixed(1)} / ${stats.y.toFixed(1)} / ${stats.z.toFixed(1)}`
+          : '—'}
+        <br />
+        <span data-testid="speed">
+          {stats ? stats.speed.toFixed(1) : '0.0'}
+        </span>{' '}
+        M/S{' '}
+        <span className="ground-label">
+          {stats?.grounded ? 'GROUNDED' : 'AIR'}
+        </span>
+        <br />
+        <span data-testid="movement-state">
+          {stats?.movementState.toUpperCase() ?? 'STANDBY'}
+        </span>
+        <span className="ground-label">
+          WALL {stats?.wallJumps ?? 0}/{movementConfig.maxWallJumps}
+        </span>
+      </div>
+    </aside>
+  );
+}

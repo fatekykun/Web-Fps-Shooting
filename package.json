@@ -1,0 +1,48 @@
+{
+  "name": "breakpoint",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0 || >=26.0.0"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace=@breakpoint/client",
+    "dev:server": "npm run dev --workspace=@breakpoint/server",
+    "start:server": "npm run start --workspace=@breakpoint/server",
+    "build": "npm run typecheck && npm run build --workspace=@breakpoint/client && npm run build --workspace=@breakpoint/server",
+    "build:client": "npm run typecheck && npm run build --workspace=@breakpoint/client",
+    "build:server": "npm run typecheck && npm run build --workspace=@breakpoint/server",
+    "smoke:multiplayer": "node --experimental-strip-types scripts/smoke-multiplayer.ts",
+    "profile:browser": "node --experimental-strip-types scripts/profile-browser.ts",
+    "check:deployment": "node --experimental-strip-types scripts/check-deployment.ts",
+    "preview": "npm run preview --workspace=@breakpoint/client",
+    "typecheck": "tsc -p apps/shared/tsconfig.json && tsc -p apps/client/tsconfig.json && tsc -p apps/server/tsconfig.json && tsc -p tsconfig.tools.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "playwright test",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "eslint": "^10.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "typescript": "~6.0.0",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}

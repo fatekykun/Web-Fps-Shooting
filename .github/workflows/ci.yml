@@ -1,0 +1,46 @@
+name: Game checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test -- --maxWorkers=2
+      - run: npm run build
+      - run: npm run check:deployment
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - name: Eight-player FFA and TDM socket smoke
+        run: |
+          node apps/server/dist/index.js &
+          room_server_pid=$!
+          trap 'kill "$room_server_pid" 2>/dev/null || true' EXIT
+          npm run smoke:multiplayer -- --seconds 5
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: game-verification
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7

@@ -1,0 +1,25 @@
+# Root directory stays at repository root so the shared workspace is available.
+# Free supports friends testing, but sleeps after idle time. For always-on service,
+# select a paid compute plan in Render after reviewing its current price.
+services:
+  - type: web
+    name: breakpoint-rooms
+    runtime: node
+    plan: free
+    region: singapore
+    numInstances: 1
+    buildCommand: npm ci --include=dev && npm run build:server
+    startCommand: npm run start:server
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 24.21.0
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: MAX_ROOMS
+        value: 16
+      - key: ALLOWED_ORIGINS
+        sync: false

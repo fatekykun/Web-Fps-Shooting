@@ -1,0 +1,187 @@
+import { randomInt } from 'node:crypto';
+import { Room, ServerError, type Client } from '@colyseus/core';
+import { initializePhysics } from '@breakpoint/shared/physics';
+import { networkConfig, parseName } from '@breakpoint/shared/network';
+import { RoomState, PlayerState } from './RoomState';
+import { ServerPlayer } from '../players/ServerPlayer';
+import { ServerCombat } from '../combat/ServerCombat';
+import { MatchController } from '../game-modes/MatchController';
+import { RoomCapacity } from './RoomCapacity';
+
+const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const codes = new Set<string>();
+function reserveCode(): string {
+  let code: string;
+  do {
+    code = Array.from(
+      { length: 6 },
+      () => alphabet[randomInt(alphabet.length)],
+    ).join('');
+  } while (codes.has(code));
+  codes.add(code);
+  return code;
+}
+
+export class DepotRoom extends Room<{ state: RoomState }> {
+  static capacity = new RoomCapacity(16);
+  private releaseCapacity?: () => void;
+  state = new RoomState();
+  maxClients = networkConfig.maxPlayers;
+  patchRate = networkConfig.patchRate;
+  maxMessagesPerSecond = 120;
+  private readonly simulations = new Map<string, ServerPlayer>();
+  private readonly combat = new ServerCombat(
+    this.simulations,
+    (shot) => this.broadcast('shot', shot),
+    (kill) => {
+      this.match.recordKill(kill);
+      this.broadcast('kill', kill);
+    },
+  );
+  private readonly match = new MatchController(
+    this.state,
+    this.simulations,
+    this.combat,
+  );
+
+  async onCreate(options?: { settings?: unknown }): Promise<void> {
+    this.releaseCapacity = DepotRoom.capacity.reserve();
+    try {
+      await this.initialize(options);
+    } catch (error) {
+      this.releaseCapacity();
+      throw error;
+    }
+  }
+
+  private async initialize(options?: { settings?: unknown }): Promise<void> {
+    await initializePhysics();
+    if (options?.settings !== undefined) {
+      const error = this.match.configure(options.settings);
+      if (error) throw new ServerError(400, error);
+    }
+    this.roomId = reserveCode();
+    await this.setMatchmaking({
+      private: true,
+      maxClients: networkConfig.maxPlayers,
+    });
+    this.onMessage('input', (client, payload: unknown) => {
+      const player = this.simulations.get(client.sessionId);
+      if (!player?.enqueue(payload)) {
+        // Continuing after dropping an input breaks sequence history; explicitly end the session.
+        client.leave(
+          4002,
+          player?.rejectionReason ?? 'Player session unavailable.',
+        );
+      }
+      if (this.state.phase !== 'playing') player?.freeze();
+    });
+    this.onMessage('ready', (client, ready: unknown) => {
+      if (this.state.phase !== 'lobby' || typeof ready !== 'boolean') return;
+      const player = this.state.players.get(client.sessionId);
+      if (player) player.ready = ready;
+    });
+    this.onMessage('*', () => {
+      /* Unrecognized hit/damage/ammo claims have no authority. */
+    });
+    this.onMessage('configure', (client, value: unknown) => {
+      if (client.sessionId !== this.state.hostId) return;
+      const error = this.match.configure(value);
+      if (error) client.send('notice', error);
+    });
+    this.onMessage('team', (client, value: unknown) => {
+      const error = this.match.changeTeam(client.sessionId, value);
+      if (error) client.send('notice', error);
+    });
+    this.onMessage('lobby', (client) => {
+      if (client.sessionId !== this.state.hostId) return;
+      const error = this.match.returnToLobby();
+      if (error) client.send('notice', error);
+    });
+    this.onMessage('start', (client) => {
+      if (
+        client.sessionId !== this.state.hostId ||
+        this.state.phase !== 'lobby'
+      )
+        return;
+      const error = this.match.start();
+      if (error) client.send('notice', error);
+    });
+    this.setFixedTimestep(() => {
+      this.state.tick++;
+      if (this.match.beforeTick()) {
+        for (const player of this.simulations.values()) player.step();
+        this.combat.step(this.state.tick);
+        this.match.afterCombat();
+      }
+      if (this.state.tick % 3 === 0) {
+        for (const client of this.clients) {
+          const player = this.simulations.get(client.sessionId);
+          if (player)
+            client.send('correction', {
+              ack: player.state.ack,
+              snapshot: player.movement.capture(),
+              combat: this.combat.owner(player),
+              look: { yaw: player.state.yaw, pitch: player.state.pitch },
+            });
+        }
+      }
+    }, networkConfig.tickRate);
+  }
+
+  onAuth(_client: Client, options: unknown): boolean {
+    const name =
+      options && typeof options === 'object' && 'name' in options
+        ? parseName(options.name)
+        : null;
+    if (!name)
+      throw new ServerError(400, 'Choose a player name of 1–20 characters.');
+    if (!this.match.canJoin())
+      throw new ServerError(
+        409,
+        'This round is full. Join again after it ends.',
+      );
+    return true;
+  }
+
+  onJoin(client: Client, options: { name: string }): void {
+    const slots = new Set(
+      [...this.state.players.values()].map((player) => player.slot),
+    );
+    let slot = 0;
+    while (slots.has(slot)) slot++;
+    const player = new PlayerState({
+      id: client.sessionId,
+      name: parseName(options.name)!,
+      slot,
+    });
+    this.match.assignTeam(player);
+    if (!this.state.hostId) {
+      this.state.hostId = client.sessionId;
+      player.ready = true;
+    }
+    const simulation = new ServerPlayer(player);
+    this.simulations.set(client.sessionId, simulation);
+    this.combat.add(simulation);
+    this.state.players.set(client.sessionId, player);
+    this.match.joined(simulation);
+  }
+
+  onLeave(client: Client): void {
+    this.match.left(client.sessionId);
+    this.simulations.get(client.sessionId)?.dispose();
+    this.simulations.delete(client.sessionId);
+    this.combat.remove(client.sessionId);
+    this.state.players.delete(client.sessionId);
+    if (this.state.hostId === client.sessionId) {
+      this.state.hostId = this.state.players.keys().next().value ?? '';
+    }
+  }
+
+  onDispose(): void {
+    this.releaseCapacity?.();
+    for (const player of this.simulations.values()) player.dispose();
+    this.simulations.clear();
+    codes.delete(this.roomId);
+  }
+}

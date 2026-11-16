@@ -1,0 +1,19 @@
+{
+  "name": "@breakpoint/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@breakpoint/shared": "*",
+    "@colyseus/sdk": "^0.18.10",
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "three": "^0.187.0"
+  }
+}
