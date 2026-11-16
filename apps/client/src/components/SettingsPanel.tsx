@@ -245,6 +245,7 @@ export function SettingsPanel({
               settings={graphics}
               onChange={onGraphics}
               idPrefix="settings"
+              advanced
             />
             <div className="section-heading">
               <h3>PRESENTATION</h3>

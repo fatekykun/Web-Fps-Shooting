@@ -1,6 +1,7 @@
 import {
   BufferAttribute,
   BufferGeometry,
+  BasicShadowMap,
   LinearSRGBColorSpace,
   Mesh,
   MeshBasicMaterial,
@@ -56,6 +57,7 @@ export class GameRenderer {
   private readonly adaptive: AdaptiveResolution;
   private outputWidth = 1;
   private outputHeight = 1;
+  private renderScale = 1;
   worldDrawCalls = 0;
 
   get preset(): GraphicsPreset {
@@ -70,6 +72,9 @@ export class GameRenderer {
 
   constructor(host: HTMLElement, settings: GraphicsSettings) {
     this.adaptive = new AdaptiveResolution(settings);
+    this.renderScale = settings.renderScale;
+    this.renderer.shadowMap.enabled = settings.shadowQuality !== 'off';
+    this.renderer.shadowMap.type = BasicShadowMap;
     this.renderer.setPixelRatio(1);
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = NoToneMapping;
@@ -101,6 +106,8 @@ export class GameRenderer {
   }
 
   configure(settings: GraphicsSettings): void {
+    this.renderScale = settings.renderScale;
+    this.renderer.shadowMap.enabled = settings.shadowQuality !== 'off';
     this.adaptive.configure(settings);
     this.updateResolution();
   }
@@ -114,6 +121,7 @@ export class GameRenderer {
       this.adaptive.current,
       this.outputWidth,
       this.outputHeight,
+      this.renderScale,
     );
     if (size.width !== this.target.width || size.height !== this.target.height)
       this.target.setSize(size.width, size.height);

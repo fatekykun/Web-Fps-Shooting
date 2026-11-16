@@ -188,10 +188,17 @@ npm run profile:browser -- --url https://YOUR-ACTUAL-GAME.vercel.app --headed --
 The profiler runs training at 1280×720 with adaptive resolution disabled, warms up
 for five seconds, then records walking, fire, ADS and reload with renderer/CPU
 identity, rolling FPS/1% lows, CPU submission and draw/triangle counts. Repeat for
-Balanced and Quality. Run on the actual target machine and confirm the reported
+Balanced and Quality. `--preset ultra` uses a 1920×1080 viewport to measure the
+optional Ultra (1080p) preset at its actual target size. Run on the actual target machine and confirm the reported
 renderer is its hardware GPU. `--software` explicitly uses SwiftShader for tool
 verification; those numbers are never hardware benchmarks. Headless/headed mode
 and the scenario are included in reports. This tool uses the default bindings.
+
+BP-01 adds actual world resolution, texture detail, shadow map size, view distance
+and render scale to profile reports. `--shadows off|low|high` selects the static
+shadow setting (default Off). Presets now use 640×360, 960×540, 1280×720 and
+1920×1080. The existing BP-01 hardware measurements cover the first three presets;
+1080p performance depends on the device and needs its own profile.
 
 For the real friends test:
 

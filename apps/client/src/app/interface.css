@@ -429,6 +429,17 @@
 .settings-page .graphics-controls p {
   display: block;
 }
+.graphics-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+  margin-top: 20px;
+}
+@media (max-width: 500px) {
+  .graphics-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .audio-preview {
   display: flex;
   align-items: center;

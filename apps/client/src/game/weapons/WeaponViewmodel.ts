@@ -3,10 +3,14 @@ import {
   Color,
   DataTexture,
   Group,
+  HemisphereLight,
+  DirectionalLight,
   InstancedMesh,
   Matrix4,
   MeshBasicMaterial,
+  MeshLambertMaterial,
   NearestFilter,
+  NearestMipmapNearestFilter,
   PerspectiveCamera,
   RGBAFormat,
   Scene,
@@ -18,6 +22,8 @@ import {
   type WeaponId,
 } from '@breakpoint/shared';
 import type { WeaponController } from './WeaponController';
+import { createReadableMaterial } from '../rendering/ReadableMaterial';
+import type { GraphicsSettings } from '../rendering/graphicsConfig';
 
 /** All three low-poly models are pooled; the active model is one instanced draw. */
 export class WeaponViewmodel {
@@ -26,7 +32,8 @@ export class WeaponViewmodel {
   private readonly root = new Group();
   private readonly geometry = new BoxGeometry(1, 1, 1);
   private readonly texture: DataTexture;
-  private readonly material: MeshBasicMaterial;
+  private readonly lowTexture: DataTexture;
+  private readonly material: MeshLambertMaterial;
   private readonly flashMaterial = new MeshBasicMaterial({ color: 0xffc26b });
   private readonly flash = new InstancedMesh(
     this.geometry,
@@ -45,7 +52,7 @@ export class WeaponViewmodel {
     for (let y = 0; y < 32; y++)
       for (let x = 0; x < 32; x++) {
         const value =
-          (Math.floor(x / 4) * 7 + Math.floor(y / 4) * 11) % 9 < 2 ? 170 : 230;
+          (Math.floor(x / 4) * 7 + Math.floor(y / 4) * 11) % 13 < 2 ? 225 : 248;
         const offset = (y * 32 + x) * 4;
         pixels[offset] = value;
         pixels[offset + 1] = value;
@@ -54,11 +61,26 @@ export class WeaponViewmodel {
       }
     this.texture = new DataTexture(pixels, 32, 32, RGBAFormat);
     this.texture.colorSpace = SRGBColorSpace;
-    this.texture.minFilter = NearestFilter;
+    this.texture.minFilter = NearestMipmapNearestFilter;
     this.texture.magFilter = NearestFilter;
-    this.texture.generateMipmaps = false;
+    this.texture.generateMipmaps = true;
     this.texture.needsUpdate = true;
-    this.material = new MeshBasicMaterial({ map: this.texture });
+    const lowPixels = new Uint8Array(16 * 16 * 4);
+    for (let y = 0; y < 16; y++)
+      for (let x = 0; x < 16; x++)
+        for (let c = 0; c < 4; c++)
+          lowPixels[(y * 16 + x) * 4 + c] =
+            pixels[(y * 2 * 32 + x * 2) * 4 + c]!;
+    this.lowTexture = new DataTexture(lowPixels, 16, 16, RGBAFormat);
+    this.lowTexture.colorSpace = SRGBColorSpace;
+    this.lowTexture.minFilter = NearestMipmapNearestFilter;
+    this.lowTexture.magFilter = NearestFilter;
+    this.lowTexture.generateMipmaps = true;
+    this.lowTexture.needsUpdate = true;
+    this.material = createReadableMaterial({ map: this.texture }, 0.12);
+    const key = new DirectionalLight(0xfff0d9, 1.5);
+    key.position.set(-2, 4, 3);
+    this.scene.add(new HemisphereLight(0xf1f0dc, 0x8b9e8e, 2.1), key);
     for (const id of weaponOrder) this.build(id);
     const transform = new Matrix4();
     this.flash.setMatrixAt(0, transform.makeScale(0.12, 0.035, 0.02));
@@ -72,18 +94,32 @@ export class WeaponViewmodel {
     const barrelLength = id === 'smg' ? 0.2 : id === 'shotgun' ? 0.52 : 0.35;
     const barrelZ = -0.18 - barrelLength / 2;
     const parts = [
-      [0, 0, 0, 0.12, 0.14, 0.4, 0x59664f],
-      [0, 0.025, barrelZ, 0.04, 0.04, barrelLength, 0x343d37],
-      [0, -0.025, 0.29, 0.1, 0.1, id === 'smg' ? 0.13 : 0.22, 0x404b3c],
-      [0, -0.13, 0.11, 0.065, 0.2, 0.08, 0x303a32],
-      [0, -0.18, -0.035, 0.075, id === 'shotgun' ? 0.06 : 0.2, 0.11, 0x343e35],
+      [0, 0, 0, 0.12, 0.14, 0.4, 0x8c9d83],
+      [0, 0.025, barrelZ, 0.04, 0.04, barrelLength, 0x505f65],
+      [0, -0.025, 0.29, 0.1, 0.1, id === 'smg' ? 0.13 : 0.22, 0x677b68],
+      [0, -0.13, 0.11, 0.065, 0.2, 0.08, 0x4f6054],
+      [0, -0.18, -0.035, 0.085, id === 'shotgun' ? 0.06 : 0.22, 0.13, 0x4b5f67],
       [-0.027, 0.1, 0.14, 0.013, 0.055, 0.03, 0x222a26],
       [0.027, 0.1, 0.14, 0.013, 0.055, 0.03, 0x222a26],
       [0, 0.074, 0.14, 0.065, 0.014, 0.03, 0x222a26],
       [0, 0.095, barrelZ, 0.013, 0.03, 0.02, 0xe5b272],
-      [0.062, 0.02, -0.04, 0.005, 0.045, 0.08, 0xc79b60],
-      [0.045, -0.1, 0.12, 0.075, 0.1, 0.14, 0x927151],
-      [-0.045, -0.075, -0.17, 0.075, 0.08, 0.14, 0x927151],
+      [0, 0.065, barrelZ, 0.018, 0.04, 0.025, 0x536568],
+      [0.062, 0.02, -0.04, 0.005, 0.045, 0.08, 0xe2b77a],
+      [0.045, -0.1, 0.12, 0.075, 0.1, 0.14, 0xc59b77],
+      [-0.045, -0.075, -0.17, 0.075, 0.08, 0.14, 0xc59b77],
+      [0, 0.065, -0.03, 0.125, 0.012, 0.28, 0xb4bdab],
+      [
+        0,
+        id === 'shotgun' ? -0.222 : -0.302,
+        -0.035,
+        0.1,
+        0.024,
+        0.15,
+        0x899ba1,
+      ],
+      [0.045, -0.125, 0.19, 0.083, 0.11, 0.06, 0x758869],
+      [-0.045, -0.085, -0.1, 0.083, 0.09, 0.05, 0x758869],
+      [0, -0.08, 0.025, 0.018, 0.035, 0.07, 0xc8c8ab],
     ];
     if (id === 'shotgun')
       parts.push([0, -0.02, -0.33, 0.085, 0.075, 0.2, 0x6c7850]);
@@ -113,6 +149,10 @@ export class WeaponViewmodel {
   resize(width: number, height: number): void {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+  }
+
+  configureTexture(quality: GraphicsSettings['textureQuality']): void {
+    this.material.map = quality === 'low' ? this.lowTexture : this.texture;
   }
 
   update(
@@ -184,6 +224,7 @@ export class WeaponViewmodel {
     this.material.dispose();
     this.flashMaterial.dispose();
     this.texture.dispose();
+    this.lowTexture.dispose();
     this.scene.clear();
   }
 }

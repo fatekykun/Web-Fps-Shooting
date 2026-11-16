@@ -17,13 +17,13 @@ export class AdaptiveResolution {
   private fast = 0;
   private changedAt = -config.cooldownMs;
 
-  constructor(settings: GraphicsSettings) {
+  constructor(settings: Pick<GraphicsSettings, 'preset' | 'adaptive'>) {
     this.current = settings.preset;
     this.ceiling = presetOrder.indexOf(settings.preset);
     this.enabled = settings.adaptive;
   }
 
-  configure(settings: GraphicsSettings): void {
+  configure(settings: Pick<GraphicsSettings, 'preset' | 'adaptive'>): void {
     this.current = settings.preset;
     this.ceiling = presetOrder.indexOf(settings.preset);
     this.enabled = settings.adaptive;

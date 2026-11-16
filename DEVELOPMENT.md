@@ -4,8 +4,100 @@
 
 The repository initially contained only `prompt.md` and `.git`. The original
 brief is unchanged. Milestones 1–8 are implemented locally. Milestone 9 deployment
-code and verification tools are implemented; cloud publication, eight-human play
-and physical-device performance checks require the live hosting accounts/devices.
+code and verification tools are implemented; cloud publication and eight-human
+play still require live hosting accounts and participants. BP-01 adds local
+physical-device training measurements on the target Intel UHD 620 hardware.
+
+## 1080p graphics option
+
+Added **Ultra (1080p), 1920×1080**, above Quality in the shared preset list. Both
+graphics selectors expose it; validated preferences persist it with the existing
+v2 storage format. Balanced remains the default. Adaptive resolution can step
+down to Quality and recover to Ultra; disabling adaptive holds the chosen budget.
+Smaller windows clamp to their actual output and other aspects retain the pixel
+budget without stretching. The native HUD and other graphics controls are unchanged.
+
+The browser profiler accepts `--preset ultra` and uses a 1920×1080 viewport rather
+than measuring a 720p-clamped target. This option has 2.25 times Quality's world
+pixels; BP-01's recorded 720p measurements do not imply 1080p performance.
+
+Verified 20 focused resolution/settings/adaptive unit tests and all three graphics
+Chrome acceptance cases, including actual 1920×1080 rendering, persistence and
+resize behavior. Strict TypeScript, lint, formatting and production builds pass.
+
+## BP-01 — crisp retro graphics
+
+Ticket implementation focuses on client presentation. Presets are now 640×360,
+960×540 (default) and 1280×720 at 16:9, with aspect/pixel-budget clamping and the
+native HTML HUD preserved. Adaptive resolution retains hysteresis but stops at
+the new 640×360 Performance floor. Explicit Retro/Classic pixel-effect settings
+scale dimensions to 75%/50%; the default is full-preset Crisp.
+
+Graphics settings v2 migrate v1 preset/adaptive preferences and validate texture
+detail, shadow quality, view distance and render scale. High/Low switch actual
+32/16 px world and weapon textures. 40/60/80 m changes actual camera clipping and
+fog. Optional Low/High shadows use a cached static 512/1024 map; Off remains the
+default for integrated graphics. No dynamic avatar shadow updates, bloom, MSAA,
+screen-space outlines or additional presentation passes were introduced.
+
+The floor/structure/container palette is brighter and separated by material.
+Procedural tiles have restrained noise and readable seams; nearest magnification,
+nearest mip selection and continuous sampling gradients preserve pixel art while
+reducing distant shimmer. Container/case framing and corrugations share the trim
+batch, reducing base arena draws from seven to six despite more edge definition.
+Hemisphere fill and a directional key replace the darker single-light balance.
+
+Remote avatars retain exact shared geometry and depth-tested opaque rendering,
+with brighter head/body/team colors and subtle rim shading in the existing draw.
+Weapons add magazine/baseplate, cuff, receiver and sight detail in their existing
+instance batches with inexpensive matte lighting. Movement, weapon rules, server
+validation, networking, colliders, HUD layout and match modes are unchanged.
+
+150 unit/integration cases across 30 files pass; strict TypeScript, lint,
+formatting and production builds pass. All 17 Chrome acceptance cases pass across
+the full regression and focused runs, including two consecutive passes of the
+new visibility case. Graphics browser cases verify the three target resolutions,
+native HUD/aspect, exact 2×2 Performance output, correct sRGB, settings
+persistence, actual texture/map sizes and camera far plane. A moving SDK target
+checks medium/distant visibility and solid-cover occlusion. Its input batches are
+paced by server acknowledgements to avoid waypoint overshoot under software
+rendering. Multiplayer combat/modes, movement and the existing UI also passed.
+
+Native GPU profiles on 2026-11-16 identified Lenovo model **20KGS8GB2T**, Intel
+**i7-8650U / UHD 620**, ANGLE D3D11 and Chrome **157.0.8103.79**, rather than
+SwiftShader. The viewport was 1280×720, headless, one offline training player,
+high textures, shadows Off, view distance 60 m, Crisp scale, adaptive resolution
+disabled. Each updated preset ran for 20 seconds after a five-second warmup,
+cycling walking, firing, ADS and reload. Other tests were not run concurrently.
+
+| Configuration                     | World resolution | Average rolling FPS | Minimum rolling 1% low FPS |
+| --------------------------------- | ---------------- | ------------------- | -------------------------- |
+| Before BP-01, old Balanced (10 s) | 640×360          | 60.06               | 57.75                      |
+| Performance                       | 640×360          | 59.95               | 33.81                      |
+| Balanced                          | 960×540          | 59.98               | 35.76                      |
+| Quality                           | 1280×720         | 60.02               | 46.89                      |
+
+All three updated presets met the average 60 FPS target within normal sampling
+variation. Occasional frame-time dips remain; these short, separately timed
+profiles do not establish better or worse stutter than the shorter baseline,
+sustained thermal behavior, or full eight-player performance. The low-FPS column
+is the minimum of rolling readings, not a whole-run percentile. Headless native
+GPU results also do not replace human playtesting in a normal Chrome window.
+
+Raw reports are generated under ignored `.deploy/bp01/after-{preset}.json`; the
+baseline is `before-native-balanced.json`. Reproduce with the production preview
+running (`npm run build`, then `npm run preview -- --port 4173`):
+
+```powershell
+$env:PLAYWRIGHT_CHANNEL = 'chrome'
+npm run profile:browser -- --preset performance --seconds 20 --output test-results/bp01-performance.json
+npm run profile:browser -- --preset balanced --seconds 20 --output test-results/bp01-balanced.json
+npm run profile:browser -- --preset quality --seconds 20 --output test-results/bp01-quality.json
+```
+
+Add `--headed` for a visible Chrome run, or `--shadows low|high` to measure the
+optional cached shadow settings. Do not run other browser tests during profiling.
+No dependencies were added for this ticket.
 
 ## Milestone 9 — public deployment preparation
 
@@ -548,9 +640,11 @@ including browser and preview-server cleanup.
 
 ## Known limitations
 
-- Target ThinkPad X1 Carbon hardware has not been profiled; 60 FPS is unverified.
+- Target Intel UHD 620 training profiles are recorded under BP-01 above; full
+  eight-human network-match performance remains unverified.
 - Non-integer display scales create unequal block widths while retaining nearest sampling.
-- Nearest-only textures can shimmer at distance; there is no smoothing/temporal filter.
+- Nearest magnification preserves pixel art; mip selection reduces distant
+  shimmer, but there is no temporal filter.
 - Adaptive resolution reacts to total frame duration and cannot solve CPU/scheduling bottlenecks.
 - Desktop keyboard/mouse only. WebGL 2 and pointer lock are required.
 - Physics capsules and simple boxes only; no step climbing or ramp course yet.
@@ -564,7 +658,7 @@ including browser and preview-server cleanup.
 - The embedded Rapier compatibility WebAssembly chunk is ~1.67 MB gzip. Initial
   engine loading is asynchronous; Vite's large-chunk warning is expected.
 - Audio has no acoustic occlusion and needs human listening/mix tuning.
-- Production hosting, TLS and physical-device profiling remain milestone 9.
+- Production hosting, TLS and full eight-player device profiling remain release work.
 
 ## Milestone 1 file inventory (historical)
 
@@ -603,8 +697,8 @@ definitions. Exact versions and transitive dependencies are in `package-lock.jso
 Connect the hosting accounts, provision Vercel and the persistent Colyseus service,
 configure their actual HTTPS/WSS origins, and run the live socket/incognito invite
 checks before sharing a production URL. Verify eight human players across real
-network connections, listen/tune the audio mix, and profile the physical target
-hardware before making a 60 FPS claim.
+network connections, listen/tune the audio mix, and repeat target-device profiling
+during full matches before extending BP-01's training results to multiplayer.
 
 ## Release gate
 

@@ -56,7 +56,8 @@ Settings apply immediately and save in this browser when storage is available:
 
 **Restore defaults** resets preferences and graphics. Bindings update the menu
 and HUD hints. Preferences use `breakpoint.settings.v1`; graphics retain their
-separate `breakpoint.graphics.v1` key. Callsigns are remembered locally. Blocked
+separate `breakpoint.graphics.v2` key (existing v1 preferences migrate). Callsigns
+are remembered locally. Blocked
 storage does not prevent play. Each browser/device has independent preferences.
 
 Room creation/joining use separate tabs. The lobby shows the code, a **Copy code**
@@ -275,9 +276,10 @@ Settings persist locally when browser storage is available.
 
 | Preset             | World resolution at 16:9 | World pixels versus 1280×720 |
 | ------------------ | ------------------------ | ---------------------------- |
-| Performance        | 426×240                  | ~11%                         |
-| Balanced (default) | 640×360                  | 25%                          |
-| Quality            | 854×480                  | ~44%                         |
+| Performance        | 640×360                  | 25%                          |
+| Balanced (default) | 960×540                  | 56.25%                       |
+| Quality            | 1280×720                 | 100%                         |
+| Ultra (1080p)      | 1920×1080                | 225%                         |
 
 The world renders into a `WebGLRenderTarget` with nearest-neighbor minification
 and magnification, no mipmaps, no multisampling and no stencil attachment. One
@@ -287,9 +289,13 @@ pixelated` also prevents compositor smoothing. The output pixel ratio is capped
 at 1 to avoid extra high-DPI world-rendering cost; the HTML HUD, controls and
 crosshair retain the browser's native text/display resolution.
 
-Balanced gives exact 2×2 output blocks at 1280×720. Other scale factors use sharp
-nearest-neighbor sampling with occasionally unequal block widths; they do not
-blend neighboring world pixels. Other display aspect ratios keep a comparable
+Performance gives exact 2×2 output blocks at 1280×720. Balanced uses smaller,
+sharply sampled pixels, and Quality renders at the full 1280×720 target.
+**Ultra (1080p)** adds a 1920×1080 budget for stronger devices, with 2.25 times the
+world pixels of Quality. Balanced remains the default. World targets never exceed
+the browser viewport, so Ultra reaches 1920×1080 in a viewport at least that large.
+Other scale factors use sharp nearest-neighbor sampling with occasionally unequal
+block widths; they do not blend neighboring world pixels. Other display aspect ratios keep a comparable
 preset pixel budget while the camera uses the actual viewport aspect. Small
 windows never require a world target larger than their output.
 
@@ -300,12 +306,35 @@ with at least 10 seconds between changes. Resizing, visibility and mouse capture
 changes reset sampling; a single stall does not immediately change resolution.
 Disable adaptive resolution to hold your chosen preset exactly.
 
+**Settings → Display** also provides real rendering controls:
+
+- **Texture detail:** Low uses 16 px atlas tiles; High uses 32 px tiles. Weapon
+  textures switch too. Both retain nearest magnification and nearest mip selection.
+- **Shadow quality:** Off by default; Low/High use one cached 512/1024 directional
+  shadow map for static architecture. Moving avatars do not regenerate shadows.
+- **View distance:** 40/60/80 m sets the camera far plane and corresponding fog.
+- **Pixel effect:** Crisp uses the full preset budget; Retro/Classic use 75%/50%
+  dimensions for an explicit coarser look. HUD resolution is unaffected.
+
+The new clarity defaults use `breakpoint.graphics.v2`; older v1 preset/adaptive
+preferences migrate automatically. Adaptive scaling stops at the new Performance
+budget instead of the previous 426×240. Lower pixel-effect scales are opt-in.
+
 The Depot uses a generated 128×64 texture atlas containing eight 32px industrial
 tiles: concrete, panels, corrugated steel, crate reinforcement and caution paint.
-Atlas pixels occupy 32 KiB uncompressed, require no asset request, and use
-nearest sampling at tile texel centers to prevent seams. Instanced geometry,
-limited colors, fog, a single hemisphere light and disabled shadows keep the scene
-lightweight. The world render stays linear and converts to sRGB once on display.
+Both atlas qualities together occupy 40 KiB before mip levels and require no
+asset requests. Continuous world-UV gradients select mip levels without false LOD
+jumps at repeats; magnification and mip selection stay nearest. Brighter concrete,
+separate container colors, panel divisions and batched edge trim improve reading.
+Hemisphere fill and one directional light define surfaces without crushed blacks.
+Optional shadows are static and cached. The world target itself has no mipmaps,
+stays linear and converts to sRGB once on display.
+
+Remote avatars keep the shared body/head geometry, brighter team/part colors and
+subtle opaque rim shading in the same instance draw. Normal depth testing hides
+them behind cover; there is no through-wall outline or extra silhouette pass.
+Weapons add clearer magazines, cuffs, receiver trim and sight supports, plus
+matte directional lighting. Their aiming, recoil, equip and reload logic is unchanged.
 
 Graphics tuning lives in `apps/client/src/game/rendering/graphicsConfig.ts`.
 
@@ -378,8 +407,9 @@ regression still runs with normal browser time. Neither automated test is a GPU
 benchmark.
 
 Graphics checks switch all presets, reload persisted settings, test another
-viewport aspect, and read the real WebGL framebuffer. At Balanced/1280×720, they
-verify 192,000 exact 2×2 pixel blocks, nonblank textured output, disabled MSAA,
+viewport aspect, and read the real WebGL framebuffer. They verify Ultra's actual
+1920×1080 target and persistence, exact 2×2 pixel blocks at Performance/1280×720,
+nonblank textured output, disabled MSAA,
 correct display color conversion and one presentation draw. GPU readback exists
 only in the browser test, never in the game loop.
 
@@ -465,7 +495,7 @@ cover the workaround. Recheck slope behavior before adding a ramp course, and
 remove this compatibility setting once a stable upstream fix is verified.
 
 The arena uses simple boxes for collision, shared geometry, instanced solid
-architecture and container ribs, a single hemisphere light, fog and no dynamic
+architecture and edge/rib trim, hemisphere/directional light, fog and no dynamic
 shadows. Scene geometry/materials, physics resources, event handlers, observers,
 and the renderer are disposed on unmount, including React Strict Mode remounts.
 
@@ -478,16 +508,17 @@ CPU submission time, draw calls, triangles, and JS heap size when the browser
 exposes it. The window resets on pause/resume. CPU submission time does not
 include asynchronous GPU execution. JS heap reporting is browser-dependent.
 
-The base scene uses seven map draws; the dummy adds one. While playing, the active
+The base scene uses six map draws; the dummy adds one. While playing, the active
 viewmodel adds one instanced draw, with at most one each for muzzle flash and
 pooled impacts. Presentation remains one fullscreen draw. Renderer statistics
 include world, viewmodel and presentation rather than reporting only the final
 triangle. Target buffers resize only on
 settings, viewport or adaptive-level changes. Physics remains fixed at 60 Hz and
-React receives telemetry at 4 Hz. Nearest-only textures may shimmer at distance;
-fog and restrained texture detail limit that tradeoff without blurring pixels.
-Adaptive resolution cannot fix CPU, scheduling or network bottlenecks. No 60 FPS
-claim is made until a physical-device profiling pass is recorded.
+React receives telemetry at 4 Hz. Nearest mip selection and restrained texture
+detail reduce distance shimmer without smoothing magnified pixel art.
+Adaptive resolution cannot fix CPU, scheduling or network bottlenecks. BP-01's
+native Intel UHD 620 training measurements and their limits are recorded in
+`DEVELOPMENT.md`; full eight-player performance still needs a live match check.
 
 Rapier's compatibility package embeds WebAssembly, so its compressed startup
 download is larger than the other initial dependencies. It is split into its own

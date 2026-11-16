@@ -24,6 +24,7 @@ import {
   saveGraphicsSettings,
   type GraphicsSettings,
   defaultGraphics,
+  normalizeGraphicsSettings,
 } from '../game/rendering/graphicsConfig';
 
 export function App() {
@@ -167,6 +168,7 @@ export function App() {
   }, []);
 
   function changeGraphics(settings: GraphicsSettings): void {
+    settings = normalizeGraphicsSettings(settings);
     graphicsRef.current = settings;
     setGraphics(settings);
     saveGraphicsSettings(settings);
