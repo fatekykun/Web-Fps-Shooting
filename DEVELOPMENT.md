@@ -59,8 +59,11 @@ Reports are generated under ignored `test-results/`.
 The profiler was exercised for ten seconds at Balanced/1280×720 after warmup,
 recorded 33 telemetry samples and identified ANGLE SwiftShader/software rendering.
 It verifies the tool, not target-device GPU FPS. No new dependencies were added.
-The initial source is prepared for the configured GitHub remote. Vercel/Render
-account access and actual service URLs are still needed; no public frontend or
+The initial source is committed locally for the configured GitHub remote. A
+non-interactive push was attempted and failed because GitHub credentials are not
+available (`could not read Username`; terminal prompts disabled). Authenticate
+Git or connect the GitHub integration before pushing. Vercel/Render account
+access and actual service URLs are still needed; no public frontend or
 multiplayer service has been deployed or live-tested. GitHub CI is configured;
 remote Actions execution requires the source push and is not claimed as verified.
 

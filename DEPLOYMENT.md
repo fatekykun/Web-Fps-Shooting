@@ -6,6 +6,12 @@ exists only after those services have been created in your accounts, their real
 URLs configured, and the live verification below passes. Example URLs in this
 document are placeholders.
 
+Current handoff: the tested source is committed locally. The GitHub push was
+attempted but could not authenticate; no remote push, cloud deployment or public
+game URL is claimed. Connect GitHub, Vercel and Render to finish from this session,
+or authenticate Git and follow the dashboard steps below. Do not paste account
+passwords or access tokens into chat.
+
 ## What friends receive
 
 Share your **frontend HTTPS URL**, not localhost or the room server URL. A desktop
