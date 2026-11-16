@@ -74,11 +74,24 @@ export class MovementController {
     this.jumpBuffer = input.jumpPressed
       ? movementConfig.jumpBuffer
       : Math.max(0, this.jumpBuffer - dt);
+    // Buffer eligible taps across contact/cooldown boundaries, not a boost
+    // pressed at rest that becomes eligible only during the faster sprint ramp.
+    const actionEligible =
+      !(input.slidePressed || input.divePressed) ||
+      this.state === 'sliding' ||
+      this.state === 'backsliding' ||
+      Math.hypot(this.velocity.x, this.velocity.z) >=
+        movementConfig.slideMinimumSpeed ||
+      (input.sprint && input.forward < 0 && this.sprintGrace > 0);
     this.slideBuffer = input.slidePressed
-      ? movementConfig.actionBuffer
+      ? actionEligible
+        ? movementConfig.actionBuffer
+        : 0
       : Math.max(0, this.slideBuffer - dt);
     this.diveBuffer = input.divePressed
-      ? movementConfig.actionBuffer
+      ? actionEligible
+        ? movementConfig.actionBuffer
+        : 0
       : Math.max(0, this.diveBuffer - dt);
     this.sprintGrace = Math.max(0, this.sprintGrace - dt);
     const grounded = this.physics.grounded;
@@ -228,6 +241,8 @@ export class MovementController {
             input,
             dt,
             movementConfig.recoverySpeed,
+            movementConfig.groundAcceleration,
+            true,
           );
         else airMove(this.velocity, input, dt, this.wish);
         break;
@@ -262,9 +277,13 @@ export class MovementController {
     this.displacement.x = this.velocity.x * dt;
     this.displacement.y = this.velocity.y * dt;
     this.displacement.z = this.velocity.z * dt;
+    const requestedSpeed = Math.hypot(this.velocity.x, this.velocity.z);
     this.physics.move(this.displacement);
     this.velocity.x = (this.physics.position.x - this.previousPosition.x) / dt;
     this.velocity.z = (this.physics.position.z - this.previousPosition.z) / dt;
+    // Collision separation may add tiny tangential corrections; it must not
+    // become extra movement energy on the following tick.
+    capHorizontalSpeed(this.velocity, requestedSpeed);
     if (this.physics.grounded || this.physics.hitCeiling) this.velocity.y = 0;
     this.wasGrounded = grounded;
   }

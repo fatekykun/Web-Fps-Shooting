@@ -8,6 +8,31 @@ import type { OwnerCombat } from '@breakpoint/shared/combat';
 
 beforeAll(initializePhysics);
 
+it('replays direction reversals, sprint release and braking without prediction drift', () => {
+  const client = new MovementController(new PhysicsWorld(arenaBoxes, spawn));
+  const server = new MovementController(new PhysicsWorld(arenaBoxes, spawn));
+  const prediction = new Prediction(client);
+  const inputs: MovementInput[] = Array.from({ length: 110 }, (_, tick) => ({
+    forward: tick < 36 ? 1 : tick < 46 ? -1 : tick < 75 ? 1 : 0,
+    right: tick >= 46 && tick < 60 ? 1 : tick >= 60 && tick < 75 ? -1 : 0,
+    yaw: 0,
+    sprint: tick < 65,
+  }));
+  try {
+    for (const input of inputs) prediction.step(input, 0);
+    for (const input of inputs.slice(0, 38))
+      server.step(input, movementConfig.fixedStep);
+    prediction.reconcile({ ack: 38, snapshot: server.capture() });
+    for (const input of inputs.slice(38))
+      server.step(input, movementConfig.fixedStep);
+    expect(client.capture()).toEqual(server.capture());
+    expect(Math.hypot(client.velocity.x, client.velocity.z)).toBe(0);
+  } finally {
+    client.physics.dispose();
+    server.physics.dispose();
+  }
+});
+
 it('clears old-life prediction on death/respawn without reusing sequence numbers', () => {
   const player = new MovementController(new PhysicsWorld(arenaBoxes, spawn));
   const prediction = new Prediction(player);

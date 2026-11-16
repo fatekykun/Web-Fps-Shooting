@@ -33,7 +33,11 @@ export function airMove(
     velocity.x += wish.x * acceleration;
     velocity.z += wish.z * acceleration;
   }
-  const decay = Math.exp(-movementConfig.airDrag * dt);
+  const decay = Math.exp(
+    -(input.forward || input.right
+      ? movementConfig.airDrag
+      : movementConfig.airBraking) * dt,
+  );
   velocity.x *= decay;
   velocity.z *= decay;
   capHorizontalSpeed(velocity);

@@ -8,6 +8,105 @@ code and verification tools are implemented; cloud publication and eight-human
 play still require live hosting accounts and participants. BP-01 adds local
 physical-device training measurements on the target Intel UHD 620 hardware.
 
+## BP-02 — responsive movement and directional control
+
+The delay came from ground acceleration (45 m/s², sprint 30 m/s²), exponential
+release friction and normal-ground overspeed decay. Keyboard axes already update
+on key events; input smoothing, fixed 60 Hz physics and multiplayer architecture
+were not changed. The client and server continue to run the same shared controller.
+
+Normal ground movement now approaches a normalized 5 m/s walk or 8 m/s sprint
+target with independent rates. Opposite input uses strong counter-acceleration;
+sideways changes use a separate turning rate. Release braking reaches zero in a
+finite time without overshooting into the opposite direction. All values live in
+`apps/shared/src/config/movement.ts`:
+
+| Parameter                                 | Value       | Units |
+| ----------------------------------------- | ----------- | ----- |
+| Ground / sprint acceleration              | 70 / 90     | m/s²  |
+| Strafing / backward acceleration          | 85 / 70     | m/s²  |
+| Direction change / reversal acceleration  | 140 / 220   | m/s²  |
+| Ground / sprint braking                   | 100 / 130   | m/s²  |
+| Strafing / backward braking               | 110 / 100   | m/s²  |
+| Air acceleration                          | 8           | m/s²  |
+| Air drag / neutral braking                | 0.08 / 0.12 | 1/s   |
+| Slide friction / recovery overspeed decay | 1 / 3       | 1/s   |
+| Ability horizontal speed cap              | 12          | m/s   |
+
+Ordinary walking sheds overspeed promptly. Sliding, backsliding and the short
+posture-recovery interval keep their separate momentum rules. Jump handling still
+precedes ground braking, retaining slide-cancel and bunny-hop takeoff momentum;
+air, dive and wall-jump motion remain separate. Faster acceleration exposed taps
+pressed at rest becoming eligible before the action buffer expired; slide/dive
+buffers now require eligibility when pressed, while slide cancels, contact/cooldown
+buffering and the existing W-to-S backslide grace remain functional.
+
+Rapier's existing moving-floor workaround remains enabled while moving. At zero
+horizontal displacement, the adapter restores non-slip floor traction to suppress
+tiny idle creep. It changes that setting only when entering/leaving rest. The
+controller bounds collision-resolved velocity by the requested horizontal speed,
+so contact corrections cannot accumulate movement energy. No positions are
+teleported, and gravity, vertical integration, colliders and collision queries
+remain intact. The tests allow less than 1 mm of contact settling over two idle
+seconds; residual horizontal movement velocity is exactly zero.
+
+Real Rapier measurements on a flat unobstructed floor, fixed 60 Hz simulation:
+
+| Scenario                  | Before: reversal / full opposite speed | After: reversal / full opposite speed |
+| ------------------------- | -------------------------------------- | ------------------------------------- |
+| Walk forward ↔ backward   | 117 / 233 ms                           | 33 / 83 ms                            |
+| Strafe left ↔ right       | 117 / 233 ms                           | 33 / 67 ms                            |
+| Sprint forward → backward | 183 / 300 ms                           | 50 / 83 ms                            |
+
+| Release            | Before: stopping time / distance | After: stopping time / distance |
+| ------------------ | -------------------------------- | ------------------------------- |
+| Walk               | 533 ms / 0.375 m                 | 50 ms / 0.083 m                 |
+| Sprint, Shift held | 567 ms / 0.590 m                 | 83 ms / 0.196 m                 |
+| Strafe             | 517 ms / 0.361 m                 | 50 ms / 0.075 m                 |
+| Backward           | 517 ms / 0.361 m                 | 50 ms / 0.083 m                 |
+
+The baseline was recorded by running the new response assertions before changing
+the controller. Reproduce current measurements with:
+
+```powershell
+$env:BP_MOVEMENT_REPORT = '1'
+npm run test -- apps/client/src/game/movement/MovementResponsiveness.test.ts --disableConsoleIntercept
+Remove-Item Env:BP_MOVEMENT_REPORT
+```
+
+These measure fixed simulation ticks, not keyboard/monitor/network latency.
+178 unit/integration cases across 32 files pass, including identical motion at
+30/60/144 rendering FPS, diagonal speed limits, braking/reversal, no ground speed
+accumulation, prediction replay, slide/cancel/backslide/bunny-hop/dive/wall-jump,
+clearance/ceilings, pause and collision behavior. The roof approach fixture now
+starts lowering before the faster ramp reaches the overhang. Strict TypeScript,
+lint and production builds pass. All 20 browser cases passed together, including
+real-keyboard reversal/braking, existing slide/dive flows, graphics/AA, rooms,
+server-confirmed combat, FFA/TDM and cover occlusion. The full suite used fresh isolated preview/server ports 4183/2667
+because an existing server is running on 2567. Generated test copies under
+`.deploy/bp02-browser/` differ only in loopback endpoint ports; the normal build
+output and existing local rooms were left untouched by the isolated run.
+
+Changed files pass normal formatting. The full `npm run format:check` reports
+pre-existing CRLF warnings in 27 untouched files (including graphics). The full
+check passes with `npm exec -- prettier --check . --end-of-line auto`; those
+files were left unchanged to preserve ticket scope.
+
+Native Intel UHD 620 / i7-8650U profiling in Chrome 157.0.8103.79 (ANGLE D3D11,
+headless, not SwiftShader) averaged **59.83 FPS**, with a minimum rolling 1% low
+of **26.49 FPS**. This was a 20-second offline walking/fire/ADS/reload profile
+after a five-second warmup at Quality/1280×720, adaptive Off, AA Off, High textures,
+shadows Off, view 60 m and Crisp scale. The average remains near the 60 FPS target;
+transient dips remain. This is not a sustained thermal or eight-player benchmark.
+The raw report is `.deploy/bp02-native-quality.json`; run the existing browser
+profiler against a production preview to reproduce the scenario.
+
+Restart both the client and room server when trying BP-02 so prediction and
+authority load the same updated movement rules.
+
+Rendering, AA, textures, lighting, weapon
+rules/damage and multiplayer architecture were not modified. No dependencies added.
+
 ## Configurable anti-aliasing
 
 Added a mutually exclusive OFF / FXAA / SMAA / MSAA 2X / MSAA 4X selector under
