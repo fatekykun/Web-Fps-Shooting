@@ -39,6 +39,7 @@ export function App() {
   const graphicsRef = useRef(graphics);
   const [combat, setCombat] = useState<CombatSnapshot | null>(null);
   const reticle = useRef<HTMLDivElement>(null);
+  const scope = useRef<HTMLDivElement>(null);
   const reticleValues = useRef({ gap: -1, ads: -1 });
   const [room, setRoom] = useState<RoomView | null>(null);
   const [inviteCode] = useState(() => readInviteCode(location.href));
@@ -113,8 +114,12 @@ export function App() {
           }
         }
       },
-      onReticle: (gap: number, ads: number) => {
+      onReticle: (gap: number, ads: number, scoped: number) => {
         if (cancelled || !reticle.current) return;
+        const opacity = Math.max(0, Math.min(1, (scoped - 0.25) / 0.65));
+        if (scope.current) scope.current.style.opacity = String(opacity);
+        reticle.current.style.visibility =
+          opacity > 0.95 ? 'hidden' : 'visible';
         const crosshair = preferencesRef.current.crosshair;
         gap = crosshair.dynamic
           ? crosshair.gap + Math.max(0, gap - 5)
@@ -390,6 +395,19 @@ export function App() {
           <i />
           <i />
           <i />
+        </div>
+      )}
+      {locked && (
+        <div
+          className="sniper-scope"
+          ref={scope}
+          data-testid="sniper-scope"
+          aria-hidden="true"
+        >
+          <div className="scope-lens">
+            <i />
+            <span>{combat?.scopeMagnification ?? 4}× / SR-04</span>
+          </div>
         </div>
       )}
       {locked && combat && (

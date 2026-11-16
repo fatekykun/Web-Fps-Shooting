@@ -217,11 +217,18 @@ export class NetworkSession {
     this.callbacks.onView(this.view);
   }
 
-  step(input: MovementInput, pitch: number, weapon?: WeaponInput): void {
+  step(
+    input: MovementInput,
+    pitch: number,
+    weapon?: WeaponInput,
+    groundSpeedScale = 1,
+  ): void {
     if (!this.initialized || this.view?.phase !== 'playing' || this.leaving)
       return;
     try {
-      this.outbox.push(this.prediction.step(input, pitch, weapon));
+      this.outbox.push(
+        this.prediction.step(input, pitch, weapon, groundSpeedScale),
+      );
       if (this.outbox.length >= networkConfig.batchSize) {
         this.room.send('input', this.outbox);
         this.outbox.length = 0;

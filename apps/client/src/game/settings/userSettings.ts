@@ -11,6 +11,7 @@ export const bindingActions = [
   'rifle',
   'smg',
   'shotgun',
+  'sniper',
   'scoreboard',
 ] as const;
 export type BindingAction = (typeof bindingActions)[number];
@@ -27,6 +28,7 @@ export const bindingLabels: Record<BindingAction, string> = {
   rifle: 'Equip rifle',
   smg: 'Equip SMG',
   shotgun: 'Equip shotgun',
+  sniper: 'Equip sniper',
   scoreboard: 'Scoreboard',
 };
 export const defaultBindings: Readonly<Record<BindingAction, string>> =
@@ -43,6 +45,7 @@ export const defaultBindings: Readonly<Record<BindingAction, string>> =
     rifle: 'Digit1',
     smg: 'Digit2',
     shotgun: 'Digit3',
+    sniper: 'Digit4',
     scoreboard: 'Tab',
   });
 export interface UserSettings {
@@ -119,7 +122,24 @@ export function normalizeUserSettings(value: unknown): UserSettings {
   const d = defaultUserSettings(),
     v = object(value),
     c = object(v.crosshair),
-    b = object(v.bindings);
+    b = { ...object(v.bindings) };
+  // Add the new action without resetting existing customized controls.
+  if (b.sniper === undefined) {
+    const available = [
+      'Digit4',
+      'Digit5',
+      'Digit6',
+      'Digit7',
+      'Digit8',
+      'Digit9',
+      'Digit0',
+      ...Array.from(
+        { length: 26 },
+        (_, index) => `Key${String.fromCharCode(65 + index)}`,
+      ),
+    ].find((code) => !Object.values(b).includes(code));
+    if (available) b.sniper = available;
+  }
   const bool = (key: string, fallback: boolean) =>
     typeof v[key] === 'boolean' ? (v[key] as boolean) : fallback;
   const validBindings =

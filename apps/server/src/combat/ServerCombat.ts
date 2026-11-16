@@ -94,6 +94,12 @@ export class ServerCombat {
       pitch: player.state.pitch,
     };
     this.loadouts.set(player.state.id, loadout);
+    player.movementScale = (input) =>
+      loadout.weapons.movementScale(
+        !!input.weapon?.aim,
+        input,
+        player.movement.state,
+      );
   }
   remove(id: string): void {
     this.loadouts.delete(id);
@@ -151,7 +157,11 @@ export class ServerCombat {
         player.state.yaw = loadout.yaw;
         player.state.pitch = loadout.pitch;
       }
-      loadout.weapons.updateAds(movementConfig.fixedStep, controls.aim);
+      loadout.weapons.updateAds(
+        movementConfig.fixedStep,
+        controls.aim &&
+          loadout.weapons.canAim(player.inputThisTick ?? {}, movement.state),
+      );
       loadout.weapons.step(movementConfig.fixedStep, controls, {
         speed: Math.hypot(movement.velocity.x, movement.velocity.z),
         grounded: movement.physics.grounded,
@@ -225,6 +235,7 @@ export class ServerCombat {
       let normal: Vector3Like | null = wall ? { ...wall.normal } : null;
       let victim: ServerPlayer | null = null;
       let critical = false;
+      let hitDamage = shot.config.damage;
       for (const target of this.players.values()) {
         if (target === player || !target.state.alive) continue;
         const hit = intersectAvatar(
@@ -237,6 +248,9 @@ export class ServerCombat {
         distance = hit.distance;
         victim = target;
         critical = hit.head;
+        hitDamage =
+          shot.config.regionDamage?.[hit.region] ??
+          shot.config.damage * (critical ? shot.config.headMultiplier : 1);
         normal = { x: -direction.x, y: -direction.y, z: -direction.z };
       }
       event.traces.push({
@@ -256,8 +270,7 @@ export class ServerCombat {
             victim.state.team !== player.state.team))
       ) {
         const result = damage.get(victim) ?? { amount: 0, critical: false };
-        result.amount +=
-          shot.config.damage * (critical ? shot.config.headMultiplier : 1);
+        result.amount += hitDamage;
         result.critical ||= critical;
         damage.set(victim, result);
       }
@@ -344,6 +357,10 @@ export class ServerCombat {
           reserve: w.ammo.rifle.reserve,
         },
         smg: { magazine: w.ammo.smg.magazine, reserve: w.ammo.smg.reserve },
+        sniper: {
+          magazine: w.ammo.sniper.magazine,
+          reserve: w.ammo.sniper.reserve,
+        },
         shotgun: {
           magazine: w.ammo.shotgun.magazine,
           reserve: w.ammo.shotgun.reserve,
@@ -352,6 +369,8 @@ export class ServerCombat {
       reloading: w.reloading,
       equipping: w.equipping,
       reloadProgress: w.reloadProgress,
+      cycling: w.cycling,
+      cycleProgress: w.cycleProgress,
       ads: w.ads,
       spread: w.spread,
       shots: w.shotsFired,

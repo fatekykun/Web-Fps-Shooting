@@ -20,6 +20,8 @@ export class ServerPlayer {
   resynchronizations = 0;
   inputThisTick: PlayerInput | null = null;
   private pendingCombat: PlayerInput | null = null;
+  /** Server-installed weapon policy; packet fields cannot choose a speed scale. */
+  movementScale: (input: PlayerInput) => number = () => 1;
 
   constructor(readonly state: PlayerState) {
     const physics = new PhysicsWorld(arenaBoxes, {
@@ -99,7 +101,11 @@ export class ServerPlayer {
       this.state.ack = input.seq;
       if (this.state.alive && (input.life ?? 1) === this.state.life) {
         this.inputThisTick = input;
-        this.movement.step(input, movementConfig.fixedStep);
+        this.movement.step(
+          input,
+          movementConfig.fixedStep,
+          this.movementScale(input),
+        );
         this.state.yaw = input.yaw;
         this.state.pitch = input.pitch;
       }

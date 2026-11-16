@@ -114,3 +114,24 @@ it('attenuates distant shots and pans relative to listener yaw', () => {
   expect(spatialAudio({ x: 10, y: 0, z: 0 }, listener, 0).pan).toBe(1);
   expect(spatialAudio({ x: 10, y: 0, z: 0 }, listener, Math.PI).pan).toBe(-1);
 });
+
+it('keeps sniper report and confirmation cues bounded and honors effect volume', async () => {
+  vi.stubGlobal('AudioContext', Context);
+  const audio = new AudioEngine();
+  try {
+    await audio.unlock();
+    audio.shot('sniper');
+    expect(audio.voiceCount).toBe(3);
+    audio.cue('kill');
+    expect(audio.voiceCount).toBe(4);
+    audio.configure({ ...defaultUserSettings(), effectsVolume: 0 });
+    audio.shot('sniper');
+    audio.cue('kill');
+    expect(audio.voiceCount).toBe(4);
+    audio.configure(defaultUserSettings());
+    for (let i = 0; i < 30; i++) audio.shot('sniper');
+    expect(audio.voiceCount).toBe(16);
+  } finally {
+    audio.dispose();
+  }
+});

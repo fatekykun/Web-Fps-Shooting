@@ -180,7 +180,7 @@ departures, while the connected-player limit remains eight.
 
 ## Server-authoritative combat (milestone 6)
 
-Online players start with **100 health** and the rifle, SMG and shotgun. The same
+Online players start with **100 health** and the rifle, SMG, shotgun and sniper. The same
 controls below work in training and rooms. Online hit markers and damage numbers
 appear only after server confirmation. Health, magazines/reserves, reload status
 and kills come from the server. Releasing the mouse leaves the room live: reloads,
@@ -219,13 +219,13 @@ server-owned in both match modes; only enemies take damage in TDM.
 
 ## Combat controls and tuning
 
-| Input            | Action                                                             |
-| ---------------- | ------------------------------------------------------------------ |
-| Left mouse       | Fire; rifle/SMG repeat while held, shotgun requires each new press |
-| Hold right mouse | Aim down sights; release to return to hip fire                     |
-| R                | Reload; ammo transfers only when the reload finishes               |
-| 1 / 2 / 3        | Rifle / SMG / shotgun; each keeps its own magazine and reserve     |
-| Hold Tab online  | Show the live scoreboard                                           |
+| Input            | Action                                                                |
+| ---------------- | --------------------------------------------------------------------- |
+| Left mouse       | Fire; rifle/SMG repeat while held, shotgun/sniper require new presses |
+| Hold right mouse | Aim down sights; release to return to hip fire                        |
+| R                | Reload; ammo transfers only when the reload finishes                  |
+| 1 / 2 / 3 / 4    | Rifle / SMG / shotgun / sniper; independent ammo inventories          |
+| Hold Tab online  | Show the live scoreboard                                              |
 
 In offline training, aim at the blue **HOLO-01** in the central lane. Its body and head have separate
 hitboxes. Hits flash the target and show a native-resolution marker, damage
@@ -239,6 +239,7 @@ disabled in online rooms.
 | AR-01 rifle   | 30 / 120           | Automatic, 600 RPM                   | 2.0 s  | 140 ms     |
 | SM-02 SMG     | 35 / 140           | Automatic, 900 RPM                   | 1.6 s  | 100 ms     |
 | SG-03 shotgun | 8 / 40             | Semi-auto, 0.8 s interval, 8 pellets | 2.4 s  | 180 ms     |
+| SR-04 sniper  | 5 / 20             | Bolt-action, 45 RPM                  | 2.8 s  | 350 ms     |
 
 ADS changes camera FOV, sight alignment and sensitivity without smoothing mouse
 look. Its reversible exponential blend updates at render frequency. Hip FOV is
@@ -264,10 +265,53 @@ clipping the gun through nearby walls. Impacts use a fixed 32-slot instance pool
 muzzle flashes add no lights. Combat HUD snapshots update on events plus telemetry,
 and crosshair presentation uses DOM properties rather than a React game loop.
 
-Prototype limits: magazine-style reloads for all three weapons (no per-shell
+Prototype limits: magazine-style reloads for all four weapons (no per-shell
 shotgun loading), primitive viewmodels without a skeletal body rig, and static head/body
 practice hitboxes. Online avatars use the shared rendered body-part boxes rather
 than a skeletal animation rig. Weapon values are prototype balance settings.
+
+### SR-04 sniper (BP-04)
+
+Press **4**, hold **right mouse** to scope, tap **left mouse** to fire, and use
+**R** to reload. Each shot starts a **1.333 s bolt cycle**, with an animated handle,
+two mechanical audio cues and a HUD progress bar. Early presses during the cycle
+are discarded; holding fire never queues another shot. Switching away preserves
+the cooldown. Switching weapons cancels a reload without spending reserve ammo.
+Bindings can be changed in Settings; existing customized controls are preserved.
+
+The scope uses a circular native-resolution reticle over the existing camera.
+Actual **4× magnification** uses `2 atan(tan(baseFov / 2) / 4)` and respects your
+custom hip FOV. ADS, camera zoom, overlay and sensitivity blend smoothly; release
+right mouse to restore your FOV. The model lowers and disappears when fully
+scoped. There is no second scene render, scope render target, blur or temporal
+history. Pixel textures retain nearest filtering and HUD text remains native.
+
+Scoped walking is **45% of normal speed (2.25 m/s)**. Sprinting, sliding,
+backsliding, diving and posture recovery suppress the scope; holding aim restores
+it once those actions finish. Jumping keeps ADS available but adds substantial
+spread. Ground speed is computed independently by the server and predicted/replayed
+locally; network packets cannot choose a speed multiplier. Slide-jump impulses
+and other movement tuning are unchanged.
+
+Online damage uses the nearest server hitbox: **head 150, upper torso 100, lower
+torso 90, arms/legs 70**, before remaining-health clamping. Walls and other bodies
+block bullets. TDM team rules and spawn protection still apply. The training
+dummy retains its existing head/body sensors (150/100 sniper damage). Ammo,
+reloads, bolt timing, damage and kills remain server-owned; local handling is
+predicted. Peers receive the existing confirmed traces, impacts, weapon selection
+and spatial firing audio. Sounds are original procedural synthesis and obey the
+existing audio settings.
+
+Balance values live in `apps/shared/src/config/weapons.ts`, including magnification,
+ADS time, movement scale, region damage and bolt-cycle duration. Restart/rebuild
+both the client and room server after updating to this version.
+
+To check: scope the training dummy, fire once, try firing during cycling, empty
+all five rounds and reload to **5 / 15**. Then walk scoped, sprint, slide and jump.
+For multiplayer, join a private FFA/TDM room and confirm hit markers and the kill
+feed with a friend. Run the repeatable native-GPU scenario with
+`npm run profile:browser -- --weapon sniper --preset quality --seconds 20` while
+the preview is running; detailed validation is recorded in `DEVELOPMENT.md`.
 
 ## Pixel graphics
 

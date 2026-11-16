@@ -22,8 +22,11 @@ export interface CombatSnapshot {
   reloading: boolean;
   equipping: boolean;
   reloadProgress: number;
+  cycling?: boolean;
+  cycleProgress?: number;
   ads: number;
   fov: number;
+  scopeMagnification?: number;
   spread: number;
   recoilPitch: number;
   shots: number;
@@ -109,8 +112,11 @@ export class PracticeCombat {
       const region = this.dummy.region(hit.colliderHandle);
       if (region && !this.dummy.resetting) {
         damage +=
+          shot.config.regionDamage?.[
+            region === 'head' ? 'head' : 'upperTorso'
+          ] ??
           shot.config.damage *
-          (region === 'head' ? shot.config.headMultiplier : 1);
+            (region === 'head' ? shot.config.headMultiplier : 1);
         critical ||= region === 'head';
       }
     }
@@ -132,8 +138,11 @@ export class PracticeCombat {
       reloading: weapons.reloading,
       equipping: weapons.equipping,
       reloadProgress: weapons.reloadProgress,
+      cycling: weapons.cycling,
+      cycleProgress: weapons.cycleProgress,
       ads: weapons.ads,
       fov: weapons.fov,
+      scopeMagnification: weapons.config.scopeMagnification,
       spread: weapons.spread,
       recoilPitch: weapons.recoil.pitch,
       shots: weapons.shotsFired,

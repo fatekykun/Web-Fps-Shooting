@@ -1,4 +1,5 @@
-export type WeaponId = 'rifle' | 'smg' | 'shotgun';
+export type WeaponId = 'rifle' | 'smg' | 'shotgun' | 'sniper';
+export type HitRegion = 'head' | 'upperTorso' | 'lowerTorso' | 'arms' | 'legs';
 
 export interface WeaponInput {
   fire: boolean;
@@ -33,6 +34,10 @@ export interface WeaponConfig {
   damage: number;
   headMultiplier: number;
   range: number;
+  scopeMagnification?: number;
+  scopedMovementScale?: number;
+  boltCycleTime?: number;
+  regionDamage?: Readonly<Record<HitRegion, number>>;
 }
 
 export interface AccuracyContext {

@@ -8,6 +8,94 @@ code and verification tools are implemented; cloud publication and eight-human
 play still require live hosting accounts and participants. BP-01 adds local
 physical-device training measurements on the target Intel UHD 620 hardware.
 
+## BP-04 — bolt-action sniper
+
+SR-04 extends the existing shared weapon controller and validated weapon ID list;
+no new runtime dependency, asset download, room message or rendering pass is
+required. It is available in training and the existing private FFA/TDM loadouts.
+All balance values are centralized in `apps/shared/src/config/weapons.ts`:
+5/20 rounds, 45 RPM, 1.333 s per-weapon bolt lockout, 2.8 s magazine reload,
+350 ms ADS to 90%, 4× magnification, high recoil/hip spread and long range.
+Early cycling taps are discarded, held fire cannot repeat, and switching cannot
+reset a bolt cooldown. Reload transfer and cancellation reuse existing rules.
+
+Camera zoom uses tangent-based magnification relative to the user's configured
+hip FOV. Render-frequency ADS also drives zoom-scaled sensitivity and the circular
+native-resolution scope overlay through a DOM ref; React still receives normal
+4 Hz telemetry/event updates. The opaque viewmodel lowers during ADS and is hidden
+at full scope, preventing near-field gun geometry from covering the sight. The
+scope introduces no additional world render, target, AA mode, blur or temporal
+history. Sniper geometry shares the box primitive, nearest-filtered textures and
+material with the other pooled models: 29 instances, 348 triangles, one draw when
+visible. Only the bolt handle's instance matrix changes during cycling.
+
+The shared controller exposes a scoped movement policy. Ground walking can use
+the configured 0.45 speed scale; ordinary movement defaults to its original speed.
+The server installs its own policy from the authoritative loadout and validated
+input. Prediction keeps a local scale alongside pending inputs for replay, while
+the network packet contains no client-selected multiplier. Sprint, slide,
+backslide, dive and recovery suppress sniper ADS; normal weapons retain their
+previous handling. Airborne aiming remains possible with an accuracy penalty.
+Slide-jump, wall-jump, hopping, collision and ground-response tuning are untouched.
+
+Shared avatar intersection now identifies head, upper/lower torso, arms and legs
+from the same rendered part boxes, including yaw/head pitch/posture scale. Sniper
+damage is 150/100/90/70/70 respectively; other weapons retain their damage and
+head multiplier. The nearest part/body/world obstruction still stops the ray.
+A side-on arm can therefore take 70 even when the reticle points toward the torso.
+Damage readouts clamp to the victim's remaining health. Server loadout, magazine,
+equip, reload, cadence, cycle, protection and team checks remain authoritative.
+Corrections include bolt progress; peers receive existing confirmed shot/kill
+events, trails, impacts, weapon IDs and spatial firing audio. The dummy retains
+its original head/body sensors. Procedural sniper report, bolt, ADS and reload
+cues use the existing bounded audio engine and volume controls, with server-only
+online hit/kill confirmation. No recordings or external assets are used.
+
+Validation includes 232 passing unit/integration tests across 36 files. New checks
+cover cadence boundaries, early presses/held fire, switching during cycling,
+five-round depletion, reload completion/cancellation and reserves, custom-FOV 4×
+math and reversible ADS at 30/60/144 Hz, movement eligibility/air spread, prediction
+replay without transmitted speed scales, actual bolt matrix motion without new
+geometry, nearest texture filtering, audio voice/volume bounds, existing-control
+migration and server-resolved damage in every region. Server tests also check
+ownership, cover and sniper reload inventory. Type checking, production builds
+and lint pass. The existing Rapier build-size warning remains.
+
+Browser verification covered all 26 scenarios: the 24 existing graphics, interface,
+movement, networking, combat, FFA/TDM and deployment checks, plus two sniper
+acceptance tests. Both sniper tests passed twice in the final targeted run (4/4):
+scope/camera zoom, sharp overlay, dummy hit, recoil, bolt lockout, five-round
+depletion/reload, scoped speed, sprint/slide cancellation and slide-jump; and one
+browser plus seven SDK peers confirming a server headshot kill, ammo, trace and
+kill feed in a full private room. The kill test explicitly aims at the shared
+head box, avoiding a side-on arm occluding the torso. Chrome functional tests use
+SwiftShader; their FPS is not a hardware benchmark. Final screenshots are
+`test-results/bp04-sniper-model.png`, `bp04-sniper-scope.png` and
+`bp04-server-sniper.png`. Tests used isolated client/server ports 4185/2669;
+the existing server on 2567 was preserved.
+
+Native profiling on 2026-11-16 used Chrome 157.0.8103.79, Intel UHD 620 / i7-8650U,
+ANGLE D3D11, headless with **no SwiftShader**, fixed Quality 1280×720, high textures,
+shadows/AA/adaptive resolution off. Sequential 20-second training samples followed
+5-second warmups, alternating walking, firing, ADS and reload, with fresh trigger
+presses for the bolt-action sniper. No functional suite ran concurrently.
+
+| Weapon         | Mean rolling FPS | Minimum rolling 1% low FPS | Last rolling 1% low FPS |
+| -------------- | ---------------: | -------------------------: | ----------------------: |
+| Rifle baseline |            59.99 |                      39.49 |                   57.20 |
+| SR-04 sniper   |            59.72 |                      27.41 |                   58.48 |
+
+Mean FPS differs by about 0.46%, with no sustained frame-rate drop in this run.
+The sniper's lower transient 1% low remains visible in the measurements; short
+samples do not establish equal tail latency or full-match performance. Sampled
+main-thread CPU ranges overlap (rifle 0.51–1.96 ms, sniper 0.56–1.84 ms). The sniper
+adds 132 model triangles versus the rifle, uses the same one active model draw,
+and removes that draw while fully scoped. No added render targets/passes or GPU
+texture assets are allocated. Raw reports: `test-results/bp04-rifle-native.json`
+(75 samples) and `test-results/bp04-sniper-native.json` (74 samples). The profiler
+now accepts `--weapon rifle|smg|shotgun|sniper`. These local training results do not
+replace eight-human network play, audio mix/balance tuning or longer profiling.
+
 ## BP-03 — camera-facing slide jumps
 
 Slide/backslide takeoff now redirects horizontal momentum toward the view yaw

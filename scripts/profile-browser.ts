@@ -14,10 +14,19 @@ const { values } = parseArgs({
     shadows: { type: 'string', default: 'off' },
     aa: { type: 'string', default: 'off' },
     screenshot: { type: 'boolean', default: false },
+    weapon: { type: 'string', default: 'rifle' },
     output: { type: 'string', default: 'test-results/browser-profile.json' },
   },
 });
 const seconds = Number(values.seconds);
+const weaponKeys: Record<string, string> = {
+  rifle: '1',
+  smg: '2',
+  shotgun: '3',
+  sniper: '4',
+};
+if (!weaponKeys[values.weapon])
+  throw new Error('--weapon must be rifle, smg, shotgun or sniper.');
 const url = new URL(values.url);
 if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
   throw new Error('--url must be a website HTTP(S) URL without credentials.');
@@ -76,6 +85,8 @@ try {
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
   await page.locator('.crosshair').waitFor();
+  await page.keyboard.press(weaponKeys[values.weapon]!);
+  await page.waitForTimeout(500);
   if (values.screenshot)
     await page.screenshot({ path: resolve(values.output + '.png') });
   await page.waitForTimeout(5000);
@@ -110,6 +121,11 @@ try {
         await page.mouse.down({ button: 'left' });
       } else await page.keyboard.press('r');
       phase = next;
+    }
+    // Semi-automatic weapons need fresh trigger presses, including across bolt cycles.
+    if (values.weapon === 'sniper' && next !== 2) {
+      await page.mouse.up({ button: 'left' });
+      await page.mouse.down({ button: 'left' });
     }
     samples.push(
       await page
@@ -152,6 +168,7 @@ try {
     scenario:
       'one offline training browser; fixed resolution; walk/fire/ADS/reload; rolling telemetry',
     preset: values.preset,
+    weapon: values.weapon,
     rendering,
     seconds,
     viewport,

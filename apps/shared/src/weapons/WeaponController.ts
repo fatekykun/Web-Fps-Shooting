@@ -17,6 +17,7 @@ interface WeaponAmmo {
   nextShot: number;
   bloom: number;
   lastShot: number;
+  cycleEnd: number;
 }
 export interface ShotEvent {
   config: Readonly<WeaponConfig>;
@@ -31,6 +32,7 @@ export class WeaponController {
     rifle: this.createAmmo('rifle'),
     smg: this.createAmmo('smg'),
     shotgun: this.createAmmo('shotgun'),
+    sniper: this.createAmmo('sniper'),
   };
   selected: WeaponId = 'rifle';
   ads = 0;
@@ -71,10 +73,56 @@ export class WeaponController {
       : 0;
   }
   get fov(): number {
+    return this.fieldOfView(combatConfig.baseFov);
+  }
+
+  fieldOfView(base: number): number {
+    const target = this.config.scopeMagnification
+      ? (Math.atan(
+          Math.tan((base * Math.PI) / 360) / this.config.scopeMagnification,
+        ) *
+          360) /
+        Math.PI
+      : this.config.adsFov;
+    return base + (target - base) * this.ads;
+  }
+  get cycling(): boolean {
+    return this.time + 1e-9 < this.current.cycleEnd;
+  }
+  get cycleProgress(): number {
+    return this.cycling
+      ? 1 - (this.current.cycleEnd - this.time) / this.config.boltCycleTime!
+      : 0;
+  }
+  canAim(
+    input: { sprint?: boolean; slidePressed?: boolean; divePressed?: boolean },
+    state: string,
+  ): boolean {
     return (
-      combatConfig.baseFov +
-      (this.config.adsFov - combatConfig.baseFov) * this.ads
+      !this.config.scopeMagnification ||
+      (!input.sprint &&
+        !input.slidePressed &&
+        !input.divePressed &&
+        ![
+          'sprinting',
+          'sliding',
+          'backsliding',
+          'diving',
+          'recovering',
+        ].includes(state))
     );
+  }
+  movementScale(
+    aim: boolean,
+    input: { sprint?: boolean; slidePressed?: boolean; divePressed?: boolean },
+    state: string,
+  ): number {
+    return aim &&
+      !this.reloading &&
+      !this.equipping &&
+      this.canAim(input, state)
+      ? (this.config.scopedMovementScale ?? 1)
+      : 1;
   }
 
   private createAmmo(id: WeaponId): WeaponAmmo {
@@ -84,6 +132,7 @@ export class WeaponController {
       nextShot: 0,
       bloom: 0,
       lastShot: -100,
+      cycleEnd: 0,
     };
   }
 
@@ -96,6 +145,8 @@ export class WeaponController {
 
   switchWeapon(id: WeaponId): void {
     if (id === this.selected) return;
+    if (this.config.scopeMagnification || weaponConfigs[id].scopeMagnification)
+      this.ads = 0;
     this.selected = id;
     this.reloadEnd = 0;
     this.equipEnd = this.time + combatConfig.equipTime;
@@ -152,7 +203,7 @@ export class WeaponController {
     this.fireBuffer = input.firePressed
       ? combatConfig.fireBuffer
       : Math.max(0, this.fireBuffer - dt);
-    if (this.reloading || this.equipping) {
+    if (this.reloading || this.equipping || this.cycling) {
       this.fireBuffer = 0;
       return;
     }
@@ -168,6 +219,7 @@ export class WeaponController {
     this.current.magazine--;
     this.current.nextShot = this.time + this.config.fireInterval;
     this.current.lastShot = this.time;
+    this.current.cycleEnd = this.time + (this.config.boltCycleTime ?? 0);
     this.shotsFired++;
     this.shot.config = this.config;
     this.shot.spread = this.spread;

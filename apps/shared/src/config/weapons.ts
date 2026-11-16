@@ -1,6 +1,11 @@
 import type { WeaponConfig, WeaponId } from '../types/weapons';
 
-export const weaponOrder: readonly WeaponId[] = ['rifle', 'smg', 'shotgun'];
+export const weaponOrder: readonly WeaponId[] = [
+  'rifle',
+  'smg',
+  'shotgun',
+  'sniper',
+];
 export const combatConfig = Object.freeze({
   baseFov: 85,
   equipTime: 0.18,
@@ -15,6 +20,42 @@ export const combatConfig = Object.freeze({
 /** Angles are in degrees. Shared training/online values are prototype balance settings. */
 export const weaponConfigs: Readonly<Record<WeaponId, Readonly<WeaponConfig>>> =
   {
+    sniper: {
+      id: 'sniper',
+      name: 'SR-04 / SNIPER',
+      automatic: false,
+      magazine: 5,
+      reserve: 20,
+      fireInterval: 60 / 45,
+      boltCycleTime: 60 / 45,
+      reloadTime: 2.8,
+      adsTime: 0.35,
+      adsFov: 25.8,
+      scopeMagnification: 4,
+      scopedMovementScale: 0.45,
+      hipSpread: 6,
+      adsSpread: 0.025,
+      movementSpread: 0.45,
+      jumpSpread: 6,
+      fallSpread: 8,
+      bloomPerShot: 1.5,
+      maxBloom: 3,
+      bloomRecovery: 3,
+      recoilPitch: 3.8,
+      recoilYaw: 0.65,
+      recoilRecovery: 4,
+      pellets: 1,
+      damage: 100,
+      headMultiplier: 1.5,
+      range: 220,
+      regionDamage: {
+        head: 150,
+        upperTorso: 100,
+        lowerTorso: 90,
+        arms: 70,
+        legs: 70,
+      },
+    },
     rifle: {
       id: 'rifle',
       name: 'AR-01 / RIFLE',

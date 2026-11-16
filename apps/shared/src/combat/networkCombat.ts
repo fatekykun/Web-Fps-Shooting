@@ -23,6 +23,8 @@ export interface OwnerCombat {
   reloading: boolean;
   equipping: boolean;
   reloadProgress: number;
+  cycling: boolean;
+  cycleProgress: number;
   ads: number;
   spread: number;
   shots: number;

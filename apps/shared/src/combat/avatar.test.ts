@@ -44,3 +44,16 @@ it('moves hitboxes with yaw, head pitch and actual low posture', () => {
       ?.head,
   ).toBe(true);
 });
+
+it.each([
+  [0, 1.48, 'head'],
+  [0, 1.15, 'upperTorso'],
+  [0, 0.8, 'lowerTorso'],
+  [0.36, 1.03, 'arms'],
+  [0.15, 0.35, 'legs'],
+])('classifies the rendered hit region at (%s, %s)', (x, y, region) => {
+  expect(
+    intersectAvatar({ x: Number(x), y: Number(y), z: 5 }, ray, pose, 10)
+      ?.region,
+  ).toBe(region);
+});

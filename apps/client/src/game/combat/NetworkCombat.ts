@@ -51,6 +51,7 @@ export class NetworkCombat {
       owner.selected !== previous.selected ||
       owner.reloading !== previous.reloading ||
       owner.equipping !== previous.equipping ||
+      owner.cycling !== previous.cycling ||
       owner.hitSequence !== previous.hitSequence ||
       owner.damageSequence !== previous.damageSequence ||
       weaponOrder.some(
@@ -67,6 +68,19 @@ export class NetworkCombat {
       this.onLifeChange();
     }
     this.owner = owner;
+    if (
+      owner.selected === this.weapons.selected &&
+      owner.cycling &&
+      !this.weapons.cycling
+    ) {
+      this.weapons.current.cycleEnd =
+        this.weapons.time +
+        (1 - owner.cycleProgress) * (this.weapons.config.boltCycleTime ?? 0);
+      this.weapons.current.nextShot = Math.max(
+        this.weapons.current.nextShot,
+        this.weapons.current.cycleEnd,
+      );
+    }
     // Local ammo gates cosmetic prediction, while the HUD reports the server's inventory.
     for (const id of weaponOrder) {
       this.weapons.ammo[id].magazine = owner.ammo[id].magazine;
@@ -112,8 +126,11 @@ export class NetworkCombat {
       reloading: owner?.reloading ?? false,
       equipping: owner?.equipping ?? false,
       reloadProgress: owner?.reloadProgress ?? 0,
+      cycling: owner?.cycling ?? false,
+      cycleProgress: owner?.cycleProgress ?? 0,
       ads: w.ads,
       fov: w.fov,
+      scopeMagnification: config.scopeMagnification,
       spread: owner?.spread ?? w.spread,
       recoilPitch: w.recoil.pitch,
       shots: owner?.shots ?? 0,

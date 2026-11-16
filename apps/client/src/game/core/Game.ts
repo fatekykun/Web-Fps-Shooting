@@ -60,7 +60,7 @@ interface GameCallbacks {
   onTelemetry: (stats: GameTelemetry) => void;
   onError: (message: string) => void;
   onCombat: (snapshot: CombatSnapshot) => void;
-  onReticle: (gap: number, ads: number) => void;
+  onReticle: (gap: number, ads: number, scope: number) => void;
   onRoom: (view: RoomView | null) => void;
   onScoreboard: (open: boolean) => void;
 }
@@ -180,10 +180,7 @@ export class Game {
   }
   private get displayedFov(): number {
     const weapon = (this.session ? this.networkCombat : this.combat).weapons;
-    return (
-      this.userSettings.fov +
-      (weapon.config.adsFov - this.userSettings.fov) * weapon.ads
-    );
+    return weapon.fieldOfView(this.userSettings.fov);
   }
   private combatSnapshot(): CombatSnapshot {
     return {
@@ -257,8 +254,11 @@ export class Game {
           }
         },
         onKill: (kill) => {
-          if (!this.disposed && generation === this.networkGeneration)
+          if (!this.disposed && generation === this.networkGeneration) {
             this.networkCombat.kill(kill);
+            if (kill.killerId === this.session?.view?.selfId)
+              this.audio.cue('kill');
+          }
         },
         onLeave: () => {
           if (!this.disposed && generation === this.networkGeneration)
@@ -324,21 +324,32 @@ export class Game {
   }
 
   private readonly simulate = (dt: number): void => {
+    const weapons = (this.session ? this.networkCombat : this.combat).weapons;
+    const scale = weapons.movementScale(
+      this.input.weapon.aim,
+      this.input.movement,
+      this.movement.state,
+    );
     if (this.session) {
       if (this.session.view?.phase !== 'playing') {
         this.input.clear();
         return;
       }
       if (!this.networkCombat.owner?.alive) this.input.clearGameplay();
-      this.session.step(this.input.movement, this.input.pitch, {
-        ...this.input.weapon,
-        // Desired selection survives an old input being discarded during overload recovery.
-        switchTo:
-          this.input.weapon.switchTo ?? this.networkCombat.weapons.selected,
-      });
+      this.session.step(
+        this.input.movement,
+        this.input.pitch,
+        {
+          ...this.input.weapon,
+          // Desired selection survives an old input being discarded during overload recovery.
+          switchTo:
+            this.input.weapon.switchTo ?? this.networkCombat.weapons.selected,
+        },
+        scale,
+      );
       this.networkCombat.step(dt, this.input.weapon, this.movement);
     } else {
-      this.movement.step(this.input.movement, dt);
+      this.movement.step(this.input.movement, dt, scale);
       if (this.input.locked)
         this.combat.step(
           dt,
@@ -370,7 +381,12 @@ export class Game {
       (this.session.view?.phase === 'playing' &&
         !!this.networkCombat.owner?.alive);
     if (this.input.locked || this.session)
-      weapons.updateAds(delta, armed && this.input.weapon.aim);
+      weapons.updateAds(
+        delta,
+        armed &&
+          this.input.weapon.aim &&
+          weapons.canAim(this.input.movement, this.movement.state),
+      );
     this.input.lookScale =
       Math.tan((this.displayedFov * Math.PI) / 360) /
       Math.tan((this.userSettings.fov * Math.PI) / 360);
@@ -414,6 +430,7 @@ export class Game {
           ),
         ),
         weapons.ads,
+        armed && weapons.config.scopeMagnification ? weapons.ads : 0,
       );
     this.rendering.render(
       this.arena.scene,

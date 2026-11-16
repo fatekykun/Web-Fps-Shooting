@@ -1138,3 +1138,63 @@ kbd {
     padding-bottom: 15px;
   }
 }
+
+/* Native-resolution scope: one camera view, no extra render target or blur pass. */
+.sniper-scope {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+}
+.scope-lens {
+  position: relative;
+  width: 86vmin;
+  height: 86vmin;
+  border: 3px solid #131b18;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 100vmax rgb(5 10 9 / 94%),
+    inset 0 0 18px 8px rgb(8 14 12 / 45%);
+  background:
+    linear-gradient(
+      90deg,
+      transparent calc(50% - 0.5px),
+      #17221c calc(50% - 0.5px),
+      #17221c calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    ),
+    linear-gradient(
+      transparent calc(50% - 0.5px),
+      #17221c calc(50% - 0.5px),
+      #17221c calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    );
+}
+.scope-lens i {
+  position: absolute;
+  left: calc(50% - 6px);
+  top: 53%;
+  width: 12px;
+  height: 18%;
+  background: repeating-linear-gradient(transparent 0 15px, #18231d 15px 16px);
+}
+.scope-lens span {
+  position: absolute;
+  top: 77%;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  color: #a8b99e;
+  font: 11px monospace;
+  letter-spacing: 2px;
+}
+.combat-hud,
+.player-health,
+.dummy-status,
+.hit-marker,
+.kill-feed,
+.death-notice {
+  z-index: 1;
+}
