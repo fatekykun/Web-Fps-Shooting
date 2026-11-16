@@ -8,6 +8,62 @@ code and verification tools are implemented; cloud publication and eight-human
 play still require live hosting accounts and participants. BP-01 adds local
 physical-device training measurements on the target Intel UHD 620 hardware.
 
+## BP-03 — camera-facing slide jumps
+
+Slide/backslide takeoff now redirects horizontal momentum toward the view yaw
+sampled with the jump input. `SlideJump.ts` changes only horizontal velocity;
+the controller applies the dedicated vertical impulse and normal gravity, then
+enters the existing airborne state. The launch tick bypasses air steering so
+WASD cannot immediately override that vector; ordinary air control resumes on
+the next fixed tick. Normal jumps outside slide eligibility still use `bunnyHop`.
+No positions, general BP-02 ground rates or collision rules were changed.
+
+| Configuration                  | Default | Meaning                                                             |
+| ------------------------------ | ------- | ------------------------------------------------------------------- |
+| `slideJumpMomentumRetention`   | 0.98    | Fraction of available horizontal momentum                           |
+| `slideJumpRedirectionStrength` | 1       | Full facing direction; lower values blend the shortest angular turn |
+| `slideJumpVerticalImpulse`     | 6.5 m/s | Same initial vertical impulse as the normal jump                    |
+| `slideJumpTransitionWindow`    | 0.15 s  | Eligibility after slide completion or cancellation                  |
+| `slideJumpMinimumSpeed`        | 3 m/s   | Eligibility threshold; never a boost from rest                      |
+| `slideJumpMaximumSpeed`        | 12 m/s  | Launch ceiling, also bounded by the existing global cap             |
+
+Completion/cancellation stores the last actual slide speed in a short-lived
+reserve. It decays with slide friction, independently of recovery input braking,
+and uses the higher of current legitimate speed and that remaining reserve.
+Actual collision losses reduce the reserve; it cannot restore speed from a wall
+impact. A successful jump consumes it once. Stop, another slide/dive or an
+airborne transition clears it. Ground/coyote eligibility, head clearance,
+posture recovery, slide cooldowns and wall-jump limits remain in force.
+
+Jump presses cache their yaw for the existing jump buffer, so turning again under
+low cover cannot change the queued launch direction. `jumpYaw`, `slideJumpGrace`
+and `slideJumpSpeed` are part of the existing movement snapshot, allowing server
+correction and prediction replay to restore exactly the same pending transition.
+No new input fields, transport messages, network architecture or movement state
+enum were introduced. Restart client and room server together to load these rules.
+
+209 unit/integration cases across 34 files pass in the full suite, plus strict TypeScript, lint and
+production builds. Real Rapier coverage includes all four headings, completion
+and cancellation, buffered facing under cover, window expiry, normal jumping,
+one-shot/cooldown behavior, wall blocking/lost momentum, backslides and no speed
+amplification. Horizontal travel across headings stays within 5% both during a
+slide and after completion. The new sequence is identical at 30/60/144 rendering
+FPS, and prediction replay matches across active/completed/buffered transitions.
+Eight legal turn/slide/jump cycles also pass without speed growth or stale
+momentum launches. BP-02's reversal/braking and the other existing mechanics
+still pass unchanged. The runtime adds no per-step vector allocations.
+
+All 24 browser cases pass against a fresh isolated build/server on ports
+4184/2668, preserving existing local services. They use keyboard input and the
+same mouse event path as the existing look-input tests. Since HUD telemetry is
+published at 4 Hz, trajectory checks compare two airborne samples rather than
+mixing a stale slide position with an early jump sample. Generated test copies
+under `.deploy/bp03-browser/` change only loopback endpoint ports.
+
+Rendering, AA, weapons and physics geometry were not modified. No dependencies
+were added. Formatting checks accept the repository's existing Windows line
+endings; unrelated formatting normalization remains outside this ticket.
+
 ## BP-02 — responsive movement and directional control
 
 The delay came from ground acceleration (45 m/s², sprint 30 m/s²), exponential

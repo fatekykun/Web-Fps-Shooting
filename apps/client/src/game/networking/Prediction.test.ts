@@ -8,6 +8,113 @@ import type { OwnerCombat } from '@breakpoint/shared/combat';
 
 beforeAll(initializePhysics);
 
+it.each(['active', 'completed'] as const)(
+  'restores %s slide momentum before replaying a facing-directed jump',
+  (phase) => {
+    const floor: ArenaBox = {
+      position: [0, -0.5, 0],
+      size: [200, 1, 200],
+      color: 0,
+    };
+    const client = new MovementController(
+      new PhysicsWorld([floor], { x: 0, y: 0.91, z: 0 }),
+    );
+    const server = new MovementController(
+      new PhysicsWorld([floor], { x: 0, y: 0.91, z: 0 }),
+    );
+    const prediction = new Prediction(client);
+    let ack = 0;
+    const running: MovementInput = {
+      forward: 1,
+      right: 0,
+      yaw: 0,
+      sprint: true,
+    };
+    function both(input: MovementInput, count = 1) {
+      for (let i = 0; i < count; i++) {
+        ack = prediction.step(input, 0).seq;
+        server.step(input, movementConfig.fixedStep);
+      }
+    }
+    try {
+      both({ ...running, forward: 0 }, 10);
+      both(running, 60);
+      both({ ...running, slidePressed: true });
+      both(running, 9);
+      if (phase === 'completed') {
+        for (let i = 0; i < 60 && server.state === 'sliding'; i++)
+          both({ ...running, yaw: Math.PI });
+        both({ ...running, yaw: Math.PI }, 3);
+        expect(server.capture().slideJumpSpeed).toBeGreaterThan(3);
+      }
+      const snapshot = server.capture();
+      const pending: MovementInput[] = Array.from({ length: 12 }, (_, i) => ({
+        forward: 0,
+        right: 0,
+        yaw: Math.PI,
+        jumpPressed: i === 0,
+      }));
+      for (const input of pending) prediction.step(input, 0);
+      client.restore({
+        ...client.capture(),
+        slideJumpGrace: 0,
+        slideJumpSpeed: 0,
+        jumpYaw: 0,
+      });
+      prediction.reconcile({ ack, snapshot });
+      for (const input of pending) server.step(input, movementConfig.fixedStep);
+      expect(client.capture()).toEqual(server.capture());
+      expect(client.velocity.z).toBeGreaterThan(3);
+    } finally {
+      client.physics.dispose();
+      server.physics.dispose();
+    }
+  },
+);
+
+it('restores a buffered slide-jump facing across correction before exiting low cover', () => {
+  const boxes: ArenaBox[] = [
+    { position: [0, -0.5, 0], size: [200, 1, 200], color: 0 },
+    { position: [0, 1.6, -10], size: [4, 1, 2], color: 0 },
+  ];
+  const client = new MovementController(
+    new PhysicsWorld(boxes, { x: 0, y: 0.91, z: 0 }),
+  );
+  const server = new MovementController(
+    new PhysicsWorld(boxes, { x: 0, y: 0.91, z: 0 }),
+  );
+  const prediction = new Prediction(client);
+  let ack = 0;
+  const running: MovementInput = { forward: 1, right: 0, yaw: 0, sprint: true };
+  function both(input: MovementInput, count = 1) {
+    for (let i = 0; i < count; i++) {
+      ack = prediction.step(input, 0).seq;
+      server.step(input, movementConfig.fixedStep);
+    }
+  }
+  try {
+    both({ ...running, forward: 0 }, 10);
+    both(running, 60);
+    both({ ...running, slidePressed: true });
+    for (let i = 0; i < 50 && server.physics.position.z > -10.9; i++)
+      both(running);
+    both({ forward: 0, right: 0, yaw: -Math.PI / 2, jumpPressed: true });
+    const snapshot = server.capture();
+    expect(snapshot.jumpBuffer).toBeGreaterThan(0);
+    expect(snapshot.jumpYaw).toBe(-Math.PI / 2);
+    const pending: MovementInput = { forward: 0, right: 0, yaw: Math.PI };
+    for (let i = 0; i < 10; i++) prediction.step(pending, 0);
+    client.restore({ ...client.capture(), jumpYaw: 0 });
+    prediction.reconcile({ ack, snapshot });
+    for (let i = 0; i < 10; i++) server.step(pending, movementConfig.fixedStep);
+    expect(client.capture()).toEqual(server.capture());
+    expect(client.velocity.x).toBeGreaterThan(5);
+  } finally {
+    client.physics.dispose();
+    server.physics.dispose();
+  }
+});
+
 it('replays direction reversals, sprint release and braking without prediction drift', () => {
   const client = new MovementController(new PhysicsWorld(arenaBoxes, spawn));
   const server = new MovementController(new PhysicsWorld(arenaBoxes, spawn));

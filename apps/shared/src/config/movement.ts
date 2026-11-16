@@ -36,6 +36,13 @@ export const movementConfig = Object.freeze({
   slideCooldown: 0.35,
   slideCancelDelay: 0.08,
   slideRecovery: 0.12,
+  slideJumpMomentumRetention: 0.98,
+  slideJumpRedirectionStrength: 1,
+  slideJumpVerticalImpulse: 6.5,
+  slideJumpTransitionWindow: 0.15,
+  // Minimum is an eligibility threshold, never a boost from rest or a blocked slide.
+  slideJumpMinimumSpeed: 3,
+  slideJumpMaximumSpeed: 12,
   diveInitialSpeed: 10,
   diveUpImpulse: 3.5,
   diveDuration: 0.55,

@@ -28,6 +28,61 @@ async function sprint(page: Page) {
   );
 }
 
+for (const [direction, yaw, completed] of [
+  ['backward', Math.PI, false],
+  ['left', Math.PI / 2, false],
+  ['right', -Math.PI / 2, false],
+  ['backward after completion', Math.PI, true],
+] as const) {
+  test(`slide-jump redirects ${direction} through camera input`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await enter(page);
+    await sprint(page);
+    await page.keyboard.press('c');
+    await page.clock.runFor(256);
+    // Feed the same mouse movement event used by the existing look-input checks.
+    await page.evaluate((angle) => {
+      document.dispatchEvent(
+        new MouseEvent('mousemove', { movementX: -angle / 0.002 }),
+      );
+    }, yaw);
+    if (completed) await page.clock.runFor(416); // 672 ms: slide ended, grace still active.
+    const position = () =>
+      page.getByTestId('position').evaluate((element) => ({
+        x: Number(element.dataset.x),
+        y: Number(element.dataset.y),
+        z: Number(element.dataset.z),
+      }));
+    await page.keyboard.press('Space');
+    // Telemetry publishes at 4 Hz. Compare two airborne samples, not an old
+    // pre-jump slide position that can include 200 ms of movement in the old direction.
+    await page.clock.runFor(256);
+    await expect(page.getByTestId('position')).toHaveAttribute(
+      'data-state',
+      'airborne',
+    );
+    const before = await position();
+    await page.clock.runFor(256);
+    const after = await position();
+    await expect(page.getByTestId('position')).toHaveAttribute(
+      'data-state',
+      'airborne',
+    );
+    expect(after.y).toBeGreaterThan(1.1);
+    const facingProgress =
+      -(after.x - before.x) * Math.sin(yaw) -
+      (after.z - before.z) * Math.cos(yaw);
+    expect(facingProgress).toBeGreaterThan(1);
+    await page.keyboard.up('w');
+    await page.keyboard.up('Shift');
+    await page.keyboard.press('Escape');
+    expect(errors).toEqual([]);
+  });
+}
+
 test('ground reversals, sprint release and idle braking respond through real keyboard input', async ({
   page,
 }) => {

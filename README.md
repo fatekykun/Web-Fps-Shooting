@@ -477,7 +477,7 @@ to replace between movement states.
 
 `MovementController` owns a typed state machine: walking, sprinting, sliding,
 backsliding, airborne, diving and recovering. `Walking.ts`, `Sprinting.ts`,
-`Sliding.ts`, `Backsliding.ts`, `SlideCancel.ts`, `BunnyHop.ts`, `DolphinDive.ts`
+`Sliding.ts`, `Backsliding.ts`, `SlideCancel.ts`, `SlideJump.ts`, `BunnyHop.ts`, `DolphinDive.ts`
 and `WallJump.ts` implement the individual mechanics. Input, rendering and React
 remain independent of these rules. All prototype values live in
 `apps/shared/src/config/movement.ts`.
@@ -490,6 +490,16 @@ air steering; all mechanics share a 12 m/s horizontal cap. A slide redirects
 gently without adding speed through steering. Backslide is an intentional retreat
 impulse that reverses the forward component while keeping bounded lateral motion.
 Wall-jump impulses act along the wall normal, preserving tangent velocity.
+
+**Slide + Jump (BP-03):** turn toward the direction you want to travel, then
+press Jump during a slide/backslide or within 150 ms of its completion/cancel.
+The launch redirects toward horizontal facing and retains 98% of available
+momentum, bounded by the existing 12 m/s cap. A short-lived momentum reserve
+prevents recovery braking from making a turned jump fall short; it decays and
+honors collision losses. A buffered press keeps its facing until it can launch.
+Normal jumping outside that window keeps its original behavior. No minimum-speed
+boost is created from rest: below the 3 m/s eligibility threshold, Jump follows
+the normal jump path. These values live alongside the existing movement tuning.
 
 The capsule shrinks/expands at a bounded rate around fixed feet. Camera height is
 derived from that actual capsule height and interpolated at render frequency.

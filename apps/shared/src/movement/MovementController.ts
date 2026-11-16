@@ -15,6 +15,7 @@ import { wantsSlideCancel } from './SlideCancel';
 import { airMove, bunnyHop } from './BunnyHop';
 import { dive, startDive } from './DolphinDive';
 import { wallJump } from './WallJump';
+import { redirectSlideMomentum } from './SlideJump';
 
 /** One velocity owner. States apply forces; the controller integrates vertical motion. */
 export class MovementController {
@@ -32,6 +33,9 @@ export class MovementController {
   private wallCooldown = 0;
   private coyote = 0;
   private jumpBuffer = 0;
+  private jumpYaw = 0;
+  private slideJumpGrace = 0;
+  private slideJumpSpeed = 0;
   private slideBuffer = 0;
   private diveBuffer = 0;
   private sprintGrace = 0;
@@ -47,8 +51,20 @@ export class MovementController {
 
   private transition(state: MovementState): void {
     if (state === this.state) return;
-    if (this.state === 'sliding' || this.state === 'backsliding')
+    if (this.state === 'sliding' || this.state === 'backsliding') {
       this.slideCooldown = movementConfig.slideCooldown;
+      if (state === 'recovering') {
+        this.slideJumpGrace = movementConfig.slideJumpTransitionWindow;
+        this.slideJumpSpeed = Math.hypot(this.velocity.x, this.velocity.z);
+      }
+    }
+    if (
+      state === 'airborne' ||
+      state === 'diving' ||
+      state === 'sliding' ||
+      state === 'backsliding'
+    )
+      this.clearSlideJump();
     if (this.state === 'diving')
       this.diveCooldown = movementConfig.diveCooldown;
     this.state = state;
@@ -64,6 +80,11 @@ export class MovementController {
     this.transition('recovering');
   }
 
+  private clearSlideJump(): void {
+    this.slideJumpGrace = 0;
+    this.slideJumpSpeed = 0;
+  }
+
   step(input: MovementInput, dt: number): void {
     Object.assign(this.previousPosition, this.physics.position);
     this.previousEyeOffset = this.eyeOffset;
@@ -71,6 +92,11 @@ export class MovementController {
     this.slideCooldown = Math.max(0, this.slideCooldown - dt);
     this.diveCooldown = Math.max(0, this.diveCooldown - dt);
     this.wallCooldown = Math.max(0, this.wallCooldown - dt);
+    this.slideJumpGrace = Math.max(0, this.slideJumpGrace - dt);
+    if (this.slideJumpGrace > 0)
+      this.slideJumpSpeed *= Math.exp(-movementConfig.slideFriction * dt);
+    else this.slideJumpSpeed = 0;
+    if (input.jumpPressed) this.jumpYaw = input.yaw;
     this.jumpBuffer = input.jumpPressed
       ? movementConfig.jumpBuffer
       : Math.max(0, this.jumpBuffer - dt);
@@ -128,6 +154,7 @@ export class MovementController {
 
     // Jump precedes ground friction, preserving takeoff and slide-cancel momentum.
     let launched = false;
+    let slideLaunched = false;
     const jumpWanted = input.jump || this.jumpBuffer > 0;
     const jumpAllowed =
       this.state !== 'diving' &&
@@ -142,7 +169,24 @@ export class MovementController {
       jumpAllowed &&
       this.physics.canStand()
     ) {
-      bunnyHop(this.velocity);
+      const activeSlide =
+        this.state === 'sliding' || this.state === 'backsliding';
+      const recentSlide = this.slideJumpGrace > 0 && this.slideJumpSpeed > 0;
+      const momentum = Math.max(
+        Math.hypot(this.velocity.x, this.velocity.z),
+        recentSlide ? this.slideJumpSpeed : 0,
+      );
+      slideLaunched =
+        (activeSlide || recentSlide) &&
+        redirectSlideMomentum(
+          this.velocity,
+          this.jumpBuffer > 0 ? this.jumpYaw : input.yaw,
+          momentum,
+        );
+      if (slideLaunched)
+        this.velocity.y = movementConfig.slideJumpVerticalImpulse;
+      else bunnyHop(this.velocity);
+      this.clearSlideJump();
       this.transition('airborne');
       this.coyote = 0;
       this.jumpBuffer = 0;
@@ -247,7 +291,9 @@ export class MovementController {
         else airMove(this.velocity, input, dt, this.wish);
         break;
       case 'airborne':
-        airMove(this.velocity, input, dt, this.wish);
+        // Honor the captured launch vector for this tick. Ordinary air steering
+        // resumes next tick; strafing input cannot overwrite the facing launch.
+        if (!slideLaunched) airMove(this.velocity, input, dt, this.wish);
         break;
     }
     capHorizontalSpeed(this.velocity);
@@ -284,6 +330,15 @@ export class MovementController {
     // Collision separation may add tiny tangential corrections; it must not
     // become extra movement energy on the following tick.
     capHorizontalSpeed(this.velocity, requestedSpeed);
+    if (this.slideJumpGrace > 0 && requestedSpeed > 0.00001) {
+      // Keep the bank independent of BP-02's input braking, but honor momentum
+      // lost to an actual obstacle during the short transition window.
+      this.slideJumpSpeed *= Math.min(
+        1,
+        Math.hypot(this.velocity.x, this.velocity.z) / requestedSpeed,
+      );
+      if (this.slideJumpSpeed < 0.00001) this.clearSlideJump();
+    }
     if (this.physics.grounded || this.physics.hitCeiling) this.velocity.y = 0;
     this.wasGrounded = grounded;
   }
@@ -293,6 +348,7 @@ export class MovementController {
     Object.assign(this.previousPosition, this.physics.position);
     this.previousEyeOffset = this.eyeOffset;
     this.jumpBuffer = 0;
+    this.jumpYaw = 0;
     this.slideBuffer = 0;
     this.diveBuffer = 0;
   }
@@ -301,6 +357,7 @@ export class MovementController {
     this.velocity.x = 0;
     this.velocity.y = 0;
     this.velocity.z = 0;
+    this.clearSlideJump();
     this.synchronize();
   }
 
@@ -319,6 +376,9 @@ export class MovementController {
       wallCooldown: this.wallCooldown,
       coyote: this.coyote,
       jumpBuffer: this.jumpBuffer,
+      jumpYaw: this.jumpYaw,
+      slideJumpGrace: this.slideJumpGrace,
+      slideJumpSpeed: this.slideJumpSpeed,
       slideBuffer: this.slideBuffer,
       diveBuffer: this.diveBuffer,
       sprintGrace: this.sprintGrace,
