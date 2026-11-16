@@ -34,7 +34,23 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   const hipSpread = await number('spread');
   const baseFov = await number('fov');
   await page.mouse.down({ button: 'right' });
-  await page.clock.runFor(1100);
+  await page.clock.runFor(80);
+  await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '0');
+  await page.screenshot({ path: 'test-results/bp04-sniper-raise.png' });
+  await page.clock.runFor(80);
+  await page.screenshot({ path: 'test-results/bp04-sniper-align.png' });
+  await page.clock.runFor(48);
+  const entering = Number(
+    await page
+      .getByTestId('sniper-scope')
+      .evaluate((el) => getComputedStyle(el).opacity),
+  );
+  expect(entering).toBeGreaterThan(0);
+  expect(entering).toBeLessThan(1);
+  await page.screenshot({ path: 'test-results/bp04-sniper-handoff.png' });
+  await page.clock.runFor(48);
+  await page.screenshot({ path: 'test-results/bp04-sniper-eye.png' });
+  await page.clock.runFor(844);
   expect(await number('ads')).toBeGreaterThan(0.99);
   expect(
     Math.tan((baseFov * Math.PI) / 360) /

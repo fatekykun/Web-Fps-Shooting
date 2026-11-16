@@ -76,7 +76,7 @@ export class WeaponController {
     return this.fieldOfView(combatConfig.baseFov);
   }
 
-  fieldOfView(base: number): number {
+  fieldOfView(base: number, ads = this.ads): number {
     const target = this.config.scopeMagnification
       ? (Math.atan(
           Math.tan((base * Math.PI) / 360) / this.config.scopeMagnification,
@@ -84,7 +84,7 @@ export class WeaponController {
           360) /
         Math.PI
       : this.config.adsFov;
-    return base + (target - base) * this.ads;
+    return base + (target - base) * ads;
   }
   get cycling(): boolean {
     return this.time + 1e-9 < this.current.cycleEnd;

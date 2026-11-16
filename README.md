@@ -282,8 +282,11 @@ Bindings can be changed in Settings; existing customized controls are preserved.
 The scope uses a circular native-resolution reticle over the existing camera.
 Actual **4× magnification** uses `2 atan(tan(baseFov / 2) / 4)` and respects your
 custom hip FOV. ADS, camera zoom, overlay and sensitivity blend smoothly; release
-right mouse to restore your FOV. The model lowers and disappears when fully
-scoped. There is no second scene render, scope render target, blur or temporal
+right mouse to restore your FOV. The rifle rises and centers its hollow eyepiece
+at the eye before the optic opens. Zoom follows the raise, and the scope view
+takes over through the tube's opening; releasing aim reverses the same path.
+The rifle remains opaque, then is hidden once the optic masks the handoff.
+There is no second scene render, scope render target, blur or temporal
 history. Pixel textures retain nearest filtering and HUD text remains native.
 
 Scoped walking is **45% of normal speed (2.25 m/s)**. Sprinting, sliding,

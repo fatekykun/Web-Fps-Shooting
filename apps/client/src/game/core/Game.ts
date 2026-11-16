@@ -19,6 +19,7 @@ import {
 } from './PerformanceMonitor';
 import { PracticeCombat, type CombatSnapshot } from '../combat/PracticeCombat';
 import { WeaponViewmodel } from '../weapons/WeaponViewmodel';
+import { sniperZoom } from '../weapons/SniperScope';
 import type { RoomView } from '@breakpoint/shared/network';
 import type { NetworkSession } from '../networking/NetworkSession';
 import { RemotePlayers } from '../networking/RemotePlayers';
@@ -180,7 +181,10 @@ export class Game {
   }
   private get displayedFov(): number {
     const weapon = (this.session ? this.networkCombat : this.combat).weapons;
-    return weapon.fieldOfView(this.userSettings.fov);
+    return weapon.fieldOfView(
+      this.userSettings.fov,
+      weapon.config.scopeMagnification ? sniperZoom(weapon.ads) : weapon.ads,
+    );
   }
   private combatSnapshot(): CombatSnapshot {
     return {

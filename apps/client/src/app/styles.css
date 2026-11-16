@@ -1150,8 +1150,9 @@ kbd {
 }
 .scope-lens {
   position: relative;
-  width: 86vmin;
-  height: 86vmin;
+  overflow: hidden;
+  width: var(--scope-diameter, 86vmin);
+  height: var(--scope-diameter, 86vmin);
   border: 3px solid #131b18;
   border-radius: 50%;
   box-shadow:
@@ -1173,6 +1174,7 @@ kbd {
     );
 }
 .scope-lens i {
+  opacity: var(--scope-detail, 1);
   position: absolute;
   left: calc(50% - 6px);
   top: 53%;
@@ -1181,6 +1183,7 @@ kbd {
   background: repeating-linear-gradient(transparent 0 15px, #18231d 15px 16px);
 }
 .scope-lens span {
+  opacity: var(--scope-detail, 1);
   position: absolute;
   top: 77%;
   left: 0;

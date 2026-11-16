@@ -22,11 +22,11 @@ reset a bolt cooldown. Reload transfer and cancellation reuse existing rules.
 Camera zoom uses tangent-based magnification relative to the user's configured
 hip FOV. Render-frequency ADS also drives zoom-scaled sensitivity and the circular
 native-resolution scope overlay through a DOM ref; React still receives normal
-4 Hz telemetry/event updates. The opaque viewmodel lowers during ADS and is hidden
-at full scope, preventing near-field gun geometry from covering the sight. The
+4 Hz telemetry/event updates. The opaque viewmodel rises and centers its hollow
+eyepiece before the native scope takes over, and is hidden at full scope. The
 scope introduces no additional world render, target, AA mode, blur or temporal
 history. Sniper geometry shares the box primitive, nearest-filtered textures and
-material with the other pooled models: 29 instances, 348 triangles, one draw when
+material with the other pooled models: 60 instances, 720 triangles, one draw when
 visible. Only the bolt handle's instance matrix changes during cycling.
 
 The shared controller exposes a scoped movement policy. Ground walking can use
@@ -51,7 +51,7 @@ its original head/body sensors. Procedural sniper report, bolt, ADS and reload
 cues use the existing bounded audio engine and volume controls, with server-only
 online hit/kill confirmation. No recordings or external assets are used.
 
-Validation includes 232 passing unit/integration tests across 36 files. New checks
+Validation includes 234 passing unit/integration tests across 37 files. New checks
 cover cadence boundaries, early presses/held fire, switching during cycling,
 five-round depletion, reload completion/cancellation and reserves, custom-FOV 4×
 math and reversible ADS at 30/60/144 Hz, movement eligibility/air spread, prediction
@@ -86,15 +86,52 @@ presses for the bolt-action sniper. No functional suite ran concurrently.
 | SR-04 sniper   |            59.72 |                      27.41 |                   58.48 |
 
 Mean FPS differs by about 0.46%, with no sustained frame-rate drop in this run.
+These initial BP-04 measurements predate the ADS animation follow-up below.
 The sniper's lower transient 1% low remains visible in the measurements; short
 samples do not establish equal tail latency or full-match performance. Sampled
 main-thread CPU ranges overlap (rifle 0.51–1.96 ms, sniper 0.56–1.84 ms). The sniper
-adds 132 model triangles versus the rifle, uses the same one active model draw,
-and removes that draw while fully scoped. No added render targets/passes or GPU
+initially added 132 model triangles versus the rifle, used the same one active model draw,
+and removed that draw while fully scoped. No added render targets/passes or GPU
 texture assets are allocated. Raw reports: `test-results/bp04-rifle-native.json`
 (75 samples) and `test-results/bp04-sniper-native.json` (74 samples). The profiler
 now accepts `--weapon rifle|smg|shotgun|sniper`. These local training results do not
 replace eight-human network play, audio mix/balance tuning or longer profiling.
+
+### BP-04 ADS animation follow-up — 2026-11-17
+
+Right-click now raises the rifle from the hip, centers the eyepiece, then brings
+it toward the eye. Camera magnification starts after the raise begins, rather
+than zooming immediately while lowering the weapon. A shared, reversible visual
+curve stages the viewmodel, camera and native overlay from the existing ADS
+progress; releasing aim or interrupting it with movement follows the same path
+back. Weapon timing, spread, recoil, movement policy and server hit rules remain
+unchanged. Custom FOV and zoom-scaled mouse sensitivity still use the displayed
+camera FOV.
+
+The box-shaped optic has been replaced with a faceted hollow scope body and rims
+using the same primitive, opaque material and nearest-filtered texture. The
+solid rifle stays visible during the raise. The native aperture first matches
+the visible tube opening, masks the model handoff, then opens to the full sight.
+There is no transparent weapon fade, ghosted housing, second camera render or
+new render target. The 60 pooled box instances remain one model draw and share
+the original geometry/material/texture resources. Scope markings appear once
+the opening is readable. The handoff also reverses during interrupted ADS.
+
+Regression coverage checks upward/inward movement, centered aim, solid material,
+reversible visibility, staged zoom/aperture and other weapons' opaque rendering.
+Frame-stepped browser captures cover the raise, alignment, handoff, eye approach
+and full scope: `test-results/bp04-sniper-raise.png`, `bp04-sniper-align.png`,
+`bp04-sniper-handoff.png`, `bp04-sniper-eye.png`, and `bp04-sniper-scope.png`.
+
+All 234 unit/integration tests passed, with the final optic changes also passing
+the 25 focused weapon tests. The five browser checks passed for rifle/SMG ADS,
+shotgun handling, confirmed network combat and both sniper scenarios; the final
+opaque handoff passed both sniper checks again. Typecheck, production build and
+lint passed. A repeat native UHD 620 profile with the same Quality 1280×720,
+AA/shadows/adaptive-off setup averaged **59.75 FPS**, with a minimum rolling 1%
+low of **32.26 FPS** over 74 samples / 20 seconds, including walk/fire/ADS/reload.
+Raw report: `test-results/bp04-ads-sniper-native.json`. This remains a short local
+training measurement, with the same hardware/multiplayer limits as above.
 
 ## BP-03 — camera-facing slide jumps
 

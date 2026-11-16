@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  sniperScopeBlend,
+  sniperScopeDiameter,
+} from '../game/weapons/SniperScope';
 import type { Game, GameTelemetry } from '../game/core/Game';
 import { Telemetry } from '../components/Telemetry';
 import { GraphicsControls } from '../components/GraphicsControls';
@@ -116,8 +120,20 @@ export function App() {
       },
       onReticle: (gap: number, ads: number, scoped: number) => {
         if (cancelled || !reticle.current) return;
-        const opacity = Math.max(0, Math.min(1, (scoped - 0.25) / 0.65));
-        if (scope.current) scope.current.style.opacity = String(opacity);
+        const opacity = sniperScopeBlend(scoped);
+        if (scope.current) {
+          scope.current.style.opacity = String(opacity);
+          scope.current.style.setProperty(
+            '--scope-diameter',
+            `${sniperScopeDiameter(scoped).toFixed(2)}vmin`,
+          );
+          scope.current.style.setProperty(
+            '--scope-detail',
+            String(
+              Math.max(0, Math.min(1, (sniperScopeDiameter(scoped) - 30) / 40)),
+            ),
+          );
+        }
         reticle.current.style.visibility =
           opacity > 0.95 ? 'hidden' : 'visible';
         const crosshair = preferencesRef.current.crosshair;
