@@ -352,6 +352,7 @@ export function App() {
         <SettingsPanel
           settings={preferences}
           graphics={graphics}
+          antiAliasing={stats?.antiAliasing}
           saved={saved}
           ready={ready}
           onChange={changePreferences}

@@ -15,13 +15,14 @@ import {
   type Camera,
 } from 'three';
 import { AdaptiveResolution } from './AdaptiveResolution';
+import { WorldAntiAliasing } from './WorldAntiAliasing';
 import {
   calculateResolution,
   type GraphicsPreset,
   type GraphicsSettings,
 } from './graphicsConfig';
 
-/** One low-resolution world pass and one unfiltered native-size presentation pass. */
+/** World-resolution AA followed by one nearest native-size presentation pass. */
 export class GameRenderer {
   readonly renderer = new WebGLRenderer({
     antialias: false,
@@ -55,6 +56,10 @@ export class GameRenderer {
     toneMapped: false,
   });
   private readonly adaptive: AdaptiveResolution;
+  private readonly aa: WorldAntiAliasing;
+  get antiAliasing() {
+    return this.aa.state;
+  }
   private outputWidth = 1;
   private outputHeight = 1;
   private renderScale = 1;
@@ -72,6 +77,8 @@ export class GameRenderer {
 
   constructor(host: HTMLElement, settings: GraphicsSettings) {
     this.adaptive = new AdaptiveResolution(settings);
+    this.aa = new WorldAntiAliasing(this.renderer, this.target);
+    this.aa.configure(settings.antiAliasing);
     this.renderScale = settings.renderScale;
     this.renderer.shadowMap.enabled = settings.shadowQuality !== 'off';
     this.renderer.shadowMap.type = BasicShadowMap;
@@ -106,6 +113,7 @@ export class GameRenderer {
   }
 
   configure(settings: GraphicsSettings): void {
+    this.aa.configure(settings.antiAliasing);
     this.renderScale = settings.renderScale;
     this.renderer.shadowMap.enabled = settings.shadowQuality !== 'off';
     this.adaptive.configure(settings);
@@ -125,6 +133,7 @@ export class GameRenderer {
     );
     if (size.width !== this.target.width || size.height !== this.target.height)
       this.target.setSize(size.width, size.height);
+    this.aa.resize();
   }
 
   render(
@@ -134,6 +143,7 @@ export class GameRenderer {
     viewmodel: { scene: Scene; camera: Camera } | null = null,
   ): void {
     if (this.adaptive.observe(frameMs)) this.updateResolution();
+    this.aa.prepare();
     this.renderer.info.reset();
     this.renderer.setRenderTarget(this.target);
     this.renderer.render(scene, camera);
@@ -144,12 +154,14 @@ export class GameRenderer {
       this.renderer.autoClear = true;
     }
     this.worldDrawCalls = this.renderer.info.render.calls;
+    this.material.map = this.aa.render();
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.presentation, this.presentationCamera);
   }
 
   dispose(): void {
     this.renderer.setAnimationLoop(null);
+    this.aa.dispose();
     this.target.dispose();
     this.triangle.dispose();
     this.material.dispose();

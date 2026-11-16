@@ -200,6 +200,14 @@ shadow setting (default Off). Presets now use 640×360, 960×540, 1280×720 and
 1920×1080. The existing BP-01 hardware measurements cover the first three presets;
 1080p performance depends on the device and needs its own profile.
 
+To compare edge smoothing, repeat a fixed preset with
+`--aa off|fxaa|smaa|msaa2|msaa4`. Reports include the effective method, sample
+count and post-pass count. The profiler refuses unavailable choices so a fallback
+is not mistaken for a successful benchmark. Run each mode separately with no
+other browser tests in progress, and compare frame-time lows as well as averages.
+`--screenshot` saves an initial comparison capture beside the JSON (`.json.png`)
+before warmup; the capture's startup FPS is not the recorded profile average.
+
 For the real friends test:
 
 - Connect eight **people/devices** using the public invite. Confirm a ninth is

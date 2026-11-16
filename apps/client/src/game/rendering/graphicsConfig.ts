@@ -1,3 +1,5 @@
+import { isAntiAliasingMode, type AntiAliasingMode } from './antiAliasing';
+
 export const graphicsPresets = {
   performance: { label: 'Performance', width: 640, height: 360 },
   balanced: { label: 'Balanced', width: 960, height: 540 },
@@ -13,6 +15,7 @@ export const presetOrder: readonly GraphicsPreset[] = [
   'ultra',
 ];
 export interface GraphicsSettings {
+  antiAliasing: AntiAliasingMode;
   preset: GraphicsPreset;
   adaptive: boolean;
   textureQuality: 'low' | 'high';
@@ -21,6 +24,7 @@ export interface GraphicsSettings {
   renderScale: 0.5 | 0.75 | 1;
 }
 export const defaultGraphics: Readonly<GraphicsSettings> = {
+  antiAliasing: 'off',
   preset: 'balanced',
   adaptive: true,
   textureQuality: 'high',
@@ -70,6 +74,7 @@ export function normalizeGraphicsSettings(value: unknown): GraphicsSettings {
   if (!isGraphicsPreset(v.preset) || typeof v.adaptive !== 'boolean')
     return { ...defaultGraphics };
   return {
+    antiAliasing: isAntiAliasingMode(v.antiAliasing) ? v.antiAliasing : 'off',
     preset: v.preset,
     adaptive: v.adaptive,
     textureQuality: v.textureQuality === 'low' ? 'low' : 'high',

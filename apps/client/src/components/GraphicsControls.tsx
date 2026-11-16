@@ -5,17 +5,24 @@ import {
   normalizeGraphicsSettings,
   type GraphicsSettings,
 } from '../game/rendering/graphicsConfig';
+import {
+  antiAliasingModes,
+  antiAliasingLabels,
+  type AntiAliasingState,
+} from '../game/rendering/antiAliasing';
 
 export function GraphicsControls({
   settings,
   onChange,
   idPrefix = 'quick',
   advanced = false,
+  antiAliasing,
 }: {
   settings: GraphicsSettings;
   onChange: (settings: GraphicsSettings) => void;
   idPrefix?: string;
   advanced?: boolean;
+  antiAliasing?: AntiAliasingState;
 }) {
   return (
     <section className="graphics-controls" aria-label="Graphics settings">
@@ -52,6 +59,13 @@ export function GraphicsControls({
         <div className="graphics-detail-grid">
           {(
             [
+              [
+                'Anti-aliasing',
+                'antiAliasing',
+                antiAliasingModes.map(
+                  (mode) => [mode, antiAliasingLabels[mode]] as const,
+                ),
+              ],
               [
                 'Texture detail',
                 'textureQuality',
@@ -107,14 +121,40 @@ export function GraphicsControls({
                 }
               >
                 {options.map(([value, text]) => (
-                  <option key={value} value={value}>
+                  <option
+                    key={value}
+                    value={value}
+                    disabled={
+                      field === 'antiAliasing' &&
+                      (antiAliasing
+                        ? !antiAliasing.supported.includes(
+                            value as GraphicsSettings['antiAliasing'],
+                          )
+                        : value !== 'off')
+                    }
+                  >
                     {text}
+                    {field === 'antiAliasing' &&
+                      antiAliasing &&
+                      !antiAliasing.supported.includes(
+                        value as GraphicsSettings['antiAliasing'],
+                      ) &&
+                      ' · unavailable'}
                   </option>
                 ))}
               </select>
             </div>
           ))}
         </div>
+      )}
+      {advanced && (
+        <p role="status" data-testid="aa-status">
+          {antiAliasing?.loading
+            ? 'Loading SMAA…'
+            : antiAliasing && antiAliasing.requested !== antiAliasing.active
+              ? 'Selected anti-aliasing is unavailable on this device. Using OFF.'
+              : 'OFF keeps the sharpest pixels. FXAA is softer; SMAA and MSAA favor cleaner edges.'}
+        </p>
       )}
       <p>
         Adaptive resolution favors steady frames within your preset.

@@ -12,6 +12,8 @@ const { values } = parseArgs({
     headed: { type: 'boolean', default: false },
     software: { type: 'boolean', default: false },
     shadows: { type: 'string', default: 'off' },
+    aa: { type: 'string', default: 'off' },
+    screenshot: { type: 'boolean', default: false },
     output: { type: 'string', default: 'test-results/browser-profile.json' },
   },
 });
@@ -25,6 +27,8 @@ if (!['performance', 'balanced', 'quality', 'ultra'].includes(values.preset))
   throw new Error('--preset must be performance, balanced, quality or ultra.');
 if (!['off', 'low', 'high'].includes(values.shadows))
   throw new Error('--shadows must be off, low or high.');
+if (!['off', 'fxaa', 'smaa', 'msaa2', 'msaa4'].includes(values.aa))
+  throw new Error('--aa must be off, fxaa, smaa, msaa2 or msaa4.');
 const viewport =
   values.preset === 'ultra'
     ? { width: 1920, height: 1080 }
@@ -52,6 +56,19 @@ try {
   await page.getByRole('tab', { name: /DISPLAY/ }).click();
   await page.getByLabel('Resolution preset').selectOption(values.preset);
   await page.getByLabel('Adaptive resolution', { exact: true }).uncheck();
+  const aaSelect = page.getByLabel('Anti-aliasing', { exact: true });
+  if (await aaSelect.locator(`option[value="${values.aa}"]`).isDisabled())
+    throw new Error(
+      `Anti-aliasing ${values.aa} is unavailable on this device.`,
+    );
+  await aaSelect.selectOption(values.aa);
+  await page.waitForFunction(
+    (mode) =>
+      document
+        .querySelector('[data-testid="render-resolution"]')
+        ?.getAttribute('data-aa-active') === mode,
+    values.aa,
+  );
   if (await page.getByLabel('Shadow quality', { exact: true }).count())
     await page
       .getByLabel('Shadow quality', { exact: true })
@@ -59,6 +76,8 @@ try {
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
   await page.locator('.crosshair').waitFor();
+  if (values.screenshot)
+    await page.screenshot({ path: resolve(values.output + '.png') });
   await page.waitForTimeout(5000);
   const gpu = await page
     .locator('canvas')
@@ -122,6 +141,10 @@ try {
       shadowMapSize: Number(element.dataset.shadowMapSize),
       viewDistance: Number(element.dataset.cameraFar),
       renderScale: Number(element.dataset.renderScale),
+      antiAliasing: element.dataset.aaActive,
+      supportedAntiAliasing: element.dataset.aaSupported?.split(','),
+      samples: Number(element.dataset.aaSamples),
+      aaPasses: Number(element.dataset.aaPasses),
     }));
   const report = {
     recordedAt: new Date().toISOString(),

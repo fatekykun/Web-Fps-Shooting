@@ -8,6 +8,89 @@ code and verification tools are implemented; cloud publication and eight-human
 play still require live hosting accounts and participants. BP-01 adds local
 physical-device training measurements on the target Intel UHD 620 hardware.
 
+## Configurable anti-aliasing
+
+Added a mutually exclusive OFF / FXAA / SMAA / MSAA 2X / MSAA 4X selector under
+Settings → Display. Existing v1/v2 graphics preferences normalize to OFF, keeping
+the default retro presentation and render cost. Preset changes retain the chosen
+method; viewport/adaptive changes resize all active buffers and texel uniforms.
+
+The WebGL canvas remains `antialias: false`: all geometry renders into a custom
+world target. MSAA changes that target's actual sample count and rebuilds its
+attachments on mode changes. Exact RGBA8 and DEPTH_COMPONENT24 sample support is
+intersected; unsupported 2X is never silently represented by 4X. SMAA requires
+renderable half-float targets and waits for its lookup images to decode. Missing
+capabilities or failed SMAA loading fall back to OFF, preserving the stored choice
+and explaining the fallback in Settings.
+
+FXAA is one world-resolution pass using Three's shader with reduced subpixel
+blending (0.25) and a higher relative contrast threshold (0.125). Sampling converts
+linear input to perceptual sRGB, then decodes the filtered output to retain one
+final display conversion. SMAA is Three's three-pass linear-space implementation,
+lazily imported with its embedded lookup textures. Intermediate buffers are
+allocated only for the active post method and disposed when switching or exiting.
+Source linear sampling exists only within the post method; atlas/weapon maps and
+the final low-resolution upscale retain nearest sampling. AA uses only the current
+frame; no history buffers, full-resolution composer chain or HUD smoothing were introduced.
+
+Implementation references: [Three render-target samples](https://threejs.org/docs/pages/RenderTarget.html),
+[FXAAPass](https://threejs.org/docs/pages/FXAAPass.html) and
+[SMAA's linear-space requirement](https://threejs.org/docs/pages/SMAAPass.html).
+The installed Three source also establishes sampler update behavior and lookup
+image readiness, which the runtime handles before drawing.
+
+160 unit/integration cases across 31 files pass, along with strict TypeScript,
+lint, formatting and production builds. All 19 Chrome acceptance cases pass in
+one full regression run, including actual silhouette
+coverage changes, exact 2×2 nearest presentation, sky color, mode exclusivity,
+resize/reload, cancelling pending SMAA and unsupported-capability fallback. The
+full gameplay browser regression covers movement, combat, rooms and modes.
+Native-GPU comparison captures
+were reviewed: geometry edges soften, while the pixel textures and HTML HUD retain
+their intended definition. The optional SMAA chunk is 38.49 KB gzip; the base
+Three vendor chunk remains 131.61 KB gzip. No dependencies were added.
+
+Native profiling on 2026-11-16 used the same Lenovo/i7-8650U/Intel UHD 620 hardware
+as BP-01, ANGLE D3D11, Chrome 157.0.8103.79, headless and **not SwiftShader**. Each
+mode ran alone for 20 seconds after a five-second warmup at Quality/1280×720,
+adaptive disabled, High textures, shadows Off, view 60 m and Crisp pixel scale.
+The scenario cycles walking, firing, ADS and reload in offline training. All five
+modes were available on this driver; reports confirm 0/2/4 world-target samples
+and 0/1/3 post passes rather than assuming canvas AA covers the custom target.
+
+| Mode    | Average rolling FPS | Minimum rolling 1% low FPS | Mean CPU submission (ms) |
+| ------- | ------------------- | -------------------------- | ------------------------ |
+| OFF     | 59.99               | 38.54                      | 1.19                     |
+| FXAA    | 59.79               | 23.78                      | 1.11                     |
+| SMAA    | 59.85               | 26.44                      | 1.24                     |
+| MSAA 2X | 59.89               | 26.49                      | 0.99                     |
+| MSAA 4X | 59.85               | 23.65                      | 1.31                     |
+
+These short profiles average about 60 FPS but show transient dips; they are not
+evidence of a locked 60 FPS or of eight-player/1080p performance. CPU submission
+excludes asynchronous GPU execution, and 60 Hz presentation can conceal remaining
+GPU headroom. Lows are the minimum rolling readings, not whole-run percentiles;
+their windows can include startup/initial capture even after warmup. The small
+average differences should not be treated as a ranking. MSAA allocates additional
+multisample color/depth storage proportional to sample count; SMAA keeps two
+half-float intermediates plus output and lookups, and FXAA keeps one output. Those
+resources exist only for the selected mode. GPU memory usage is not exposed by
+this profiler; its JS heap reading must not be presented as VRAM usage.
+
+Raw reports and captures are generated under ignored `.deploy/aa/{mode}.json`
+and `.json.png`. Captures are taken before warmup, so their displayed startup FPS
+is not the measured average. With a production preview running, reproduce one
+mode at a time (replace `fxaa` with `off`, `smaa`, `msaa2` or `msaa4`):
+
+```powershell
+$env:PLAYWRIGHT_CHANNEL = 'chrome'
+npm run profile:browser -- --preset quality --aa fxaa --seconds 20 --screenshot --output test-results/aa-fxaa.json
+```
+
+The profiler refuses unavailable methods and records the effective method, samples
+and pass count alongside resolution. Add `--headed` for human testing in a visible
+Chrome window; repeat with `--preset ultra` to measure an actual 1080p budget.
+
 ## 1080p graphics option
 
 Added **Ultra (1080p), 1920×1080**, above Quality in the shared preset list. Both

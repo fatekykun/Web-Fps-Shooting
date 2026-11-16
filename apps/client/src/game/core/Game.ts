@@ -6,6 +6,7 @@ import { arenaBoxes, spawn } from '../maps/arenaLayout';
 import { MovementController } from '../movement/MovementController';
 import { initializePhysics, PhysicsWorld } from '../physics/PhysicsWorld';
 import { GameRenderer } from '../rendering/GameRenderer';
+import type { AntiAliasingState } from '../rendering/antiAliasing';
 import {
   defaultGraphics,
   type GraphicsPreset,
@@ -45,6 +46,7 @@ export interface GameTelemetry extends PerformanceStats {
   graphicsPreset: GraphicsPreset;
   adaptiveResolution: boolean;
   worldDrawCalls: number;
+  antiAliasing: AntiAliasingState;
   graphics: GraphicsSettings;
   shadowMapSize: number;
   textureTileSize: number;
@@ -440,6 +442,7 @@ export class Game {
         graphicsPreset: this.rendering.preset,
         adaptiveResolution: this.graphicsSettings.adaptive,
         worldDrawCalls: this.rendering.worldDrawCalls,
+        antiAliasing: this.rendering.antiAliasing,
         graphics: this.graphicsSettings,
         shadowMapSize: this.arena.keyLight.shadow.map?.width ?? 0,
         textureTileSize: this.arena.textureTileSize,

@@ -281,11 +281,12 @@ Settings persist locally when browser storage is available.
 | Quality            | 1280×720                 | 100%                         |
 | Ultra (1080p)      | 1920×1080                | 225%                         |
 
-The world renders into a `WebGLRenderTarget` with nearest-neighbor minification
-and magnification, no mipmaps, no multisampling and no stencil attachment. One
-fullscreen triangle presents it to a native-size canvas. There is no blur,
-bloom, anti-aliasing or expensive post-processing chain. CSS `image-rendering:
-pixelated` also prevents compositor smoothing. The output pixel ratio is capped
+The world renders into a `WebGLRenderTarget` without mipmaps or stencil. With AA
+Off (the default), it uses no multisampling or additional filtering passes. One
+fullscreen triangle presents the result with nearest-neighbor sampling to a
+native-size canvas. Optional AA operates at the actual world resolution, before
+this upscale. There is no bloom, temporal history or full-screen blur. CSS
+`image-rendering: pixelated` also prevents compositor smoothing. The output pixel ratio is capped
 at 1 to avoid extra high-DPI world-rendering cost; the HTML HUD, controls and
 crosshair retain the browser's native text/display resolution.
 
@@ -310,6 +311,15 @@ Disable adaptive resolution to hold your chosen preset exactly.
 
 - **Texture detail:** Low uses 16 px atlas tiles; High uses 32 px tiles. Weapon
   textures switch too. Both retain nearest magnification and nearest mip selection.
+- **Anti-aliasing:** choose one of OFF, FXAA, SMAA, MSAA 2X or MSAA 4X.
+  OFF retains the sharpest pixels and lowest cost. FXAA is a single lightweight
+  edge pass with reduced subpixel blending, but can soften fine detail. SMAA
+  uses three edge/weight/blend passes and loads only when selected. MSAA smooths
+  geometric coverage using actual multisampled world-target attachments, without
+  filtering texture detail. Higher MSAA uses more GPU memory/bandwidth. Unsupported
+  choices are disabled; saved unsupported selections use OFF with a visible notice.
+  Resolution presets retain your AA choice; adaptive resolution can lower its
+  pixel budget. None of these modes filters the native HTML HUD or crosshair.
 - **Shadow quality:** Off by default; Low/High use one cached 512/1024 directional
   shadow map for static architecture. Moving avatars do not regenerate shadows.
 - **View distance:** 40/60/80 m sets the camera far plane and corresponding fog.
@@ -409,7 +419,7 @@ benchmark.
 Graphics checks switch all presets, reload persisted settings, test another
 viewport aspect, and read the real WebGL framebuffer. They verify Ultra's actual
 1920×1080 target and persistence, exact 2×2 pixel blocks at Performance/1280×720,
-nonblank textured output, disabled MSAA,
+nonblank textured output, disabled canvas MSAA,
 correct display color conversion and one presentation draw. GPU readback exists
 only in the browser test, never in the game loop.
 
@@ -510,7 +520,9 @@ include asynchronous GPU execution. JS heap reporting is browser-dependent.
 
 The base scene uses six map draws; the dummy adds one. While playing, the active
 viewmodel adds one instanced draw, with at most one each for muzzle flash and
-pooled impacts. Presentation remains one fullscreen draw. Renderer statistics
+pooled impacts. Presentation remains one fullscreen draw. Optional FXAA adds one
+world-resolution draw; SMAA adds three. MSAA uses target samples without a post
+filtering draw. Renderer statistics
 include world, viewmodel and presentation rather than reporting only the final
 triangle. Target buffers resize only on
 settings, viewport or adaptive-level changes. Physics remains fixed at 60 Hz and

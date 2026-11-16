@@ -9,6 +9,7 @@ import {
   type UserSettings,
 } from '../game/settings/userSettings';
 import type { GraphicsSettings } from '../game/rendering/graphicsConfig';
+import type { AntiAliasingState } from '../game/rendering/antiAliasing';
 import { GraphicsControls } from './GraphicsControls';
 import { TacticalDialog } from './TacticalDialog';
 
@@ -62,6 +63,7 @@ export function crosshairStyle(settings: UserSettings): CSSProperties {
 export function SettingsPanel({
   settings,
   graphics,
+  antiAliasing,
   saved,
   ready,
   onChange,
@@ -72,6 +74,7 @@ export function SettingsPanel({
 }: {
   settings: UserSettings;
   graphics: GraphicsSettings;
+  antiAliasing?: AntiAliasingState;
   saved: boolean;
   ready: boolean;
   onChange(settings: UserSettings): void;
@@ -243,6 +246,7 @@ export function SettingsPanel({
           <>
             <GraphicsControls
               settings={graphics}
+              antiAliasing={antiAliasing}
               onChange={onGraphics}
               idPrefix="settings"
               advanced

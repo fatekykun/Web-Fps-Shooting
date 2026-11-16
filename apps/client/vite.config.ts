@@ -21,7 +21,11 @@ export default defineConfig(({ mode, command }) => {
         output: {
           codeSplitting: {
             groups: [
-              { name: 'three', test: /node_modules[\\/]three[\\/]/ },
+              // Keep optional SMAA code/lookup data in its lazy chunk.
+              {
+                name: 'three',
+                test: /node_modules[\\/]three[\\/](?:build|src)[\\/]/,
+              },
               { name: 'physics', test: /node_modules[\\/]@dimforge[\\/]/ },
             ],
           },
