@@ -5,12 +5,14 @@ import type { KillEvent, ServerShot } from '@breakpoint/shared/combat';
 import { avatarParts, standingAnchor } from '@breakpoint/shared/avatar';
 import { movementConfig } from '@breakpoint/shared';
 
-async function enter(page: Page) {
-  await page.addInitScript(() =>
-    localStorage.setItem(
-      'breakpoint.settings.v1',
-      JSON.stringify({ scopeStyle: 'optic' }),
-    ),
+async function enter(page: Page, style: 'optic' | 'classic' = 'optic') {
+  await page.addInitScript(
+    (scopeStyle) =>
+      localStorage.setItem(
+        'breakpoint.settings.v1',
+        JSON.stringify({ scopeStyle }),
+      ),
+    style,
   );
   await page.addInitScript(() =>
     localStorage.setItem(
@@ -168,9 +170,8 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   expect(await number('spread')).toBeGreaterThan(0.01);
   await page.keyboard.down('Shift');
   await page.clock.runFor(800);
-  // HUD ADS is sampled at 4 Hz; the optical view itself must already be gone.
-  expect(await number('ads')).toBeLessThan(0.05);
-  await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '0');
+  expect(await number('ads')).toBeGreaterThan(0.99);
+  await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '1');
   expect(Number(await page.getByTestId('speed').textContent())).toBeGreaterThan(
     7,
   );
@@ -182,11 +183,12 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
     'data-state',
     'sliding',
   );
-  expect(await number('ads')).toBeLessThan(0.05);
-  await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '0');
+  expect(await number('ads')).toBeGreaterThan(0.99);
+  await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '1');
   await page.keyboard.press('Space');
   await page.clock.runFor(256);
   await expect(page.getByTestId('movement-state')).toHaveText('AIRBORNE');
+  await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '1');
   await page.keyboard.up('w');
   await page.mouse.up({ button: 'right' });
   await page.keyboard.press('1');
@@ -303,3 +305,54 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
     for (const peer of peers) await peer.leave();
   }
 });
+
+for (const style of ['classic', 'optic'] as const) {
+  test(`sniper can enter ADS during sprint, slide and a running jump in ${style} mode`, async ({
+    page,
+  }) => {
+    await enter(page, style);
+    const scope = page.getByTestId('sniper-scope');
+    await page.keyboard.down('w');
+    await page.keyboard.down('Shift');
+    await page.clock.runFor(600);
+    await expect(page.getByTestId('position')).toHaveAttribute(
+      'data-state',
+      'sprinting',
+    );
+    await page.mouse.down({ button: 'right' });
+    await page.clock.runFor(400);
+    await expect(scope).toHaveCSS('opacity', '1');
+    expect(
+      Number(await page.getByTestId('speed').textContent()),
+    ).toBeGreaterThan(7.5);
+    await page.mouse.up({ button: 'right' });
+    await page.clock.runFor(200);
+    await expect(scope).toHaveCSS('opacity', '0');
+    await page.keyboard.press('c');
+    await page.clock.runFor(32);
+    await page.mouse.down({ button: 'right' });
+    await page.clock.runFor(400);
+    await expect(page.getByTestId('position')).toHaveAttribute(
+      'data-state',
+      'sliding',
+    );
+    await expect(scope).toHaveCSS('opacity', '1');
+    await page.keyboard.press('Space');
+    await page.clock.runFor(128);
+    await expect(scope).toHaveCSS('opacity', '1');
+    await page.mouse.up({ button: 'right' });
+    await page.clock.runFor(96);
+    await expect(page.getByTestId('position')).toHaveAttribute(
+      'data-state',
+      'airborne',
+    );
+    await expect(scope).toHaveCSS('opacity', '0');
+    await page.mouse.down({ button: 'right' });
+    await page.clock.runFor(256);
+    await expect(scope).toHaveCSS('opacity', '1');
+    await expect(scope).toHaveAttribute('data-style', style);
+    await page.mouse.up({ button: 'right' });
+    await page.keyboard.up('Shift');
+    await page.keyboard.up('w');
+  });
+}

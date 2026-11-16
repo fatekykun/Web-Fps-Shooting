@@ -15,7 +15,7 @@ no new runtime dependency, asset download, room message or rendering pass is
 required. It is available in training and the existing private FFA/TDM loadouts.
 All balance values are centralized in `apps/shared/src/config/weapons.ts`:
 5/20 rounds, 45 RPM, 1.333 s per-weapon bolt lockout, 2.8 s magazine reload,
-350 ms ADS to 90%, 4× magnification, high recoil/hip spread and long range.
+315 ms ADS to 90%, 4× magnification, high recoil/hip spread and long range.
 Early cycling taps are discarded, held fire cannot repeat, and switching cannot
 reset a bolt cooldown. Reload transfer and cancellation reuse existing rules.
 
@@ -37,8 +37,8 @@ the configured 0.45 speed scale; ordinary movement defaults to its original spee
 The server installs its own policy from the authoritative loadout and validated
 input. Prediction keeps a local scale alongside pending inputs for replay, while
 the network packet contains no client-selected multiplier. Sprint, slide,
-backslide, dive and recovery suppress sniper ADS; normal weapons retain their
-previous handling. Airborne aiming remains possible with an accuracy penalty.
+backslide, dive, recovery and airborne movement all permit sniper ADS, matching
+other weapons' aim eligibility. Airborne aiming retains an accuracy penalty.
 Slide-jump, wall-jump, hopping, collision and ground-response tuning are untouched.
 
 Shared avatar intersection now identifies head, upper/lower torso, arms and legs
@@ -217,6 +217,33 @@ browser scenarios for AA/resize and scope-style rendering/persistence/reset.
 Production build, typecheck and lint passed. No native performance benchmark was
 repeated for this preference-only change: Optical retains the measured renderer
 above; Classic's lower draw count is checked in the browser.
+
+### BP-04 ADS during movement and faster aim — 2026-11-17
+
+Removed the sniper-only movement eligibility gate from both render-frequency
+client ADS and the fixed-tick authoritative server ADS. Holding RMB can now start
+or maintain aim during running/sprinting, sliding/backsliding, dive/recovery,
+ordinary jumps and running/slide jumps. Reload/equip restrictions remain shared
+with other guns. The walking slowdown policy is separate from ADS eligibility:
+only eligible ordinary walking receives the 0.45 speed scale; traversal uses its
+existing movement targets and impulses. Airborne spread and server hit rules
+remain unchanged. Both Classic and Optical scope styles share this behavior.
+
+Sniper `adsTime` changed from 0.350 to 0.315 seconds, a 10% duration reduction.
+The shared exponential ADS curve drives the same reversible raise-to-eye motion,
+zoom, sensitivity and reticle transitions; no new timers or delays were added.
+Timing tests check the 90% boundary at 30/60/144 Hz. Server tests simulate sprint,
+slide and slide-jump inputs and verify ADS remains active, sprint speed is kept,
+air spread persists and aiming can start after takeoff. Browser regressions cover
+entering and maintaining ADS through sprint, slide and running jumps in both
+scope styles. Restart both client and server to load the shared rules and timing.
+
+Verification: all 243 unit/integration tests across 38 files passed on the final
+run. All four sniper browser scenarios passed: training combat/reload/movement,
+eight-player server-confirmed combat, and starting ADS during traversal in each
+scope style. Production build/typecheck, lint, formatting and whitespace checks
+passed. The existing room server on port 2567 was left running; isolated test
+services on 2669/4185 were cleaned up.
 
 ## BP-03 — camera-facing slide jumps
 

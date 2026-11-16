@@ -94,24 +94,6 @@ export class WeaponController {
       ? 1 - (this.current.cycleEnd - this.time) / this.config.boltCycleTime!
       : 0;
   }
-  canAim(
-    input: { sprint?: boolean; slidePressed?: boolean; divePressed?: boolean },
-    state: string,
-  ): boolean {
-    return (
-      !this.config.scopeMagnification ||
-      (!input.sprint &&
-        !input.slidePressed &&
-        !input.divePressed &&
-        ![
-          'sprinting',
-          'sliding',
-          'backsliding',
-          'diving',
-          'recovering',
-        ].includes(state))
-    );
-  }
   movementScale(
     aim: boolean,
     input: { sprint?: boolean; slidePressed?: boolean; divePressed?: boolean },
@@ -120,7 +102,10 @@ export class WeaponController {
     return aim &&
       !this.reloading &&
       !this.equipping &&
-      this.canAim(input, state)
+      state === 'walking' &&
+      !input.sprint &&
+      !input.slidePressed &&
+      !input.divePressed
       ? (this.config.scopedMovementScale ?? 1)
       : 1;
   }

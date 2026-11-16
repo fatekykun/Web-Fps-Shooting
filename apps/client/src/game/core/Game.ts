@@ -395,12 +395,7 @@ export class Game {
       (this.session.view?.phase === 'playing' &&
         !!this.networkCombat.owner?.alive);
     if (this.input.locked || this.session)
-      weapons.updateAds(
-        delta,
-        armed &&
-          this.input.weapon.aim &&
-          weapons.canAim(this.input.movement, this.movement.state),
-      );
+      weapons.updateAds(delta, armed && this.input.weapon.aim);
     this.input.lookScale =
       Math.tan((this.displayedFov * Math.PI) / 360) /
       Math.tan((this.userSettings.fov * Math.PI) / 360);

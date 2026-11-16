@@ -29,7 +29,7 @@ export const weaponConfigs: Readonly<Record<WeaponId, Readonly<WeaponConfig>>> =
       fireInterval: 60 / 45,
       boltCycleTime: 60 / 45,
       reloadTime: 2.8,
-      adsTime: 0.35,
+      adsTime: 0.315,
       adsFov: 25.8,
       scopeMagnification: 4,
       scopedMovementScale: 0.45,

@@ -239,7 +239,7 @@ disabled in online rooms.
 | AR-01 rifle   | 30 / 120           | Automatic, 600 RPM                   | 2.0 s  | 140 ms     |
 | SM-02 SMG     | 35 / 140           | Automatic, 900 RPM                   | 1.6 s  | 100 ms     |
 | SG-03 shotgun | 8 / 40             | Semi-auto, 0.8 s interval, 8 pellets | 2.4 s  | 180 ms     |
-| SR-04 sniper  | 5 / 20             | Bolt-action, 45 RPM                  | 2.8 s  | 350 ms     |
+| SR-04 sniper  | 5 / 20             | Bolt-action, 45 RPM                  | 2.8 s  | 315 ms     |
 
 ADS changes camera FOV, sight alignment and sensitivity without smoothing mouse
 look. Its reversible exponential blend updates at render frequency. Hip FOV is
@@ -301,10 +301,11 @@ uses one pooled lens-sized render target only while scoping, composited before
 the selected world AA. Classic uses the existing single world view. Pixel textures
 retain nearest filtering and HUD text stays native.
 
-Scoped walking is **45% of normal speed (2.25 m/s)**. Sprinting, sliding,
-backsliding, diving and posture recovery suppress the scope; holding aim restores
-it once those actions finish. Jumping keeps ADS available but adds substantial
-spread. Ground speed is computed independently by the server and predicted/replayed
+Scoped walking is **45% of normal speed (2.25 m/s)**. Sniper ADS can start and
+remain active while sprinting, sliding, backsliding, diving, recovering or jumping,
+including jumping with sprint held. ADS time is **315 ms to 90%**, 10% shorter
+than the original 350 ms. Traversal keeps its normal speed and momentum; airborne
+shooting still adds substantial spread. Ground speed is computed independently by the server and predicted/replayed
 locally; network packets cannot choose a speed multiplier. Slide-jump impulses
 and other movement tuning are unchanged.
 

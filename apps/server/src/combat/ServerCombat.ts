@@ -157,11 +157,7 @@ export class ServerCombat {
         player.state.yaw = loadout.yaw;
         player.state.pitch = loadout.pitch;
       }
-      loadout.weapons.updateAds(
-        movementConfig.fixedStep,
-        controls.aim &&
-          loadout.weapons.canAim(player.inputThisTick ?? {}, movement.state),
-      );
+      loadout.weapons.updateAds(movementConfig.fixedStep, controls.aim);
       loadout.weapons.step(movementConfig.fixedStep, controls, {
         speed: Math.hypot(movement.velocity.x, movement.velocity.z),
         grounded: movement.physics.grounded,
