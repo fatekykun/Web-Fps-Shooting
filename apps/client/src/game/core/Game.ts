@@ -6,6 +6,7 @@ import { arenaBoxes, spawn } from '../maps/arenaLayout';
 import { MovementController } from '../movement/MovementController';
 import { initializePhysics, PhysicsWorld } from '../physics/PhysicsWorld';
 import { GameRenderer } from '../rendering/GameRenderer';
+import type { AntiAliasingState } from '../rendering/antiAliasing';
 import {
   defaultGraphics,
   type GraphicsPreset,
@@ -45,6 +46,11 @@ export interface GameTelemetry extends PerformanceStats {
   graphicsPreset: GraphicsPreset;
   adaptiveResolution: boolean;
   worldDrawCalls: number;
+  antiAliasing: AntiAliasingState;
+  graphics: GraphicsSettings;
+  shadowMapSize: number;
+  textureTileSize: number;
+  cameraFar: number;
   combat: CombatSnapshot;
   network: { peers: number; ack: number; tick: number } | null;
 }
@@ -128,6 +134,7 @@ export class Game {
       callbacks.onScoreboard,
     );
     this.input.configure(preferences);
+    this.setGraphicsSettings(settings);
     this.resizeObserver = new ResizeObserver(() => {
       const width = Math.max(1, host.clientWidth);
       const height = Math.max(1, host.clientHeight);
@@ -310,6 +317,10 @@ export class Game {
   setGraphicsSettings(settings: GraphicsSettings): void {
     this.graphicsSettings = { ...settings };
     this.rendering.configure(settings);
+    this.arena.configure(settings);
+    this.viewmodel.configureTexture(settings.textureQuality);
+    this.camera.camera.far = settings.viewDistance;
+    this.camera.camera.updateProjectionMatrix();
   }
 
   private readonly simulate = (dt: number): void => {
@@ -431,6 +442,11 @@ export class Game {
         graphicsPreset: this.rendering.preset,
         adaptiveResolution: this.graphicsSettings.adaptive,
         worldDrawCalls: this.rendering.worldDrawCalls,
+        antiAliasing: this.rendering.antiAliasing,
+        graphics: this.graphicsSettings,
+        shadowMapSize: this.arena.keyLight.shadow.map?.width ?? 0,
+        textureTileSize: this.arena.textureTileSize,
+        cameraFar: this.camera.camera.far,
         combat: this.combatSnapshot(),
         network: this.session?.view
           ? {

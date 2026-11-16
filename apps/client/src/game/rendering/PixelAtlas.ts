@@ -3,52 +3,54 @@ import {
   InstancedBufferAttribute,
   MeshLambertMaterial,
   NearestFilter,
+  NearestMipmapNearestFilter,
   RGBAFormat,
   SRGBColorSpace,
   type BufferGeometry,
 } from 'three';
 
-const tileSize = 32;
 const columns = 4;
 const rows = 2;
-const width = tileSize * columns;
-const height = tileSize * rows;
 
 /** Deterministic 32px industrial tiles; one 32 KiB RGBA atlas, no downloads or mip seams. */
-export function createPixelAtlas(): DataTexture {
+export function createPixelAtlas(tileSize: 16 | 32 = 32): DataTexture {
+  const width = tileSize * columns,
+    height = tileSize * rows;
   const pixels = new Uint8Array(width * height * 4);
   for (let tile = 0; tile < columns * rows; tile++) {
     for (let y = 0; y < tileSize; y++) {
       for (let x = 0; x < tileSize; x++) {
-        let value = 225;
+        const px = Math.floor((x * 32) / tileSize),
+          py = Math.floor((y * 32) / tileSize);
+        let value = 238;
         const patch =
-          (Math.floor(x / 3) * 17 + Math.floor(y / 3) * 31 + tile * 7) % 29;
-        if (patch < 3) value = 198;
+          (Math.floor(px / 3) * 17 + Math.floor(py / 3) * 31 + tile * 7) % 29;
+        if (patch < 2) value = 229;
         if (tile === 0) {
           // Concrete slabs with sparse, coarse chips.
-          if (x === 0 || y === 0) value = 166;
-          if (patch === 6) value = 239;
+          if (px % 16 === 0 || py % 16 === 0) value = 208;
+          if (patch === 6) value = 246;
         } else if (tile === 1) {
           // Warehouse wall panels.
-          if (y % 16 === 0 || x % 16 === 0) value = 145;
-          if (x % 16 === 2 && y % 16 === 2) value = 250;
+          if (py % 16 === 0 || px % 16 === 0) value = 184;
+          if (px % 16 === 2 && py % 16 === 2) value = 253;
         } else if (tile === 2 || tile === 6) {
           // Corrugated steel.
-          value = x % 8 < 2 ? 145 : x % 8 === 2 ? 245 : 211;
-          if (y === 0 || y === 31) value = 130;
-          if (patch === 5 && y > 22) value = 168;
+          value = px % 8 < 2 ? 190 : px % 8 === 2 ? 253 : 234;
+          if (py === 0 || py === 31) value = 177;
+          if (patch === 5 && py > 22) value = 216;
         } else if (tile === 3 || tile === 7) {
           // Crate reinforcement.
-          if (x < 3 || y < 3 || x > 28 || y > 28 || Math.abs(x - y) < 2)
-            value = 143;
-          if ((x === 4 || x === 27) && (y === 4 || y === 27)) value = 250;
+          if (px < 3 || py < 3 || px > 28 || py > 28 || Math.abs(px - py) < 2)
+            value = 184;
+          if ((px === 4 || px === 27) && (py === 4 || py === 27)) value = 253;
         } else if (tile === 4) {
           // Low-clearance caution paint.
-          value = (x + y) % 16 < 8 ? 108 : 242;
+          value = (px + py) % 16 < 8 ? 130 : 247;
         } else if (tile === 5) {
           // Concrete practice wall with painted inset.
-          if (x < 2 || x > 29 || y < 2 || y > 29) value = 162;
-          if (x > 12 && x < 19 && y > 8 && y < 24) value = 250;
+          if (px < 2 || px > 29 || py < 2 || py > 29) value = 190;
+          if (px > 12 && px < 19 && py > 8 && py < 24) value = 253;
         }
         const offset =
           ((Math.floor(tile / columns) * tileSize + y) * width +
@@ -65,9 +67,9 @@ export function createPixelAtlas(): DataTexture {
   const texture = new DataTexture(pixels, width, height, RGBAFormat);
   texture.name = 'depot-pixel-atlas';
   texture.colorSpace = SRGBColorSpace;
-  texture.minFilter = NearestFilter;
+  texture.minFilter = NearestMipmapNearestFilter;
   texture.magFilter = NearestFilter;
-  texture.generateMipmaps = false;
+  texture.generateMipmaps = true;
   texture.needsUpdate = true;
   return texture;
 }
@@ -83,7 +85,10 @@ export function createAtlasMaterial(
     new InstancedBufferAttribute(new Float32Array(tiles), 1),
   );
   const material = new MeshLambertMaterial({ map: texture, flatShading: true });
+  const tilePixels = { value: texture.image.width / columns };
+  material.userData.tilePixels = tilePixels;
   material.onBeforeCompile = (shader) => {
+    shader.uniforms.tilePixels = tilePixels;
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
       `#include <common>
@@ -102,6 +107,7 @@ export function createAtlasMaterial(
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
       `#include <common>
+      uniform float tilePixels;
       varying vec2 vPixelUv;
       varying vec2 vTileOrigin;`,
     );
@@ -109,11 +115,12 @@ export function createAtlasMaterial(
       '#include <map_fragment>',
       `
       // Sample tile texel centers: repeated UVs can never bleed into adjacent tiles.
-      vec2 tileUv = (floor(fract(vPixelUv) * 32.0) + 0.5) / 32.0;
+      vec2 tileUv = (floor(fract(vPixelUv) * tilePixels) + 0.5) / tilePixels;
       vec2 atlasUv = (vTileOrigin + tileUv) / vec2(4.0, 2.0);
-      diffuseColor *= texture2D(map, atlasUv);`,
+      // Gradients come from continuous world UVs, avoiding false high LOD at tile repeats.
+      diffuseColor *= textureGrad(map, atlasUv, dFdx(vPixelUv) / vec2(4.0, 2.0), dFdy(vPixelUv) / vec2(4.0, 2.0));`,
     );
   };
-  material.customProgramCacheKey = () => 'breakpoint-pixel-atlas-v1';
+  material.customProgramCacheKey = () => 'breakpoint-pixel-atlas-v2';
   return material;
 }

@@ -24,9 +24,9 @@ test('presets retain a native HUD, persist settings and resize without stretchin
   ).toBeEnabled();
   const readout = page.getByTestId('render-resolution');
   for (const [preset, width, height] of [
-    ['performance', 426, 240],
-    ['balanced', 640, 360],
-    ['quality', 854, 480],
+    ['performance', 640, 360],
+    ['balanced', 960, 540],
+    ['quality', 1280, 720],
   ] as const) {
     await configure(page, preset);
     await expect(readout).toHaveAttribute('data-width', String(width));
@@ -37,8 +37,17 @@ test('presets retain a native HUD, persist settings and resize without stretchin
         .evaluate((canvas: HTMLCanvasElement) => [canvas.width, canvas.height]),
     ).toEqual([1280, 720]);
   }
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await configure(page, 'ultra');
+  await expect(readout).toHaveAttribute('data-width', '1920');
+  await expect(readout).toHaveAttribute('data-height', '1080');
+  expect(
+    await page
+      .locator('canvas')
+      .evaluate((canvas: HTMLCanvasElement) => [canvas.width, canvas.height]),
+  ).toEqual([1920, 1080]);
   await page.reload();
-  await expect(page.getByLabel('Resolution preset')).toHaveValue('quality');
+  await expect(page.getByLabel('Resolution preset')).toHaveValue('ultra');
   await expect(
     page.getByRole('checkbox', { name: 'Adaptive resolution' }),
   ).not.toBeChecked();
@@ -57,14 +66,14 @@ test('presets retain a native HUD, persist settings and resize without stretchin
   expect(errors).toEqual([]);
 });
 
-test('balanced upscale produces exact 2×2 pixel blocks with only one presentation draw', async ({
+test('performance upscale stays sharp with a brighter scene and one presentation draw', async ({
   page,
 }) => {
   await page.goto('/');
   await expect(
     page.getByRole('button', { name: 'ENTER TRAINING' }),
   ).toBeEnabled();
-  await configure(page, 'balanced');
+  await configure(page, 'performance');
   await expect(page.getByTestId('render-resolution')).toHaveAttribute(
     'data-width',
     '640',
@@ -134,8 +143,8 @@ test('balanced upscale produces exact 2×2 pixel blocks with only one presentati
   expect(pixels.mismatches).toBe(0);
   expect(pixels.antialias).toBe(false);
   expect(pixels.smoothing).toBe('pixelated');
-  // Background #48524b must survive the linear target and a single sRGB output conversion.
-  [72, 82, 75].forEach((channel, index) =>
+  // Background #869389 must survive the linear target and one sRGB output conversion.
+  [134, 147, 137].forEach((channel, index) =>
     expect(Math.abs(pixels.sky[index]! - channel)).toBeLessThanOrEqual(2),
   );
   const calls = Number(
@@ -149,5 +158,63 @@ test('balanced upscale produces exact 2×2 pixel blocks with only one presentati
       await page.getByTestId('render-resolution').getAttribute('data-draws'),
     ),
   ).toBe(calls + 1);
-  await page.screenshot({ path: 'test-results/depot-pixel-balanced.png' });
+  await page.screenshot({ path: 'test-results/bp01-performance-menu.png' });
+  await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
+  await expect(page.locator('.crosshair')).toBeVisible();
+  await page.screenshot({ path: 'test-results/bp01-performance-playing.png' });
+});
+
+test('texture, shadows, view distance and pixel intensity are applied and persist', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  await page.goto('/');
+  await expect(
+    page.getByRole('button', { name: 'ENTER TRAINING' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
+  await page.getByRole('tab', { name: /DISPLAY/ }).click();
+  await configure(page, 'quality');
+  const metrics = page.getByTestId('render-resolution');
+  await page.getByLabel('Texture detail', { exact: true }).selectOption('low');
+  await expect(metrics).toHaveAttribute('data-texture-tile-size', '16');
+  await page.getByLabel('Shadow quality', { exact: true }).selectOption('low');
+  await expect(metrics).toHaveAttribute('data-shadow-map-size', '512');
+  await page.getByLabel('Shadow quality', { exact: true }).selectOption('high');
+  await expect(metrics).toHaveAttribute('data-shadow-map-size', '1024');
+  await page.getByLabel('View distance', { exact: true }).selectOption('40');
+  await expect(metrics).toHaveAttribute('data-view-distance', '40');
+  await expect(metrics).toHaveAttribute('data-camera-far', '40');
+  await page.getByLabel('Pixel effect', { exact: true }).selectOption('0.5');
+  await expect(metrics).toHaveAttribute('data-width', '640');
+  await page.screenshot({
+    path: 'test-results/bp01-graphics-settings.png',
+    animations: 'disabled',
+  });
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: 'ENTER TRAINING' }),
+  ).toBeEnabled();
+  await expect(metrics).toHaveAttribute('data-texture-tile-size', '16');
+  await expect(metrics).toHaveAttribute('data-shadow-map-size', '1024');
+  await expect(metrics).toHaveAttribute('data-view-distance', '40');
+  await expect(metrics).toHaveAttribute('data-width', '640');
+  await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
+  await page.getByRole('tab', { name: /DISPLAY/ }).click();
+  await page.getByLabel('Pixel effect', { exact: true }).selectOption('1');
+  await page.getByLabel('Shadow quality', { exact: true }).selectOption('off');
+  await page.getByLabel('Texture detail', { exact: true }).selectOption('high');
+  await page.getByLabel('View distance', { exact: true }).selectOption('80');
+  await expect(metrics).toHaveAttribute('data-shadow-map-size', '0');
+  await expect(metrics).toHaveAttribute('data-texture-tile-size', '32');
+  await expect(metrics).toHaveAttribute('data-width', '1280');
+  await page.getByRole('button', { name: 'Close settings' }).click();
+  await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
+  await expect(page.locator('.crosshair')).toBeVisible();
+  await page.screenshot({ path: 'test-results/bp01-quality-playing.png' });
+  expect(errors).toEqual([]);
 });

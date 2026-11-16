@@ -3,7 +3,6 @@ import {
   Color,
   DynamicDrawUsage,
   InstancedMesh,
-  MeshLambertMaterial,
   Object3D,
   type Scene,
 } from 'three';
@@ -14,15 +13,16 @@ import {
   avatarScale,
   standingAnchor,
 } from '@breakpoint/shared/avatar';
+import { createReadableMaterial } from '../rendering/ReadableMaterial';
 
 const colors = [
-  0xd49b70, 0x7dc3d0, 0xc6bf78, 0xb498cf, 0x88b890, 0xd58888, 0x99adc4,
-  0xd5bfa2,
+  0xf0b584, 0x83d8e5, 0xe0d88d, 0xc4a4e4, 0xa1d89a, 0xed9d9b, 0xafcce4,
+  0xead3b6,
 ];
 
 export class RemotePlayers {
   private readonly geometry = new BoxGeometry(1, 1, 1);
-  private readonly material = new MeshLambertMaterial();
+  private readonly material = createReadableMaterial();
   private readonly mesh = new InstancedMesh(
     this.geometry,
     this.material,
@@ -76,13 +76,15 @@ export class RemotePlayers {
         ? player.team === 'orange'
           ? 0xffd0a0
           : 0x9aedef
-        : index === 0 || index === 6
-          ? 0x27332e
-          : player.team === 'blue'
-            ? 0x79bfd2
-            : player.team === 'orange'
-              ? 0xd79868
-              : colors[player.slot]!;
+        : index === 0
+          ? 0xd0d2b9
+          : index === 6
+            ? 0x516367
+            : player.team === 'blue'
+              ? 0x7bd5e5
+              : player.team === 'orange'
+                ? 0xefac72
+                : colors[player.slot]!;
       if (this.tints[this.count] !== tint) {
         this.tints[this.count] = tint;
         this.mesh.setColorAt(this.count, this.color.setHex(tint));

@@ -16,6 +16,19 @@ function run(
 }
 
 describe('adaptive resolution hysteresis', () => {
+  it('steps down from Ultra to Quality and can recover to its 1080p ceiling', () => {
+    const controller = new AdaptiveResolution({
+      preset: 'ultra',
+      adaptive: true,
+    });
+    expect(run(controller, 30, 4500)).toEqual(['quality']);
+    expect(run(controller, 1000 / 60, 18000)).toEqual(['ultra']);
+    expect(run(controller, 1000 / 60, 30000)).toEqual([]);
+    controller.configure({ preset: 'ultra', adaptive: false });
+    expect(run(controller, 100, 30000)).toEqual([]);
+    expect(controller.current).toBe('ultra');
+  });
+
   it('waits for warmup, sustained load and cooldown before dropping further', () => {
     const controller = new AdaptiveResolution({
       preset: 'quality',

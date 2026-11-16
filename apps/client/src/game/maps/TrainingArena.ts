@@ -1,7 +1,9 @@
 import {
   BoxGeometry,
   CanvasTexture,
+  type DataTexture,
   Color,
+  DirectionalLight,
   Fog,
   HemisphereLight,
   InstancedMesh,
@@ -9,18 +11,33 @@ import {
   MeshLambertMaterial,
   MeshBasicMaterial,
   NearestFilter,
+  NearestMipmapNearestFilter,
   Scene,
   SRGBColorSpace,
 } from 'three';
 import { arenaBoxes } from './arenaLayout';
 import { createAtlasMaterial, createPixelAtlas } from '../rendering/PixelAtlas';
+import {
+  defaultGraphics,
+  type GraphicsSettings,
+} from '../rendering/graphicsConfig';
 
-/** Shared unit geometry, instanced architecture, no shadows or external assets. */
+const fogColor = 0x869389;
+const surfaceColors = [
+  0x7c8272, 0x7c897b, 0x6d7b70, 0x788673, 0x718178, 0x78945a, 0xb67949,
+  0x969570, 0x5c7478, 0x96937a, 0x9b8766, 0xa5a075, 0x667b71, 0x667b71,
+  0x6b8182, 0x6b8182,
+];
+
+/** Shared collision layout, brighter materials, batched edge trim and optional cached static shadows. */
 export class TrainingArena {
   readonly scene = new Scene();
   private readonly geometry = new BoxGeometry(1, 1, 1);
   private readonly solidGeometry = this.geometry.clone();
   private readonly atlas = createPixelAtlas();
+  private readonly lowAtlas = createPixelAtlas(16);
+  readonly keyLight = new DirectionalLight(0xfff0d9, 1.6);
+  private shadowQuality: GraphicsSettings['shadowQuality'] = 'off';
   private readonly solidMaterial = createAtlasMaterial(
     this.atlas,
     this.solidGeometry,
@@ -38,7 +55,10 @@ export class TrainingArena {
                 : 3,
     ),
   );
-  private readonly trimMaterial = new MeshLambertMaterial({ color: 0x252e29 });
+  private readonly trimMaterial = new MeshLambertMaterial({
+    color: 0xffffff,
+    flatShading: true,
+  });
   private readonly orangeMaterial = new MeshBasicMaterial({ color: 0xeaa157 });
   private readonly blueMaterial = new MeshBasicMaterial({ color: 0x7bb8c1 });
   private readonly stripeMaterial = new MeshBasicMaterial({ color: 0xada269 });
@@ -46,14 +66,33 @@ export class TrainingArena {
   private readonly signMaterial: MeshBasicMaterial;
   private readonly decorations = new Map<
     MeshLambertMaterial | MeshBasicMaterial,
-    Matrix4[]
+    { matrix: Matrix4; tint: number }[]
   >();
   private readonly instances: InstancedMesh[] = [];
 
+  get textureTileSize(): number {
+    return (this.solidMaterial.map as DataTexture).image.width / 4;
+  }
+
   constructor() {
-    this.scene.background = new Color(0x48524b);
-    this.scene.fog = new Fog(0x48524b, 18, 60);
-    this.scene.add(new HemisphereLight(0xdbe0cd, 0x293429, 2.4));
+    this.scene.background = new Color(fogColor);
+    this.scene.fog = new Fog(fogColor, 39, 57);
+    this.scene.add(new HemisphereLight(0xe4e9db, 0x879482, 2.0));
+    this.keyLight.position.set(-18, 26, 16);
+    this.keyLight.target.position.set(0, 0, -2);
+    Object.assign(this.keyLight.shadow.camera, {
+      left: -30,
+      right: 30,
+      top: 26,
+      bottom: -26,
+      near: 1,
+      far: 85,
+    });
+    this.keyLight.shadow.camera.updateProjectionMatrix();
+    this.keyLight.shadow.bias = -0.0006;
+    this.keyLight.shadow.normalBias = 0.04;
+    this.keyLight.shadow.autoUpdate = false;
+    this.scene.add(this.keyLight, this.keyLight.target);
     const solids = new InstancedMesh(
       this.solidGeometry,
       this.solidMaterial,
@@ -64,27 +103,27 @@ export class TrainingArena {
     arenaBoxes.forEach((box, index) => {
       matrix.makeScale(...box.size).setPosition(...box.position);
       solids.setMatrixAt(index, matrix);
-      solids.setColorAt(index, color.setHex(box.color));
+      solids.setColorAt(index, color.setHex(surfaceColors[index] ?? box.color));
     });
     solids.computeBoundingSphere();
+    solids.castShadow = true;
+    solids.receiveShadow = true;
     this.scene.add(solids);
     this.instances.push(solids);
 
-    // Thin decorative ribs share one instance batch.
-    const ribs = new InstancedMesh(this.geometry, this.trimMaterial, 64);
-    let rib = 0;
+    // Corrugations and silhouette trim share the structural decoration draw.
     for (const x of [-9.02, -4.98, 4.98, 9.02]) {
       const centerZ = x < 0 ? -4 : -7;
       for (let i = 0; i < 16; i++) {
-        matrix
-          .makeScale(0.05, 2.8, 0.07)
-          .setPosition(x, 1.5, centerZ - 3.7 + i * 0.49);
-        ribs.setMatrixAt(rib++, matrix);
+        this.box(
+          [x, 1.5, centerZ - 3.7 + i * 0.49],
+          [0.05, 2.8, 0.07],
+          this.trimMaterial,
+          x < 0 ? 0x536d43 : 0x8c5839,
+        );
       }
     }
-    ribs.computeBoundingSphere();
-    this.scene.add(ribs);
-    this.instances.push(ribs);
+    for (let index = 5; index <= 11; index++) this.frameBox(index);
 
     for (const z of [-14, -5, 5, 14]) {
       this.box([-19.55, 3.3, z], [0.2, 5.8, 0.5], this.trimMaterial);
@@ -120,30 +159,87 @@ export class TrainingArena {
     context.fillText('01 / MOVEMENT TRAINING', 256, 100);
     this.signTexture = new CanvasTexture(canvas);
     this.signTexture.colorSpace = SRGBColorSpace;
-    this.signTexture.minFilter = NearestFilter;
+    this.signTexture.minFilter = NearestMipmapNearestFilter;
     this.signTexture.magFilter = NearestFilter;
-    this.signTexture.generateMipmaps = false;
+    this.signTexture.generateMipmaps = true;
     this.signMaterial = new MeshBasicMaterial({ map: this.signTexture });
     this.box([0, 4, -15.32], [7, 1.75, 0.02], this.signMaterial);
     for (const [material, matrices] of this.decorations) {
       const batch = new InstancedMesh(this.geometry, material, matrices.length);
-      matrices.forEach((transform, index) =>
-        batch.setMatrixAt(index, transform),
-      );
+      matrices.forEach(({ matrix, tint }, index) => {
+        batch.setMatrixAt(index, matrix);
+        batch.setColorAt(index, color.setHex(tint));
+      });
       batch.computeBoundingSphere();
       this.scene.add(batch);
       this.instances.push(batch);
     }
     this.decorations.clear();
+    this.configure(defaultGraphics);
+  }
+
+  configure(settings: GraphicsSettings): void {
+    const atlas =
+      settings.textureQuality === 'low' ? this.lowAtlas : this.atlas;
+    this.solidMaterial.map = atlas;
+    this.solidMaterial.userData.tilePixels.value = atlas.image.width / 4;
+    const fog = this.scene.fog as Fog;
+    fog.near = settings.viewDistance * 0.65;
+    fog.far = settings.viewDistance * 0.95;
+    if (settings.shadowQuality !== this.shadowQuality) {
+      this.keyLight.shadow.map?.dispose();
+      this.keyLight.shadow.map = null;
+      this.keyLight.castShadow = settings.shadowQuality !== 'off';
+      this.keyLight.shadow.mapSize.setScalar(
+        settings.shadowQuality === 'high' ? 1024 : 512,
+      );
+      this.keyLight.shadow.needsUpdate = this.keyLight.castShadow;
+      this.shadowQuality = settings.shadowQuality;
+    }
+  }
+
+  private frameBox(index: number): void {
+    const box = arenaBoxes[index]!;
+    const [x, y, z] = box.position,
+      [sx, sy, sz] = box.size;
+    const tint = index === 6 ? 0xd7a477 : index === 8 ? 0x9eb4b4 : 0xb6c29a;
+    const hx = sx / 2 - 0.012,
+      hy = sy / 2 - 0.012,
+      hz = sz / 2 - 0.012;
+    for (const a of [-1, 1])
+      for (const b of [-1, 1]) {
+        this.box(
+          [x, y + a * hy, z + b * hz],
+          [sx, 0.028, 0.028],
+          this.trimMaterial,
+          tint,
+        );
+        this.box(
+          [x + a * hx, y, z + b * hz],
+          [0.028, sy, 0.028],
+          this.trimMaterial,
+          tint,
+        );
+        this.box(
+          [x + a * hx, y + b * hy, z],
+          [0.028, 0.028, sz],
+          this.trimMaterial,
+          tint,
+        );
+      }
   }
 
   private box(
     position: [number, number, number],
     size: [number, number, number],
     material: MeshLambertMaterial | MeshBasicMaterial,
+    tint = material === this.trimMaterial ? 0x40544a : 0xffffff,
   ): void {
     const transforms = this.decorations.get(material) ?? [];
-    transforms.push(new Matrix4().makeScale(...size).setPosition(...position));
+    transforms.push({
+      matrix: new Matrix4().makeScale(...size).setPosition(...position),
+      tint,
+    });
     this.decorations.set(material, transforms);
   }
 
@@ -152,6 +248,8 @@ export class TrainingArena {
     this.geometry.dispose();
     this.solidGeometry.dispose();
     this.atlas.dispose();
+    this.lowAtlas.dispose();
+    this.keyLight.shadow.dispose();
     this.solidMaterial.dispose();
     this.trimMaterial.dispose();
     this.orangeMaterial.dispose();

@@ -11,6 +11,9 @@ const { values } = parseArgs({
     preset: { type: 'string', default: 'balanced' },
     headed: { type: 'boolean', default: false },
     software: { type: 'boolean', default: false },
+    shadows: { type: 'string', default: 'off' },
+    aa: { type: 'string', default: 'off' },
+    screenshot: { type: 'boolean', default: false },
     output: { type: 'string', default: 'test-results/browser-profile.json' },
   },
 });
@@ -20,8 +23,16 @@ if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
   throw new Error('--url must be a website HTTP(S) URL without credentials.');
 if (!Number.isInteger(seconds) || seconds < 10 || seconds > 120)
   throw new Error('--seconds must be 10–120.');
-if (!['performance', 'balanced', 'quality'].includes(values.preset))
-  throw new Error('--preset must be performance, balanced or quality.');
+if (!['performance', 'balanced', 'quality', 'ultra'].includes(values.preset))
+  throw new Error('--preset must be performance, balanced, quality or ultra.');
+if (!['off', 'low', 'high'].includes(values.shadows))
+  throw new Error('--shadows must be off, low or high.');
+if (!['off', 'fxaa', 'smaa', 'msaa2', 'msaa4'].includes(values.aa))
+  throw new Error('--aa must be off, fxaa, smaa, msaa2 or msaa4.');
+const viewport =
+  values.preset === 'ultra'
+    ? { width: 1920, height: 1080 }
+    : { width: 1280, height: 720 };
 const browser = await chromium.launch({
   channel: process.env.PLAYWRIGHT_CHANNEL,
   headless: !values.headed,
@@ -31,7 +42,7 @@ const browser = await chromium.launch({
 });
 try {
   const page = await browser.newPage({
-    viewport: { width: 1280, height: 720 },
+    viewport,
   });
   page.setDefaultTimeout(30000);
   page.setDefaultNavigationTimeout(60000);
@@ -45,9 +56,28 @@ try {
   await page.getByRole('tab', { name: /DISPLAY/ }).click();
   await page.getByLabel('Resolution preset').selectOption(values.preset);
   await page.getByLabel('Adaptive resolution', { exact: true }).uncheck();
+  const aaSelect = page.getByLabel('Anti-aliasing', { exact: true });
+  if (await aaSelect.locator(`option[value="${values.aa}"]`).isDisabled())
+    throw new Error(
+      `Anti-aliasing ${values.aa} is unavailable on this device.`,
+    );
+  await aaSelect.selectOption(values.aa);
+  await page.waitForFunction(
+    (mode) =>
+      document
+        .querySelector('[data-testid="render-resolution"]')
+        ?.getAttribute('data-aa-active') === mode,
+    values.aa,
+  );
+  if (await page.getByLabel('Shadow quality', { exact: true }).count())
+    await page
+      .getByLabel('Shadow quality', { exact: true })
+      .selectOption(values.shadows);
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
   await page.locator('.crosshair').waitFor();
+  if (values.screenshot)
+    await page.screenshot({ path: resolve(values.output + '.png') });
   await page.waitForTimeout(5000);
   const gpu = await page
     .locator('canvas')
@@ -60,7 +90,7 @@ try {
     });
   const samples: Record<string, number>[] = [];
   console.log(
-    `Profiling ${values.preset} for ${seconds}s at 1280×720; renderer: ${gpu}`,
+    `Profiling ${values.preset} for ${seconds}s at ${viewport.width}×${viewport.height}; renderer: ${gpu}`,
   );
   const start = performance.now();
   let phase = -1;
@@ -101,14 +131,30 @@ try {
     samples.some((sample) => !Number.isFinite(sample.fps) || sample.fps! <= 0)
   )
     throw new Error('Missing performance samples.');
+  const rendering = await page
+    .getByTestId('render-resolution')
+    .evaluate((element: HTMLElement) => ({
+      width: Number(element.dataset.width),
+      height: Number(element.dataset.height),
+      textureQuality: element.dataset.textureQuality,
+      shadowQuality: element.dataset.shadowQuality,
+      shadowMapSize: Number(element.dataset.shadowMapSize),
+      viewDistance: Number(element.dataset.cameraFar),
+      renderScale: Number(element.dataset.renderScale),
+      antiAliasing: element.dataset.aaActive,
+      supportedAntiAliasing: element.dataset.aaSupported?.split(','),
+      samples: Number(element.dataset.aaSamples),
+      aaPasses: Number(element.dataset.aaPasses),
+    }));
   const report = {
     recordedAt: new Date().toISOString(),
     url: url.origin,
     scenario:
       'one offline training browser; fixed resolution; walk/fire/ADS/reload; rolling telemetry',
     preset: values.preset,
+    rendering,
     seconds,
-    viewport: { width: 1280, height: 720 },
+    viewport,
     headed: values.headed,
     browser: browser.version(),
     renderer: gpu,

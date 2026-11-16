@@ -70,6 +70,19 @@ export function Telemetry({ stats }: { stats: GameTelemetry | null }) {
         data-output-height={stats?.outputHeight}
         data-preset={stats?.graphicsPreset}
         data-world-draws={stats?.worldDrawCalls}
+        data-texture-quality={stats?.graphics.textureQuality}
+        data-texture-tile-size={stats?.textureTileSize}
+        data-shadow-quality={stats?.graphics.shadowQuality}
+        data-shadow-map-size={stats?.shadowMapSize}
+        data-view-distance={stats?.graphics.viewDistance}
+        data-camera-far={stats?.cameraFar}
+        data-render-scale={stats?.graphics.renderScale}
+        data-aa-requested={stats?.antiAliasing.requested}
+        data-aa-active={stats?.antiAliasing.active}
+        data-aa-samples={stats?.antiAliasing.samples}
+        data-aa-passes={stats?.antiAliasing.passes}
+        data-aa-loading={stats?.antiAliasing.loading}
+        data-aa-supported={stats?.antiAliasing.supported.join(',')}
         data-draws={stats?.drawCalls}
       >
         <span>
