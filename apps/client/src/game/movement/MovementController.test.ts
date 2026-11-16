@@ -48,15 +48,16 @@ describe('movement transitions with real Rapier collision', () => {
     steps(player, 60, running);
   }
 
-  it('accelerates to sprint speed and releases smoothly toward walking speed', () => {
+  it('accelerates to sprint speed and promptly returns to walk speed on Shift release', () => {
     const player = make();
     run(player);
     expect(player.state).toBe('sprinting');
     expect(speed(player)).toBeCloseTo(8, 1);
     player.step({ ...running, sprint: false }, dt);
     expect(player.state).toBe('walking');
-    expect(speed(player)).toBeGreaterThan(7.5);
-    steps(player, 120, { ...running, sprint: false });
+    expect(speed(player)).toBeGreaterThanOrEqual(5);
+    expect(speed(player)).toBeLessThan(6);
+    steps(player, 3, { ...running, sprint: false });
     expect(speed(player)).toBeCloseTo(5, 1);
   });
 
@@ -284,7 +285,8 @@ describe('movement transitions with real Rapier collision', () => {
     };
     const player = make([floor, roof]);
     steps(player, 10);
-    steps(player, 60, running);
+    // Begin lowering before the roof; the faster sprint ramp reaches it sooner.
+    steps(player, 50, running);
     player.step({ ...running, slidePressed: true }, dt);
     expect(player.state).toBe('sliding');
     steps(player, 55, running);

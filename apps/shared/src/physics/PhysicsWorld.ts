@@ -67,6 +67,7 @@ export class PhysicsWorld {
   };
   private readonly correctedMovement: Vector3Like = { x: 0, y: 0, z: 0 };
   private currentHalfHeight: number = movementConfig.capsuleHalfHeight;
+  private idleTraction = false;
   readonly position: Vector3Like = { x: 0, y: 0, z: 0 };
   grounded = false;
   hitCeiling = false;
@@ -134,6 +135,13 @@ export class PhysicsWorld {
   }
 
   move(displacement: Vector3Like): void {
+    // Use floor traction at rest. The flat-floor tangent workaround is needed
+    // only while moving; leaving it active at zero input creates numerical creep.
+    const idle = displacement.x === 0 && displacement.z === 0;
+    if (idle !== this.idleTraction) {
+      this.idleTraction = idle;
+      this.controller.setMinSlopeSlideAngle(idle ? Math.PI / 4 : -0.0001);
+    }
     if (displacement.y > 0) this.controller.disableSnapToGround();
     else this.controller.enableSnapToGround(0.15);
     this.controller.computeColliderMovement(

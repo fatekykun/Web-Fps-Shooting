@@ -467,7 +467,9 @@ velocity, posture and action timers freeze in offline training and continue on r
 Online rooms continue to simulate neutral inputs while the mouse is released.
 
 Walking accelerates toward a normalized camera-relative target at 5 m/s, with
-exponential friction when keys are released. Horizontal walking never overwrites
+strong finite braking when keys are released. Sprinting targets 8 m/s. Ground,
+sprint, strafe and backward acceleration/braking rates are independent; turns
+and opposite inputs use stronger directional acceleration. Horizontal movement never overwrites
 vertical velocity. The movement controller applies gravity and passes desired
 displacement to Rapier's kinematic character controller. Collision-resolved
 horizontal movement feeds back into velocity. There is no custom collision solver
@@ -475,18 +477,29 @@ to replace between movement states.
 
 `MovementController` owns a typed state machine: walking, sprinting, sliding,
 backsliding, airborne, diving and recovering. `Walking.ts`, `Sprinting.ts`,
-`Sliding.ts`, `Backsliding.ts`, `SlideCancel.ts`, `BunnyHop.ts`, `DolphinDive.ts`
+`Sliding.ts`, `Backsliding.ts`, `SlideCancel.ts`, `SlideJump.ts`, `BunnyHop.ts`, `DolphinDive.ts`
 and `WallJump.ts` implement the individual mechanics. Input, rendering and React
 remain independent of these rules. All prototype values live in
 `apps/shared/src/config/movement.ts`.
 
-Normal transitions carry the same velocity forward. Ground overspeed decays
-gradually toward the selected movement speed; air motion has light drag and
-limited directional acceleration. Jumps retain 98% of horizontal velocity before
+Ordinary walking promptly sheds excess sprint/slide speed instead of inheriting
+a long glide. Sliding and the short posture-recovery state retain their intended
+momentum; a queued jump launches before ground braking. Air motion has light drag,
+separate neutral air braking and moderate directional acceleration. Jumps retain 98% of horizontal velocity before
 air steering; all mechanics share a 12 m/s horizontal cap. A slide redirects
 gently without adding speed through steering. Backslide is an intentional retreat
 impulse that reverses the forward component while keeping bounded lateral motion.
 Wall-jump impulses act along the wall normal, preserving tangent velocity.
+
+**Slide + Jump (BP-03):** turn toward the direction you want to travel, then
+press Jump during a slide/backslide or within 150 ms of its completion/cancel.
+The launch redirects toward horizontal facing and retains 98% of available
+momentum, bounded by the existing 12 m/s cap. A short-lived momentum reserve
+prevents recovery braking from making a turned jump fall short; it decays and
+honors collision losses. A buffered press keeps its facing until it can launch.
+Normal jumping outside that window keeps its original behavior. No minimum-speed
+boost is created from rest: below the 3 m/s eligibility threshold, Jump follows
+the normal jump path. These values live alongside the existing movement tuning.
 
 The capsule shrinks/expands at a bounded rate around fixed feet. Camera height is
 derived from that actual capsule height and interpolated at render frequency.
@@ -498,11 +511,18 @@ recoil animation remain cosmetic. Remote avatars have no skeletal body rig.
 
 Rapier 0.21 can discard horizontal motion when it misclassifies flat-floor
 rounding as slope slipping ([upstream report](https://github.com/dimforge/rapier/pull/1058)).
-The adapter disables that non-slip branch using a negative minimum slide-angle
-threshold; ground traction remains in our velocity model and the maximum climb
-angle still prevents climbing walls. Sustained sprint and input-phase regressions
+While moving, the adapter disables that non-slip branch using a negative minimum
+slide-angle threshold. At rest it restores floor traction to suppress numerical
+creep. Collision correction cannot add horizontal speed beyond the requested
+motion; the maximum climb angle still prevents climbing walls. Sustained sprint and input-phase regressions
 cover the workaround. Recheck slope behavior before adding a ramp course, and
 remove this compatibility setting once a stable upstream fix is verified.
+
+BP-02's real-Rapier flat-ground measurements at 60 Hz reverse walking direction
+in 33 ms and sprint-to-backward in 50 ms; full opposite speed takes 67–83 ms.
+Sprint release stops in about 83 ms / 0.196 m, versus the previous 567 ms / 0.59 m.
+These are simulation measurements, rather than end-to-end input/display latency.
+See `DEVELOPMENT.md` for tuning, browser checks and reproduction commands.
 
 The arena uses simple boxes for collision, shared geometry, instanced solid
 architecture and edge/rib trim, hemisphere/directional light, fog and no dynamic

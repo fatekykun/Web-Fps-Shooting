@@ -39,41 +39,67 @@ export function updateGroundVelocity(
   dt: number,
   targetSpeed: number,
   acceleration: number = movementConfig.groundAcceleration,
+  preserveMomentum = false,
 ): void {
+  const speed = Math.hypot(velocity.x, velocity.z);
   const length = Math.hypot(input.forward, input.right);
+  const sin = Math.sin(input.yaw);
+  const cos = Math.cos(input.yaw);
+  const localForward = -velocity.x * sin - velocity.z * cos;
+  const localRight = velocity.x * cos - velocity.z * sin;
+  const braking =
+    speed > movementConfig.walkSpeed + 0.001
+      ? movementConfig.sprintBraking
+      : Math.abs(localRight) > Math.abs(localForward)
+        ? movementConfig.strafingBraking
+        : localForward < 0
+          ? movementConfig.backwardBraking
+          : movementConfig.groundDeceleration;
   if (length === 0) {
-    const decay = Math.exp(-movementConfig.groundFriction * dt);
-    velocity.x *= decay;
-    velocity.z *= decay;
-    if (Math.hypot(velocity.x, velocity.z) < 0.01) {
+    // Finite stopping time, no exponential tail or direction flip at zero.
+    if (speed <= braking * dt) {
       velocity.x = 0;
       velocity.z = 0;
+    } else {
+      const scale = (speed - braking * dt) / speed;
+      velocity.x *= scale;
+      velocity.z *= scale;
     }
     return;
   }
 
   const forward = input.forward / Math.max(1, length);
   const right = input.right / Math.max(1, length);
-  const sin = Math.sin(input.yaw);
-  const cos = Math.cos(input.yaw);
   const directionX = right * cos - forward * sin;
   const directionZ = -forward * cos - right * sin;
-  const speed = Math.hypot(velocity.x, velocity.z);
-  // Landing and canceling bleed excess speed gradually, rather than snapping to walk speed.
-  if (
-    speed > targetSpeed &&
-    (velocity.x * directionX + velocity.z * directionZ) / speed > 0.85
-  ) {
+  const alignment =
+    speed > 0.00001
+      ? (velocity.x * directionX + velocity.z * directionZ) / speed
+      : 1;
+  // Only the explicit posture-recovery state carries excess speed. A queued hop
+  // launches before this ground rule, preserving slide-cancel and bunny-hop momentum.
+  if (preserveMomentum && speed > targetSpeed && alignment > 0.85) {
     targetSpeed +=
       (speed - targetSpeed) * Math.exp(-movementConfig.overspeedFriction * dt);
   }
+  if (!preserveMomentum && targetSpeed <= movementConfig.walkSpeed) {
+    if (Math.abs(input.right) > Math.abs(input.forward))
+      acceleration = movementConfig.strafingAcceleration;
+    else if (input.forward < 0)
+      acceleration = movementConfig.backwardAcceleration;
+  }
+  if (alignment < 0)
+    acceleration = movementConfig.directionReversalAcceleration;
+  else if (alignment < 0.85)
+    acceleration = movementConfig.directionChangeAcceleration;
+  else if (!preserveMomentum && speed > targetSpeed) acceleration = braking;
   const targetX = directionX * targetSpeed;
   const targetZ = directionZ * targetSpeed;
   const deltaX = targetX - velocity.x;
   const deltaZ = targetZ - velocity.z;
   const deltaLength = Math.hypot(deltaX, deltaZ);
-  const amount = Math.min(1, (acceleration * dt) / deltaLength);
   if (deltaLength > 0) {
+    const amount = Math.min(1, (acceleration * dt) / deltaLength);
     velocity.x += deltaX * amount;
     velocity.z += deltaZ * amount;
   }
