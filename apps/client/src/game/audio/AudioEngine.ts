@@ -31,6 +31,7 @@ type Cue =
   | 'enter'
   | 'hit'
   | 'critical'
+  | 'kill'
   | 'hurt'
   | 'death'
   | 'respawn'
@@ -41,6 +42,7 @@ type Cue =
   | 'slide'
   | 'dive'
   | 'step';
+// All weapon cues are synthesized locally; no licensed recordings or downloads.
 interface Voice {
   source: AudioScheduledSourceNode;
   nodes: AudioNode[];
@@ -63,6 +65,8 @@ export class AudioEngine {
   private lastShots = 0;
   private lastWeapon: WeaponId = 'rifle';
   private lastReload = false;
+  private lastBoltPhase = 0;
+  private lastScoped = false;
   private lastState = '';
   private grounded: boolean | null = null;
   private distance = 0;
@@ -249,7 +253,11 @@ export class AudioEngine {
     this.connect(source, gain, [filter], output, pan, duration);
   }
   shot(weapon: WeaponId, gain = 1, pan = 0): void {
-    if (weapon === 'shotgun') {
+    if (weapon === 'sniper') {
+      this.noise(0.24, 0.28 * gain, 2300, pan);
+      this.tone(95, 24, 0.24, 0.24 * gain, 'triangle', pan);
+      this.tone(850, 180, 0.06, 0.07 * gain, 'square', pan);
+    } else if (weapon === 'shotgun') {
       this.noise(0.2, 0.23 * gain, 1500, pan);
       this.tone(72, 28, 0.2, 0.2 * gain, 'triangle', pan);
     } else if (weapon === 'smg') {
@@ -270,6 +278,7 @@ export class AudioEngine {
       this.tone(340, 850, 0.18, 0.07, 'triangle', 0, cue === 'enter');
     else if (cue === 'hit' || cue === 'critical')
       this.tone(cue === 'critical' ? 1600 : 1050, 1900, 0.07, 0.075, 'sine');
+    else if (cue === 'kill') this.tone(750, 1500, 0.16, 0.085, 'triangle');
     else if (cue === 'death') this.tone(130, 30, 0.45, 0.13);
     else if (cue === 'hurt') this.tone(110, 45, 0.15, 0.12);
     else if (cue === 'reload' || cue === 'equip') {
@@ -290,10 +299,28 @@ export class AudioEngine {
     movement: MovementController,
     active: boolean,
   ): void {
+    const boltPhase = weapons.cycling
+      ? weapons.cycleProgress < 0.15
+        ? 0
+        : weapons.cycleProgress < 0.65
+          ? 1
+          : 2
+      : 0;
+    const scoped = !!weapons.config.scopeMagnification && weapons.ads > 0.5;
     if (active) {
+      if (boltPhase !== this.lastBoltPhase && boltPhase > 0) {
+        this.noise(0.09, 0.08, 3600);
+        this.tone(boltPhase === 1 ? 640 : 350, 150, 0.07, 0.05, 'square');
+      }
+      if (scoped !== this.lastScoped)
+        this.tone(scoped ? 330 : 480, scoped ? 600 : 220, 0.09, 0.025);
       if (weapons.shotsFired > this.lastShots) this.shot(weapons.selected);
       if (weapons.selected !== this.lastWeapon) this.cue('equip');
-      if (weapons.reloading && !this.lastReload) this.cue('reload');
+      if (weapons.reloading && !this.lastReload) {
+        this.cue('reload');
+        if (weapons.config.scopeMagnification)
+          this.tone(180, 70, 0.16, 0.055, 'triangle');
+      }
       if (movement.state !== this.lastState) {
         if (movement.state === 'sliding' || movement.state === 'backsliding')
           this.cue('slide');
@@ -320,6 +347,8 @@ export class AudioEngine {
       } else this.distance = 0;
     }
     this.lastShots = weapons.shotsFired;
+    this.lastBoltPhase = boltPhase;
+    this.lastScoped = scoped;
     this.lastWeapon = weapons.selected;
     this.lastReload = weapons.reloading;
     this.lastState = movement.state;
@@ -329,7 +358,13 @@ export class AudioEngine {
     const newLife = snapshot.player && snapshot.player.life !== this.life;
     if (!newLife) {
       if (snapshot.hitSequence > this.hit)
-        this.cue(snapshot.critical ? 'critical' : 'hit');
+        this.cue(
+          snapshot.dummyResetting
+            ? 'kill'
+            : snapshot.critical
+              ? 'critical'
+              : 'hit',
+        );
       if (snapshot.player && snapshot.player.damageSequence > this.damage)
         this.cue(snapshot.player.alive ? 'hurt' : 'death');
     } else if (this.life > 0) this.cue('respawn');

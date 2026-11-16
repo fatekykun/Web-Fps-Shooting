@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  sniperScopeBlend,
+  sniperScopeDiameter,
+} from '../game/weapons/SniperScope';
 import type { Game, GameTelemetry } from '../game/core/Game';
 import { Telemetry } from '../components/Telemetry';
 import { GraphicsControls } from '../components/GraphicsControls';
@@ -39,6 +43,7 @@ export function App() {
   const graphicsRef = useRef(graphics);
   const [combat, setCombat] = useState<CombatSnapshot | null>(null);
   const reticle = useRef<HTMLDivElement>(null);
+  const scope = useRef<HTMLDivElement>(null);
   const reticleValues = useRef({ gap: -1, ads: -1 });
   const [room, setRoom] = useState<RoomView | null>(null);
   const [inviteCode] = useState(() => readInviteCode(location.href));
@@ -113,8 +118,24 @@ export function App() {
           }
         }
       },
-      onReticle: (gap: number, ads: number) => {
+      onReticle: (gap: number, ads: number, scoped: number) => {
         if (cancelled || !reticle.current) return;
+        const opacity = sniperScopeBlend(scoped);
+        if (scope.current) {
+          scope.current.style.opacity = String(opacity);
+          scope.current.style.setProperty(
+            '--scope-diameter',
+            `${sniperScopeDiameter(scoped).toFixed(2)}vmin`,
+          );
+          scope.current.style.setProperty(
+            '--scope-detail',
+            String(
+              Math.max(0, Math.min(1, (sniperScopeDiameter(scoped) - 30) / 40)),
+            ),
+          );
+        }
+        reticle.current.style.visibility =
+          opacity > 0.95 ? 'hidden' : 'visible';
         const crosshair = preferencesRef.current.crosshair;
         gap = crosshair.dynamic
           ? crosshair.gap + Math.max(0, gap - 5)
@@ -390,6 +411,20 @@ export function App() {
           <i />
           <i />
           <i />
+        </div>
+      )}
+      {locked && (
+        <div
+          className="sniper-scope"
+          ref={scope}
+          data-testid="sniper-scope"
+          data-style={preferences.scopeStyle}
+          aria-hidden="true"
+        >
+          <div className="scope-lens">
+            <i />
+            <span>{combat?.scopeMagnification ?? 4}× / SR-04</span>
+          </div>
         </div>
       )}
       {locked && combat && (

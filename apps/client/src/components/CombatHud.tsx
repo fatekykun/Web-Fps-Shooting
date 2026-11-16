@@ -27,6 +27,8 @@ export function CombatHud({
         data-recoil={combat.recoilPitch}
         data-shots={combat.shots}
         data-reloading={String(combat.reloading)}
+        data-cycling={String(!!combat.cycling)}
+        data-cycle-progress={combat.cycleProgress ?? 0}
         data-hits={combat.hitSequence}
       >
         <div className="weapon-name">{combat.name}</div>
@@ -39,20 +41,27 @@ export function CombatHud({
             ? 'WAITING TO RESPAWN'
             : combat.reloading
               ? 'RELOADING'
-              : combat.equipping
-                ? 'EQUIPPING'
-                : combat.magazine === 0
-                  ? `EMPTY · ${keyLabel(bindings.reload)} TO RELOAD`
-                  : combat.ads > 0.5
-                    ? 'AIM DOWN SIGHTS'
-                    : 'HIP FIRE'}
+              : combat.cycling
+                ? 'CYCLING BOLT'
+                : combat.equipping
+                  ? 'EQUIPPING'
+                  : combat.magazine === 0
+                    ? `EMPTY · ${keyLabel(bindings.reload)} TO RELOAD`
+                    : combat.ads > 0.5
+                      ? 'AIM DOWN SIGHTS'
+                      : 'HIP FIRE'}
         </div>
         <div className="reload-track">
-          <span style={{ width: `${combat.reloadProgress * 100}%` }} />
+          <span
+            style={{
+              width: `${(combat.reloading ? combat.reloadProgress : (combat.cycleProgress ?? 0)) * 100}%`,
+            }}
+          />
         </div>
         <div className="weapon-keys">
           {keyLabel(bindings.rifle)} RIFLE · {keyLabel(bindings.smg)} SMG ·{' '}
-          {keyLabel(bindings.shotgun)} SHOTGUN
+          {keyLabel(bindings.shotgun)} SHOTGUN · {keyLabel(bindings.sniper)}{' '}
+          SNIPER
         </div>
       </aside>
       {combat.player ? (

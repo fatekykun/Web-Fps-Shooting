@@ -94,3 +94,64 @@ it('respects the operating system motion preference for fresh defaults', () => {
     false,
   );
 });
+
+it('migrates legacy customized bindings without resetting them or mutating the saved object', () => {
+  const original = defaultUserSettings();
+  original.bindings.forward = 'ArrowUp';
+  original.bindings.reload = 'Digit4';
+  const legacy = { ...original.bindings } as Partial<typeof original.bindings>;
+  delete legacy.sniper;
+  const result = normalizeUserSettings({ ...original, bindings: legacy });
+  expect(result.bindings.forward).toBe('ArrowUp');
+  expect(result.bindings.reload).toBe('Digit4');
+  expect(result.bindings.sniper).toBe('Digit5');
+  expect(legacy.sniper).toBeUndefined();
+});
+
+it('adds a sniper binding even when all spare number keys are already customized', () => {
+  const bindings: Partial<ReturnType<typeof defaultUserSettings>['bindings']> =
+    { ...defaultUserSettings().bindings };
+  delete bindings.sniper;
+  const keys = [
+    'Digit4',
+    'Digit5',
+    'Digit6',
+    'Digit7',
+    'Digit8',
+    'Digit9',
+    'Digit0',
+  ];
+  const actions = bindingActions.filter((action) => action !== 'sniper');
+  for (let i = 0; i < keys.length; i++) bindings[actions[i]!] = keys[i]!;
+  const normalized = normalizeUserSettings({ bindings }).bindings;
+  expect(normalized.sniper).toBe('KeyA');
+  for (const action of actions)
+    expect(normalized[action]).toBe(bindings[action]);
+});
+
+it('defaults old or invalid scope settings to classic while preserving other preferences', () => {
+  expect(defaultUserSettings().scopeStyle).toBe('classic');
+  for (const scopeStyle of [undefined, null, 'bad', 1, 'classic']) {
+    const value = normalizeUserSettings({ scopeStyle, fov: 103, muted: true });
+    expect(value.scopeStyle).toBe('classic');
+    expect(value.fov).toBe(103);
+    expect(value.muted).toBe(true);
+  }
+  expect(normalizeUserSettings({ scopeStyle: 'optic' }).scopeStyle).toBe(
+    'optic',
+  );
+});
+
+it('saves and restores either scope style', () => {
+  const data = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => data.set(key, value),
+  });
+  for (const scopeStyle of ['optic', 'classic'] as const) {
+    expect(saveUserSettings({ ...defaultUserSettings(), scopeStyle })).toBe(
+      true,
+    );
+    expect(loadUserSettings().scopeStyle).toBe(scopeStyle);
+  }
+});

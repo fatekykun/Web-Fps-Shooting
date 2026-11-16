@@ -104,6 +104,7 @@ export class InputController {
         if (event.code === bindings.rifle) this.weapon.switchTo = 'rifle';
         if (event.code === bindings.smg) this.weapon.switchTo = 'smg';
         if (event.code === bindings.shotgun) this.weapon.switchTo = 'shotgun';
+        if (event.code === bindings.sniper) this.weapon.switchTo = 'sniper';
       }
       this.keys.add(event.code);
       this.updateAxes();

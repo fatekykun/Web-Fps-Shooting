@@ -8,6 +8,7 @@ import {
   NearestFilter,
   NoToneMapping,
   OrthographicCamera,
+  PerspectiveCamera,
   Scene,
   SRGBColorSpace,
   WebGLRenderer,
@@ -16,6 +17,7 @@ import {
 } from 'three';
 import { AdaptiveResolution } from './AdaptiveResolution';
 import { WorldAntiAliasing } from './WorldAntiAliasing';
+import { OpticScope, type OpticView } from './OpticScope';
 import {
   calculateResolution,
   type GraphicsPreset,
@@ -57,6 +59,7 @@ export class GameRenderer {
   });
   private readonly adaptive: AdaptiveResolution;
   private readonly aa: WorldAntiAliasing;
+  private optic: OpticScope | null = null;
   get antiAliasing() {
     return this.aa.state;
   }
@@ -141,18 +144,33 @@ export class GameRenderer {
     camera: Camera,
     frameMs: number,
     viewmodel: { scene: Scene; camera: Camera } | null = null,
+    scope: OpticView | null = null,
   ): void {
     if (this.adaptive.observe(frameMs)) this.updateResolution();
     this.aa.prepare();
     this.renderer.info.reset();
     this.renderer.setRenderTarget(this.target);
-    this.renderer.render(scene, camera);
+    let worldCamera = camera;
+    if (scope && camera instanceof PerspectiveCamera) {
+      this.optic ??= new OpticScope(this.triangle);
+      worldCamera = this.optic.peripheral(camera, scope.baseFov);
+    }
+    this.renderer.render(scene, worldCamera);
     if (viewmodel) {
       this.renderer.autoClear = false;
       this.renderer.clearDepth();
       this.renderer.render(viewmodel.scene, viewmodel.camera);
       this.renderer.autoClear = true;
     }
+    if (scope && camera instanceof PerspectiveCamera)
+      this.optic!.render(
+        this.renderer,
+        scene,
+        camera,
+        this.target,
+        this.presentationCamera,
+        scope,
+      );
     this.worldDrawCalls = this.renderer.info.render.calls;
     this.material.map = this.aa.render();
     this.renderer.setRenderTarget(null);
@@ -162,6 +180,7 @@ export class GameRenderer {
   dispose(): void {
     this.renderer.setAnimationLoop(null);
     this.aa.dispose();
+    this.optic?.dispose();
     this.target.dispose();
     this.triangle.dispose();
     this.material.dispose();

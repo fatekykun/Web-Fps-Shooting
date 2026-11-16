@@ -154,10 +154,13 @@ it('clears old-life prediction on death/respawn without reusing sequence numbers
       rifle: { magazine: 30, reserve: 120 },
       smg: { magazine: 35, reserve: 140 },
       shotgun: { magazine: 8, reserve: 40 },
+      sniper: { magazine: 5, reserve: 20 },
     },
     reloading: false,
     equipping: false,
     reloadProgress: 0,
+    cycling: false,
+    cycleProgress: 0,
     ads: 0,
     spread: 0,
     shots: 0,
@@ -280,3 +283,35 @@ it.each(['slide', 'dive', 'jump'] as const)(
     }
   },
 );
+
+it('replays scoped speed without sending client-selected speed multipliers to the server', () => {
+  const floor: ArenaBox = {
+    position: [0, -0.5, 0],
+    size: [200, 1, 200],
+    color: 0,
+  };
+  const client = new MovementController(
+    new PhysicsWorld([floor], { x: 0, y: 0.91, z: 0 }),
+  );
+  const server = new MovementController(
+    new PhysicsWorld([floor], { x: 0, y: 0.91, z: 0 }),
+  );
+  const prediction = new Prediction(client);
+  try {
+    const input = { forward: 1, right: 0, yaw: 0 };
+    for (let i = 0; i < 20; i++) {
+      const packet = prediction.step(input, 0, undefined, 0.45);
+      expect(packet).not.toHaveProperty('groundSpeedScale');
+      server.step(input, movementConfig.fixedStep, 0.45);
+    }
+    const snapshot = server.capture();
+    for (let i = 0; i < 15; i++) prediction.step(input, 0, undefined, 0.45);
+    const before = client.capture();
+    prediction.reconcile({ ack: 20, snapshot });
+    expect(client.capture().position).toEqual(before.position);
+    expect(Math.hypot(client.velocity.x, client.velocity.z)).toBeCloseTo(2.25);
+  } finally {
+    client.physics.dispose();
+    server.physics.dispose();
+  }
+});

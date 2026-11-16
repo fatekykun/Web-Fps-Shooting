@@ -1,5 +1,6 @@
 import { movementConfig } from '../config/movement';
 import type { Vector3Like } from '../types/movement';
+import type { HitRegion } from '../types/weapons';
 
 /** Feet-relative positions and dimensions, shared by remote rendering and server hitboxes. */
 export const avatarParts = [
@@ -28,7 +29,7 @@ export function intersectAvatar(
   direction: Vector3Like,
   pose: Pose,
   range: number,
-): { distance: number; head: boolean } | null {
+): { distance: number; head: boolean; region: HitRegion } | null {
   const c = Math.cos(pose.yaw),
     s = Math.sin(pose.yaw),
     scale = avatarScale(pose.halfHeight);
@@ -45,7 +46,8 @@ export function intersectAvatar(
     s * direction.x + c * direction.z,
   ];
   let closest = range;
-  let result: { distance: number; head: boolean } | null = null;
+  let result: { distance: number; head: boolean; region: HitRegion } | null =
+    null;
   // Weapon geometry is cosmetic and cannot absorb bullets.
   for (let part = 0; part < avatarParts.length - 1; part++) {
     const box = avatarParts[part]!;
@@ -83,7 +85,17 @@ export function intersectAvatar(
     }
     if (near <= far && near < closest) {
       closest = near;
-      result = { distance: near, head: part === 0 };
+      const region: HitRegion =
+        part === 0
+          ? 'head'
+          : part === 1
+            ? localOrigin[1]! + localDirection[1]! * near >= box[1]
+              ? 'upperTorso'
+              : 'lowerTorso'
+            : part <= 3
+              ? 'arms'
+              : 'legs';
+      result = { distance: near, head: part === 0, region };
     }
   }
   return result;

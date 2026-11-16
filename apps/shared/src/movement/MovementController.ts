@@ -85,7 +85,7 @@ export class MovementController {
     this.slideJumpSpeed = 0;
   }
 
-  step(input: MovementInput, dt: number): void {
+  step(input: MovementInput, dt: number, groundSpeedScale = 1): void {
     Object.assign(this.previousPosition, this.physics.position);
     this.previousEyeOffset = this.eyeOffset;
     this.stateTime += dt;
@@ -266,7 +266,14 @@ export class MovementController {
     }
     switch (this.state) {
       case 'walking':
-        walk(this.velocity, input, dt);
+        if (groundSpeedScale < 1)
+          updateGroundVelocity(
+            this.velocity,
+            input,
+            dt,
+            movementConfig.walkSpeed * Math.max(0.2, groundSpeedScale),
+          );
+        else walk(this.velocity, input, dt);
         break;
       case 'sprinting':
         sprint(this.velocity, input, dt);

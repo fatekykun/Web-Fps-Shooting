@@ -19,6 +19,12 @@ import {
 } from './PerformanceMonitor';
 import { PracticeCombat, type CombatSnapshot } from '../combat/PracticeCombat';
 import { WeaponViewmodel } from '../weapons/WeaponViewmodel';
+import {
+  sniperZoom,
+  sniperScopeBlend,
+  sniperScopeDiameter,
+} from '../weapons/SniperScope';
+import type { OpticView } from '../rendering/OpticScope';
 import type { RoomView } from '@breakpoint/shared/network';
 import type { NetworkSession } from '../networking/NetworkSession';
 import { RemotePlayers } from '../networking/RemotePlayers';
@@ -60,13 +66,18 @@ interface GameCallbacks {
   onTelemetry: (stats: GameTelemetry) => void;
   onError: (message: string) => void;
   onCombat: (snapshot: CombatSnapshot) => void;
-  onReticle: (gap: number, ads: number) => void;
+  onReticle: (gap: number, ads: number, scope: number) => void;
   onRoom: (view: RoomView | null) => void;
   onScoreboard: (open: boolean) => void;
 }
 
 /** Composes systems and owns their lifetimes; game rules remain in the systems. */
 export class Game {
+  private readonly opticView: OpticView = {
+    baseFov: 85,
+    blend: 0,
+    diameter: 86,
+  };
   private readonly rendering: GameRenderer;
   private readonly arena: TrainingArena;
   private readonly physics: PhysicsWorld;
@@ -180,9 +191,9 @@ export class Game {
   }
   private get displayedFov(): number {
     const weapon = (this.session ? this.networkCombat : this.combat).weapons;
-    return (
-      this.userSettings.fov +
-      (weapon.config.adsFov - this.userSettings.fov) * weapon.ads
+    return weapon.fieldOfView(
+      this.userSettings.fov,
+      weapon.config.scopeMagnification ? sniperZoom(weapon.ads) : weapon.ads,
     );
   }
   private combatSnapshot(): CombatSnapshot {
@@ -257,8 +268,11 @@ export class Game {
           }
         },
         onKill: (kill) => {
-          if (!this.disposed && generation === this.networkGeneration)
+          if (!this.disposed && generation === this.networkGeneration) {
             this.networkCombat.kill(kill);
+            if (kill.killerId === this.session?.view?.selfId)
+              this.audio.cue('kill');
+          }
         },
         onLeave: () => {
           if (!this.disposed && generation === this.networkGeneration)
@@ -324,21 +338,32 @@ export class Game {
   }
 
   private readonly simulate = (dt: number): void => {
+    const weapons = (this.session ? this.networkCombat : this.combat).weapons;
+    const scale = weapons.movementScale(
+      this.input.weapon.aim,
+      this.input.movement,
+      this.movement.state,
+    );
     if (this.session) {
       if (this.session.view?.phase !== 'playing') {
         this.input.clear();
         return;
       }
       if (!this.networkCombat.owner?.alive) this.input.clearGameplay();
-      this.session.step(this.input.movement, this.input.pitch, {
-        ...this.input.weapon,
-        // Desired selection survives an old input being discarded during overload recovery.
-        switchTo:
-          this.input.weapon.switchTo ?? this.networkCombat.weapons.selected,
-      });
+      this.session.step(
+        this.input.movement,
+        this.input.pitch,
+        {
+          ...this.input.weapon,
+          // Desired selection survives an old input being discarded during overload recovery.
+          switchTo:
+            this.input.weapon.switchTo ?? this.networkCombat.weapons.selected,
+        },
+        scale,
+      );
       this.networkCombat.step(dt, this.input.weapon, this.movement);
     } else {
-      this.movement.step(this.input.movement, dt);
+      this.movement.step(this.input.movement, dt, scale);
       if (this.input.locked)
         this.combat.step(
           dt,
@@ -401,6 +426,7 @@ export class Game {
       this.input.locked && armed,
       this.userSettings.reducedMotion ? 0.2 : 1,
       this.movement.state,
+      this.userSettings.scopeStyle,
     );
     if (this.input.locked)
       this.callbacks.onReticle(
@@ -414,12 +440,24 @@ export class Game {
           ),
         ),
         weapons.ads,
+        armed && weapons.config.scopeMagnification ? weapons.ads : 0,
       );
+    const hasScope =
+      this.input.locked &&
+      armed &&
+      !!weapons.config.scopeMagnification &&
+      this.userSettings.scopeStyle === 'optic';
+    if (hasScope) {
+      this.opticView.baseFov = this.userSettings.fov;
+      this.opticView.blend = sniperScopeBlend(weapons.ads);
+      this.opticView.diameter = sniperScopeDiameter(weapons.ads);
+    }
     this.rendering.render(
       this.arena.scene,
       this.camera.camera,
       delta * 1000,
       this.input.locked && armed ? this.viewmodel : null,
+      hasScope ? this.opticView : null,
     );
     this.monitor.record(delta * 1000, performance.now() - start);
     const info = this.rendering.renderer.info.render;

@@ -484,7 +484,8 @@ a:focus-visible {
   color: #dc9c6e;
   letter-spacing: 0;
 }
-.graphics-controls select {
+.graphics-controls select,
+.scope-style-setting select {
   display: block;
   width: 100%;
   margin: 8px 0 15px;
@@ -1137,4 +1138,76 @@ kbd {
     padding-top: 15px;
     padding-bottom: 15px;
   }
+}
+
+/* Native-resolution optic rim and reticle. The world remains visible around it. */
+.scope-style-setting {
+  display: grid;
+  gap: 8px;
+}
+
+.sniper-scope {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+}
+.scope-lens {
+  position: relative;
+  overflow: hidden;
+  width: var(--scope-diameter, 86vmin);
+  height: var(--scope-diameter, 86vmin);
+  border: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px #101a19,
+    0 0 0 10px #364744,
+    0 0 0 13px #101a19,
+    0 3px 12px 13px rgb(5 10 9 / 35%),
+    inset 0 0 14px 5px rgb(12 25 23 / 28%);
+  background:
+    radial-gradient(circle at 34% 20%, rgb(159 213 210 / 6%), transparent 55%),
+    linear-gradient(
+      90deg,
+      transparent calc(50% - 0.5px),
+      #17221c calc(50% - 0.5px),
+      #17221c calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    ),
+    linear-gradient(
+      transparent calc(50% - 0.5px),
+      #17221c calc(50% - 0.5px),
+      #17221c calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    );
+}
+.scope-lens i {
+  opacity: var(--scope-detail, 1);
+  position: absolute;
+  left: calc(50% - 6px);
+  top: 53%;
+  width: 12px;
+  height: 18%;
+  background: repeating-linear-gradient(transparent 0 15px, #18231d 15px 16px);
+}
+.scope-lens span {
+  opacity: var(--scope-detail, 1);
+  position: absolute;
+  top: 77%;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  color: #a8b99e;
+  font: 11px monospace;
+  letter-spacing: 2px;
+}
+.combat-hud,
+.player-health,
+.dummy-status,
+.hit-marker,
+.kill-feed,
+.death-notice {
+  z-index: 1;
 }

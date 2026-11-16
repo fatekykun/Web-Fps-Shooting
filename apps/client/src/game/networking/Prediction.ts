@@ -14,14 +14,20 @@ import {
 export class Prediction {
   private sequence = 0;
   private acknowledged = 0;
-  private pending: PlayerInput[] = [];
+  // Local replay metadata is deliberately absent from the transmitted packet.
+  private pending: (PlayerInput & { groundSpeedScale: number })[] = [];
   private life = 1;
   private alive = true;
   readonly offset = { x: 0, y: 0, z: 0 };
 
   constructor(private readonly movement: MovementController) {}
 
-  step(input: MovementInput, pitch: number, weapon?: WeaponInput): PlayerInput {
+  step(
+    input: MovementInput,
+    pitch: number,
+    weapon?: WeaponInput,
+    groundSpeedScale = 1,
+  ): PlayerInput {
     if (this.pending.length >= networkConfig.maxPrediction)
       throw new Error('The server stopped responding. Rejoin the room.');
     const packet: PlayerInput = {
@@ -38,8 +44,9 @@ export class Prediction {
       life: this.life,
       ...(weapon ? { weapon: { ...weapon } } : {}),
     };
-    this.pending.push(packet);
-    if (this.alive) this.movement.step(packet, movementConfig.fixedStep);
+    this.pending.push({ ...packet, groundSpeedScale });
+    if (this.alive)
+      this.movement.step(packet, movementConfig.fixedStep, groundSpeedScale);
     return packet;
   }
 
@@ -60,7 +67,11 @@ export class Prediction {
     this.movement.restore(snapshot);
     if (this.alive)
       for (const input of this.pending)
-        this.movement.step(input, movementConfig.fixedStep);
+        this.movement.step(
+          input,
+          movementConfig.fixedStep,
+          input.groundSpeedScale,
+        );
     const after = this.movement.physics.position;
     const dx = before.x - after.x,
       dy = before.y - after.y,

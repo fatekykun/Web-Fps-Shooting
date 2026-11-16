@@ -255,6 +255,28 @@ export function SettingsPanel({
               <h3>PRESENTATION</h3>
               <span>NATIVE HUD / PIXEL WORLD</span>
             </div>
+            <div className="scope-style-setting">
+              <label htmlFor={`${id}-scope-style`}>Sniper scope style</label>
+              <select
+                id={`${id}-scope-style`}
+                value={settings.scopeStyle}
+                onChange={(event) => {
+                  const scopeStyle = event.target.value;
+                  if (scopeStyle === 'optic' || scopeStyle === 'classic')
+                    change({ scopeStyle });
+                }}
+              >
+                <option value="optic">Optical / lens-only zoom</option>
+                <option value="classic">
+                  Classic / whole-view zoom (default)
+                </option>
+              </select>
+            </div>
+            <p className="settings-note">
+              {settings.scopeStyle === 'optic'
+                ? 'Only the lens magnifies the target. Surroundings stay at normal zoom.'
+                : 'The lens and surrounding world zoom together, like a traditional sniper scope.'}
+            </p>
             <label className="setting-toggle">
               <input
                 type="checkbox"

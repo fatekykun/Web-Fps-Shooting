@@ -1,6 +1,10 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { initializePhysics } from '@breakpoint/shared/physics';
-import { weaponConfigs, type WeaponInput } from '@breakpoint/shared';
+import {
+  weaponConfigs,
+  type WeaponInput,
+  type MovementInput,
+} from '@breakpoint/shared';
 import type { KillEvent, ServerShot } from '@breakpoint/shared/combat';
 import { ServerCombat } from './ServerCombat';
 import { ServerPlayer } from '../players/ServerPlayer';
@@ -63,6 +67,7 @@ function fixture() {
     yaw = 0,
     pitch = 0,
     life = player.state.life,
+    movement: Partial<MovementInput> = {},
   ) {
     const seq = (sequences.get(player.state.id) ?? 0) + 1;
     sequences.set(player.state.id, seq);
@@ -81,6 +86,7 @@ function fixture() {
           jumpPressed: false,
           slidePressed: false,
           divePressed: false,
+          ...movement,
         },
       ]),
     ).toBe(true);
@@ -339,4 +345,190 @@ describe('server weapon budget and life cycle', () => {
     expect(f.shots).toHaveLength(1);
     expect(player.state.yaw).toBeCloseTo(Math.PI);
   });
+});
+
+describe('authoritative sniper', () => {
+  it.each([
+    [0, 1.48, 150, true],
+    [0, 1.15, 100, false],
+    [0, 0.8, 90, false],
+    [0.36, 1.03, 70, false],
+    [0.15, 0.35, 70, false],
+  ])(
+    'resolves server hitboxes and damage at x=%s y=%s',
+    (x, y, damage, headshot) => {
+      const f = fixture(),
+        shooter = f.add('shooter', 0, 12),
+        victim = f.add('victim', 0, 8);
+      const eye =
+        shooter.movement.physics.position.y + shooter.movement.eyeOffset;
+      const yaw = -Math.atan2(Number(x), 4);
+      const pitch = Math.atan2(Number(y) - eye, Math.hypot(Number(x), 4));
+      f.controls(
+        shooter,
+        {
+          ...trigger,
+          fire: false,
+          firePressed: false,
+          aim: true,
+          switchTo: 'sniper',
+        },
+        yaw,
+        pitch,
+      );
+      f.step(15);
+      // Keep validated aim fresh while the shared ADS transition settles.
+      for (let i = 0; i < 60; i++) {
+        f.controls(
+          shooter,
+          { ...trigger, fire: false, firePressed: false, aim: true },
+          yaw,
+          pitch,
+        );
+        f.step();
+      }
+      f.controls(shooter, { ...trigger, aim: true }, yaw, pitch);
+      f.step();
+      expect(victim.state.health).toBe(100 - Math.min(100, Number(damage)));
+      expect(f.combat.owner(shooter)).toMatchObject({
+        selected: 'sniper',
+        cycling: true,
+        shots: 1,
+        critical: headshot,
+        lastDamage: Math.min(100, Number(damage)),
+      });
+      expect(f.combat.owner(shooter).ammo.sniper.magazine).toBe(4);
+      expect(f.shots[0]).toMatchObject({
+        weapon: 'sniper',
+        shooter: 'shooter',
+      });
+      if (Number(damage) >= 100)
+        expect(f.kills[0]).toMatchObject({ weapon: 'sniper', headshot });
+    },
+  );
+  it('rejects rapid fire, ownership bypass and cover hits using the same server weapon controller', () => {
+    const f = fixture(),
+      shooter = f.add('shooter', -7, 12),
+      victim = f.add('victim', -7, -10);
+    f.controls(shooter, {
+      ...trigger,
+      fire: false,
+      firePressed: false,
+      switchTo: 'sniper',
+    });
+    f.step(15);
+    for (let i = 0; i < 70; i++) {
+      f.controls(shooter);
+      f.step();
+    }
+    expect(f.shots).toHaveLength(1);
+    expect(victim.state.health).toBe(100);
+    expect(f.combat.owner(shooter).ammo.sniper.magazine).toBe(4);
+    f.combat.get('shooter')!.owned.delete('sniper');
+    f.step(80);
+    f.controls(shooter);
+    f.step();
+    expect(f.shots).toHaveLength(1);
+  });
+});
+
+it('reloads the server sniper inventory only after the full magazine reload and cancels on switching', () => {
+  const f = fixture(),
+    player = f.add('sniper', 0, 12);
+  f.controls(player, {
+    ...trigger,
+    fire: false,
+    firePressed: false,
+    switchTo: 'sniper',
+  });
+  f.step(15);
+  for (let i = 0; i < 5; i++) {
+    f.controls(player);
+    f.step(80);
+  }
+  expect(f.combat.owner(player).ammo.sniper).toEqual({
+    magazine: 0,
+    reserve: 20,
+  });
+  f.controls(player, { ...trigger, reloadPressed: true });
+  f.step(100);
+  expect(f.combat.owner(player).ammo.sniper).toEqual({
+    magazine: 0,
+    reserve: 20,
+  });
+  f.step(70);
+  expect(f.combat.owner(player).ammo.sniper).toEqual({
+    magazine: 5,
+    reserve: 15,
+  });
+  expect(f.shots).toHaveLength(5);
+  f.controls(player);
+  f.step();
+  f.controls(player, { ...trigger, reloadPressed: true });
+  f.step(40);
+  f.controls(player, {
+    ...trigger,
+    switchTo: 'rifle',
+    fire: false,
+    firePressed: false,
+  });
+  f.step(200);
+  expect(f.combat.owner(player).ammo.sniper).toEqual({
+    magazine: 4,
+    reserve: 15,
+  });
+});
+
+it('allows server-authoritative sniper ADS while sprinting, sliding and slide-jumping', () => {
+  const f = fixture(),
+    player = f.add('moving-sniper', 0, 12);
+  const aim = { ...trigger, fire: false, firePressed: false, aim: true };
+  f.controls(player, { ...aim, aim: false, switchTo: 'sniper' });
+  f.step(15);
+  for (let i = 0; i < 45; i++) {
+    f.controls(player, aim, 0, 0, player.state.life, {
+      forward: 1,
+      sprint: true,
+    });
+    f.step();
+  }
+  expect(player.movement.state).toBe('sprinting');
+  expect(f.combat.owner(player).ads).toBeGreaterThan(0.99);
+  expect(
+    Math.hypot(player.movement.velocity.x, player.movement.velocity.z),
+  ).toBeGreaterThan(7.5);
+  f.controls(player, aim, 0, 0, player.state.life, {
+    forward: 1,
+    sprint: true,
+    slidePressed: true,
+  });
+  f.step();
+  expect(player.movement.state).toBe('sliding');
+  for (let i = 0; i < 12; i++) {
+    f.controls(player, aim, 0, 0, player.state.life, {
+      forward: 1,
+      sprint: true,
+    });
+    f.step();
+  }
+  expect(f.combat.owner(player).ads).toBeGreaterThan(0.99);
+  f.controls(player, aim, 0, 0, player.state.life, {
+    forward: 1,
+    sprint: true,
+    jumpPressed: true,
+  });
+  f.step();
+  expect(player.movement.state).toBe('airborne');
+  expect(f.combat.owner(player).ads).toBeGreaterThan(0.99);
+  expect(f.combat.owner(player).spread).toBeGreaterThan(0.01);
+  // Starting aim while already airborne must also work, including held sprint.
+  f.combat.get(player.state.id)!.weapons.ads = 0;
+  for (let i = 0; i < 20; i++) {
+    f.controls(player, aim, 0, 0, player.state.life, {
+      forward: 1,
+      sprint: true,
+    });
+    f.step();
+  }
+  expect(f.combat.owner(player).ads).toBeGreaterThan(0.9);
 });

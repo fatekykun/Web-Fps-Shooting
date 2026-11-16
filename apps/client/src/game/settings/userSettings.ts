@@ -11,6 +11,7 @@ export const bindingActions = [
   'rifle',
   'smg',
   'shotgun',
+  'sniper',
   'scoreboard',
 ] as const;
 export type BindingAction = (typeof bindingActions)[number];
@@ -27,6 +28,7 @@ export const bindingLabels: Record<BindingAction, string> = {
   rifle: 'Equip rifle',
   smg: 'Equip SMG',
   shotgun: 'Equip shotgun',
+  sniper: 'Equip sniper',
   scoreboard: 'Scoreboard',
 };
 export const defaultBindings: Readonly<Record<BindingAction, string>> =
@@ -43,11 +45,14 @@ export const defaultBindings: Readonly<Record<BindingAction, string>> =
     rifle: 'Digit1',
     smg: 'Digit2',
     shotgun: 'Digit3',
+    sniper: 'Digit4',
     scoreboard: 'Tab',
   });
+export type ScopeStyle = 'optic' | 'classic';
 export interface UserSettings {
   sensitivity: number;
   fov: number;
+  scopeStyle: ScopeStyle;
   invertY: boolean;
   reducedMotion: boolean;
   diagnostics: boolean;
@@ -71,6 +76,7 @@ export function defaultUserSettings(): UserSettings {
   return {
     sensitivity: 1,
     fov: 85,
+    scopeStyle: 'classic',
     invertY: false,
     reducedMotion:
       typeof matchMedia === 'function' &&
@@ -119,7 +125,24 @@ export function normalizeUserSettings(value: unknown): UserSettings {
   const d = defaultUserSettings(),
     v = object(value),
     c = object(v.crosshair),
-    b = object(v.bindings);
+    b = { ...object(v.bindings) };
+  // Add the new action without resetting existing customized controls.
+  if (b.sniper === undefined) {
+    const available = [
+      'Digit4',
+      'Digit5',
+      'Digit6',
+      'Digit7',
+      'Digit8',
+      'Digit9',
+      'Digit0',
+      ...Array.from(
+        { length: 26 },
+        (_, index) => `Key${String.fromCharCode(65 + index)}`,
+      ),
+    ].find((code) => !Object.values(b).includes(code));
+    if (available) b.sniper = available;
+  }
   const bool = (key: string, fallback: boolean) =>
     typeof v[key] === 'boolean' ? (v[key] as boolean) : fallback;
   const validBindings =
@@ -128,6 +151,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
   return {
     sensitivity: number(v.sensitivity, d.sensitivity, 0.25, 3),
     fov: number(v.fov, d.fov, 65, 110),
+    scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',
     invertY: bool('invertY', d.invertY),
     reducedMotion: bool('reducedMotion', d.reducedMotion),
     diagnostics: bool('diagnostics', d.diagnostics),

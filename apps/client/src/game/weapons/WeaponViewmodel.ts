@@ -15,6 +15,7 @@ import {
   RGBAFormat,
   Scene,
   SRGBColorSpace,
+  Vector3,
 } from 'three';
 import {
   weaponOrder,
@@ -24,8 +25,14 @@ import {
 import type { WeaponController } from './WeaponController';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import type { GraphicsSettings } from '../rendering/graphicsConfig';
+import type { ScopeStyle } from '../settings/userSettings';
+import {
+  sniperRaise,
+  sniperEyePosition,
+  sniperScopeBlend,
+} from './SniperScope';
 
-/** All three low-poly models are pooled; the active model is one instanced draw. */
+/** Low-poly models are pooled; the active model is one instanced draw. */
 export class WeaponViewmodel {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(60, 1, 0.02, 4);
@@ -46,6 +53,9 @@ export class WeaponViewmodel {
   private kick = 0;
   private stance = 0;
   private cant = 0;
+  private readonly boltMatrix = new Matrix4();
+  private readonly boltScale = new Vector3(0.1, 0.035, 0.035);
+  private boltIndex = 0;
 
   constructor() {
     const pixels = new Uint8Array(32 * 32 * 4);
@@ -91,7 +101,14 @@ export class WeaponViewmodel {
   }
 
   private build(id: WeaponId): void {
-    const barrelLength = id === 'smg' ? 0.2 : id === 'shotgun' ? 0.52 : 0.35;
+    const barrelLength =
+      id === 'sniper'
+        ? 0.83
+        : id === 'smg'
+          ? 0.2
+          : id === 'shotgun'
+            ? 0.52
+            : 0.35;
     const barrelZ = -0.18 - barrelLength / 2;
     const parts = [
       [0, 0, 0, 0.12, 0.14, 0.4, 0x8c9d83],
@@ -123,11 +140,44 @@ export class WeaponViewmodel {
     ];
     if (id === 'shotgun')
       parts.push([0, -0.02, -0.33, 0.085, 0.075, 0.2, 0x6c7850]);
+    if (id === 'sniper') {
+      parts.push(
+        [0, 0.125, 0, 0.05, 0.1, 0.065, 0x3c4941],
+        [0, 0.05, 0.3, 0.11, 0.09, 0.25, 0x8e9974],
+        [0, -0.025, 0.43, 0.13, 0.22, 0.055, 0x35453b],
+        [0, 0.025, -1.03, 0.07, 0.07, 0.06, 0x29353b],
+        [0.065, 0.045, 0.04, 0.02, 0.03, 0.17, 0xb5bcb4],
+      );
+      // Faceted, hollow tube and eyepiece stay in the same instanced model draw.
+      for (const [radius, z, length, color] of [
+        [0.039, -0.055, 0.39, 0x364b4e],
+        [0.054, -0.265, 0.08, 0x202f34],
+        [0.049, 0.16, 0.064, 0x172a31],
+      ]) {
+        for (let segment = 0; segment < 12; segment++) {
+          const angle = (segment * Math.PI * 2) / 12;
+          parts.push([
+            Math.cos(angle) * radius!,
+            0.19 + Math.sin(angle) * radius!,
+            z!,
+            0.012,
+            2 * radius! * Math.tan(Math.PI / 12),
+            length!,
+            color!,
+            angle,
+          ]);
+        }
+      }
+      this.boltIndex = parts.length;
+      parts.push([0.115, 0.045, 0.095, 0.1, 0.035, 0.035, 0x9ca89c]);
+    }
     const mesh = new InstancedMesh(this.geometry, this.material, parts.length);
+    mesh.name = `weapon-${id}`;
     const matrix = new Matrix4();
     const color = new Color();
+    const scale = new Vector3();
     parts.forEach((part, index) => {
-      const [x, y, z, sx, sy, sz, tint] = part as [
+      const [x, y, z, sx, sy, sz, tint, rotation] = part as [
         number,
         number,
         number,
@@ -135,8 +185,12 @@ export class WeaponViewmodel {
         number,
         number,
         number,
+        number?,
       ];
-      matrix.makeScale(sx, sy, sz).setPosition(x, y, z);
+      matrix
+        .makeRotationZ(rotation ?? 0)
+        .scale(scale.set(sx, sy, sz))
+        .setPosition(x, y, z);
       mesh.setMatrixAt(index, matrix);
       mesh.setColorAt(index, color.setHex(tint));
     });
@@ -162,6 +216,7 @@ export class WeaponViewmodel {
     active: boolean,
     motion = 1,
     movement: MovementState = 'walking',
+    scopeStyle: ScopeStyle = 'classic',
   ): void {
     if (this.selected !== weapons.selected) {
       this.selected = weapons.selected;
@@ -173,6 +228,25 @@ export class WeaponViewmodel {
     }
     if (active) this.kick *= Math.exp(-22 * Math.min(dt, 0.1));
     const ads = weapons.ads;
+    const scoped = !!weapons.config.scopeMagnification;
+    const raise = scoped ? sniperRaise(ads) : ads;
+    this.root.visible =
+      active &&
+      (!scoped || scopeStyle === 'optic' || sniperScopeBlend(ads) < 1);
+    if (weapons.selected === 'sniper') {
+      const progress = weapons.cycleProgress;
+      const pull = weapons.cycling ? Math.sin(Math.PI * progress) : 0;
+      const lift = weapons.cycling
+        ? Math.sin(Math.PI * Math.min(1, progress * 3))
+        : 0;
+      this.boltMatrix
+        .makeRotationZ(lift * 0.8)
+        .scale(this.boltScale)
+        .setPosition(0.115, 0.045 + lift * 0.035, 0.095 + pull * 0.16);
+      const sniper = this.models.get('sniper')!;
+      sniper.setMatrixAt(this.boltIndex, this.boltMatrix);
+      sniper.instanceMatrix.needsUpdate = true;
+    }
     // Cosmetic stance transitions use frame-rate-independent damping; camera and shots stay authoritative.
     const blend = active ? 1 - Math.exp(-12 * Math.min(dt, 0.1)) : 0;
     const targetStance =
@@ -188,14 +262,15 @@ export class WeaponViewmodel {
     const reload = Math.sin(Math.PI * weapons.reloadProgress);
     const bob = Math.min(1, speed / 8) * (1 - ads * 0.9) * 0.008 * motion;
     this.root.position.set(
-      0.27 * (1 - ads) + Math.cos(weapons.time * 9) * bob,
+      0.27 * (1 - raise) + Math.cos(weapons.time * 9) * bob,
       -0.25 +
-        ads * 0.138 -
+        (scoped ? raise * 0.06 : ads * 0.138) -
         reload * 0.16 -
         weapons.equipLowering * 0.22 +
         Math.sin(weapons.time * 18) * bob -
         this.stance * (1 - ads) * motion,
-      -0.65 + ads * 0.05 + this.kick * 0.065 * motion,
+      (scoped ? sniperEyePosition(ads) : -0.65 + ads * 0.05) +
+        this.kick * 0.065 * motion,
     );
     this.root.rotation.set(
       this.kick * 0.035 * motion,
@@ -207,11 +282,13 @@ export class WeaponViewmodel {
     this.flash.position.set(
       0,
       0.025,
-      weapons.selected === 'smg'
-        ? -0.4
-        : weapons.selected === 'shotgun'
-          ? -0.73
-          : -0.56,
+      weapons.selected === 'sniper'
+        ? -1.08
+        : weapons.selected === 'smg'
+          ? -0.4
+          : weapons.selected === 'shotgun'
+            ? -0.73
+            : -0.56,
     );
     this.flash.visible =
       active && weapons.time - weapons.current.lastShot < 0.045;
