@@ -318,6 +318,18 @@
   grid-template-columns: 1fr 1fr;
   gap: 22px 30px;
 }
+.sensitivity-group {
+  margin: 24px 0;
+  padding: 20px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.sensitivity-group legend {
+  padding-right: 12px;
+  color: var(--amber);
+  font: 11px var(--mono);
+}
 .setting-range {
   display: block;
   font: 12px var(--mono);

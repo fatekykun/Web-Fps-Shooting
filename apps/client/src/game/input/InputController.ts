@@ -5,8 +5,10 @@ import {
 } from '@breakpoint/shared';
 import {
   defaultUserSettings,
+  bindingActions,
   type UserSettings,
 } from '../settings/userSettings';
+import type { WeaponController } from '../weapons/WeaponController';
 
 export class InputController {
   readonly movement: MovementInput = { forward: 0, right: 0, yaw: 0 };
@@ -26,9 +28,12 @@ export class InputController {
   private settings = defaultUserSettings();
 
   configure(settings: UserSettings): void {
+    const bindingsChanged = bindingActions.some(
+      (action) => this.settings.bindings[action] !== settings.bindings[action],
+    );
     this.settings = settings;
     this.weapon.autoReload = settings.autoReload;
-    this.clear();
+    if (bindingsChanged) this.clear();
   }
 
   constructor(
@@ -36,6 +41,7 @@ export class InputController {
     private readonly onLockChange: (locked: boolean) => void,
     private readonly onError: (message: string) => void,
     private readonly onScoreboard: (open: boolean) => void = () => {},
+    private readonly getWeapon: () => WeaponController | null = () => null,
   ) {
     document.addEventListener('keydown', this.onKeyDown);
     document.addEventListener('keyup', this.onKeyUp);
@@ -124,12 +130,29 @@ export class InputController {
   };
 
   private readonly onMouseMove = (event: MouseEvent): void => {
-    if (!this.locked) return;
-    this.movement.yaw -=
-      event.movementX *
-      movementConfig.sensitivity *
-      this.settings.sensitivity *
-      this.lookScale;
+    if (
+      !this.locked ||
+      !Number.isFinite(event.movementX) ||
+      !Number.isFinite(event.movementY)
+    )
+      return;
+    const weapon = this.getWeapon();
+    // Held trigger includes gaps between shots. A fresh press can cancel a
+    // partial reload; blocked reloads/empty/equipping use camera values.
+    const firing =
+      this.weapon.fire &&
+      (!weapon ||
+        (!weapon.equipping &&
+          weapon.current.magazine > 0 &&
+          (!weapon.reloading || this.weapon.firePressed)));
+    const group = this.settings.sensitivity[firing ? 'firing' : 'camera'];
+    const ads = weapon ? weapon.ads : Number(this.weapon.aim);
+    const aimed = weapon?.config.scopeMagnification ? group.sniper : group.ads;
+    // Reuse the existing ADS animation blend, with no new input smoothing.
+    const horizontal = (group.steering + (aimed - group.steering) * ads) / 100;
+    const vertical = group.vertical / 100;
+    const base = movementConfig.sensitivity * this.lookScale;
+    this.movement.yaw -= event.movementX * base * horizontal;
     this.movement.yaw =
       ((((this.movement.yaw + Math.PI) % (Math.PI * 2)) + Math.PI * 2) %
         (Math.PI * 2)) -
@@ -140,11 +163,7 @@ export class InputController {
       Math.min(
         limit,
         this.pitch -
-          event.movementY *
-            movementConfig.sensitivity *
-            this.settings.sensitivity *
-            this.lookScale *
-            (this.settings.invertY ? -1 : 1),
+          event.movementY * base * vertical * (this.settings.invertY ? -1 : 1),
       ),
     );
   };

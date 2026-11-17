@@ -8,6 +8,79 @@ code and verification tools are implemented; cloud publication and eight-human
 play still require live hosting accounts and participants. BP-01 adds local
 physical-device training measurements on the target Intel UHD 620 hardware.
 
+## BP-07 — camera and firing sensitivity
+
+Settings → Sensitivity provides two independent groups, Camera and Firing, each
+with Steering, ADS, Sniper Scope and Vertical Turning values. All eight sliders
+use integer percentages from 1–300, with 100 as neutral. Reset Sensitivity changes
+only these eight values; Restore Defaults retains its existing full reset.
+The existing `breakpoint.settings.v1` key stores the nested configuration. Legacy
+global multipliers migrate once into all eight percentages; malformed/missing
+fields default independently and finite values clamp to the slider bounds.
+Other saved preferences and customized bindings remain intact.
+
+`Game` supplies a getter for the active practice/network weapon controller to
+the existing `InputController`. Each pointer-locked mouse event reads the current
+weapon and held trigger. Held fire selects Firing values during a burst or bolt
+cycle; release selects Camera immediately, without waiting for a simulation tick
+or a queued fire press. Empty/equipping weapons and blocked reloads use Camera.
+A fresh press that can cancel a partial reload selects Firing. Switching weapons,
+respawning and changing practice/online mode resolve the current controller via
+the same getter, without copying weapon state into another controller.
+
+For the selected group, horizontal percentage is
+`steering + (aimed - steering) * adsBlend`, where `aimed` is Sniper Scope for the
+sniper and ADS for other weapons. This reuses the existing ADS animation blend;
+no additional input smoothing, acceleration or timers are introduced. Vertical
+percentage is the group's Vertical Turning value, independent of horizontal
+settings. Both deltas apply the existing `0.002 rad/pixel` base and existing
+`tan(displayedFov / 2) / tan(hipFov / 2)` zoom scale once, then their respective
+percentage divided by 100. Invert Y, yaw wrapping, pitch limits and capture/focus
+resets remain in the same handler. Non-finite mouse deltas are ignored.
+There is no frame-time multiplier, so equal total mouse distance produces equal
+rotation across event/frame partitions. Sensitivity updates preserve held input
+and orientation; rebinding still clears held controls to avoid stuck keys.
+
+Implementation files: `game/settings/userSettings.ts` (types/defaults/migration),
+`game/input/InputController.ts` (state selection and independent axes),
+`game/core/Game.ts` (live weapon getter), `components/SettingsPanel.tsx` and
+`app/interface.css` (dedicated tab using existing controls), all under
+`apps/client/src/`. Tests extend `InputController.test.ts`, `userSettings.test.ts`
+and `tests/browser/interface.spec.ts`, and add `game/input/Sensitivity.test.ts`
+and `tests/browser/sensitivity.spec.ts`. `scripts/profile-browser.ts --look`
+exercises the actual mouse handler with 125 Hz look events during the existing
+native-GPU walk/fire/ADS/reload performance scenario. README documents the controls.
+
+Validation: all **290 tests across 41 files** pass, including independent axes,
+all four weapons, ADS interpolation/sniper priority, immediate trigger release,
+blocked/cancellable reloads, input-preserving reconfiguration, inversion/limits,
+non-finite deltas, equivalent mouse distance at 30/60/144 event partitions,
+legacy migration, malformed values and independent persistence. All **23 Chrome
+browser checks** pass for sensitivity, interface, movement, combat/network combat,
+reload, sniper and all-weapon sprint. The two sensitivity cases passed again on
+the final build after refining blocked-reload selection. A real Colyseus room
+verified raw yaw/pitch deltas for camera/firing hip, ADS and sniper input, with no
+rotation from button transitions. Settings screenshots were inspected at
+1280×720 and 640×640: `test-results/bp07-sensitivity.png` and
+`bp07-sensitivity-640.png`; room evidence is `bp07-server-look.png`.
+Browser checks used isolated client/server ports 4188/2672. Build/typecheck,
+lint, formatting and whitespace checks pass. A test run concurrent with the
+software-rendered browser suite exceeded three existing 5-second physics-test
+timeouts; the complete suite passed with Chrome closed, without changing those
+tests or their limits.
+
+The final native-GPU profile used Chrome 157 on the local i7-8650U / Intel UHD 620,
+Quality at 1280×720, high textures, shadows/AA/adaptive resolution off, a five-second
+warmup and a 20-second rifle walk/fire/ADS/reload run with approximately 125 Hz
+look events. Across 75 samples, average rolling FPS was **60.00**, with minimum
+rolling 1% low **39.29 FPS**. `test-results/bp07-native-look.json` stores the full
+report. Reproduce while a local preview is running with
+`npm run profile:browser -- --url http://127.0.0.1:4189 --preset quality --weapon rifle --seconds 20 --look --output test-results/bp07-native-look.json`.
+This is a local hardware measurement, not a locked-60 guarantee for every device
+or scene. The feature retains desktop mouse / Pointer Lock requirements. No new
+dependencies, camera controller, renderer passes or server protocol changes
+were needed.
+
 ## BP-06 — automatic reload and reload interruption
 
 Auto Reload defaults to on in the existing persisted user settings, with a

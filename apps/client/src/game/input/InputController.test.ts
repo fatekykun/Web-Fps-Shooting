@@ -53,7 +53,14 @@ it('applies remapped movement, held scores, sensitivity and inverted look, clear
   try {
     const settings = rebind(
       rebind(
-        { ...defaultUserSettings(), sensitivity: 2, invertY: true },
+        {
+          ...defaultUserSettings(),
+          sensitivity: {
+            camera: { steering: 200, ads: 200, sniper: 200, vertical: 200 },
+            firing: { steering: 200, ads: 200, sniper: 200, vertical: 200 },
+          },
+          invertY: true,
+        },
         'forward',
         'KeyE',
       ),
