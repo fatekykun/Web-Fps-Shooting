@@ -66,7 +66,12 @@ interface GameCallbacks {
   onTelemetry: (stats: GameTelemetry) => void;
   onError: (message: string) => void;
   onCombat: (snapshot: CombatSnapshot) => void;
-  onReticle: (gap: number, ads: number, scope: number) => void;
+  onReticle: (
+    gap: number,
+    ads: number,
+    scope: number,
+    opticReticle: boolean,
+  ) => void;
   onRoom: (view: RoomView | null) => void;
   onScoreboard: (open: boolean) => void;
 }
@@ -443,6 +448,7 @@ export class Game {
         ),
         weapons.ads,
         armed && weapons.config.scopeMagnification ? weapons.ads : 0,
+        this.viewmodel.hasAimDot,
       );
     const hasScope =
       this.input.locked &&

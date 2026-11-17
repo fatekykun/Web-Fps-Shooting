@@ -290,6 +290,24 @@ shotgun loading), primitive viewmodels without a skeletal body rig, and static h
 practice hitboxes. Online avatars use the shared rendered body-part boxes rather
 than a skeletal animation rig. Weapon values are prototype balance settings.
 
+### Weapon-specific sights (BP-08)
+
+Hold **RMB** to use each weapon's own sight: the rifle has a red-dot reflex optic
+with a clear aiming window; the SMG uses a compact swept V-notch and blade; the shotgun
+has a raised barrel rib and faceted front bead, with no rear aperture. The sniper
+retains its hollow scope and dedicated reticle in both Classic and Optical modes,
+without the generic iron-sight pieces.
+
+Each model has its own ADS position and rotation in
+`apps/client/src/game/weapons/WeaponSights.ts`. The front aiming point and rear
+sight line align with screen center. Existing ADS timing, weapon FOV, sensitivity,
+recoil, reloads and traversal animations still apply. Sight housings share their
+weapon's instanced geometry draw and nearest-filtered texture. The rifle's red
+dot uses one small unlit draw while visible through the optic, staying on the
+camera's aim line during recoil. Its normal crosshair hides during full ADS.
+No extra render pass is needed. These are procedural low-poly parts, matching
+the existing models.
+
 ### SR-04 sniper (BP-04)
 
 Press **4**, hold **right mouse** to scope, tap **left mouse** to fire, and use

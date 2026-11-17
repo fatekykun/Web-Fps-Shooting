@@ -8,6 +8,109 @@ code and verification tools are implemented; cloud publication and eight-human
 play still require live hosting accounts and participants. BP-01 adds local
 physical-device training measurements on the target Intel UHD 620 hardware.
 
+## BP-08 — weapon-specific iron sights and ADS views
+
+The five generic sight pieces previously shared by every weapon are replaced
+by `apps/client/src/game/weapons/WeaponSights.ts`. This configuration owns each
+weapon's sight geometry, front/rear aiming references, ADS position and Euler
+rotation. `WeaponViewmodel` appends only the selected weapon type's configured
+parts to its prebuilt instanced mesh and reads that model's pose during update.
+The body/hands, pooled materials, pixel textures and muzzle flash remain shared
+through the existing implementation. Every weapon keeps a single model draw;
+switching toggles the four prebuilt meshes without rebuilding geometry.
+
+| Weapon  | Sight                                                                      | ADS position (x, y, z), model units | ADS world FOV             |
+| ------- | -------------------------------------------------------------------------- | ----------------------------------- | ------------------------- |
+| Rifle   | Square rear aperture, eight-sided protective front hood and blade tip      | (0, −0.124, −0.61)                  | 62°                       |
+| SMG     | Compact swept V-notch, low shoulders and guarded front blade               | (0, −0.116, −0.56)                  | 67°                       |
+| Shotgun | Supported barrel rib and faceted bead; no rear aperture                    | (0, −0.101, −0.62)                  | 60°                       |
+| Sniper  | Existing hollow faceted scope and dedicated reticle; generic irons removed | (0, −0.19, about −0.303)            | Existing 4× magnification |
+
+ADS rotations are independently configurable and currently (0, 0, 0), matching
+the models' straight sight axes. Subtracting the sight-line height brings the
+front and rear reference points onto the viewmodel camera's −Z center line.
+The existing 60° viewmodel camera and shared world FOV/timing configuration are
+unchanged. Rifle/SMG/shotgun pose interpolation reuses the reversible ADS blend.
+Sniper keeps its staged raise/eye approach and scope handoff; `SniperScope.ts`
+accepts the configured final eye depth without changing its default behavior.
+Existing recoil, equip/reload, sprint carry and traversal offsets still compose
+over the weapon-specific pose. Input, sensitivity, ballistics and server rules
+are unchanged.
+
+All sights are procedural `BoxGeometry` instances using the existing nearest-
+filtered weapon atlas and readable material. The rifle hood and sniper tube use
+faceted segments; crossed small boxes form the shotgun bead. No imported model,
+new material/texture, dependency, render target or attachment draw is introduced.
+These parts can later be replaced by authored assets. Geometry totals are 27
+instances for rifle, 22 for SMG, 22 for shotgun and 55 for sniper, plus the existing
+pooled muzzle flash when firing. No geometry is allocated during animation.
+
+Modified/added files: `game/weapons/WeaponSights.ts`, `WeaponViewmodel.ts`,
+`SniperScope.ts` and `WeaponSights.test.ts` under `apps/client/src/`;
+`tests/browser/sights.spec.ts`, `tests/browser/sniper.spec.ts`, README, this log
+and the local BP-08 ticket.
+The 15 new unit cases check actual front/rear projection at 4:3, 16:9 and 21:9,
+clear sight rays through the actual mesh, connected iron-sight supports, near-
+plane clearance throughout ADS, distinct geometry, switching while aiming,
+pooled resources and reversible interpolation at 30/60/144 FPS.
+All **305 tests across 42 files** pass. Production build/typecheck and lint pass.
+All **15 Chrome browser scenarios** are verified on the native GPU: two new sight
+cases at fixed Performance 640×360 / low texture and Quality 1280×720 / high
+texture, plus combat/network combat, reload, sensitivity, sniper and all-weapon
+sprint regressions. Each new sight case checks all four models, ADS entry/exit,
+field of view, hits/ammo, scope handoff, switching while aiming and draw counts.
+Hip, raise, full ADS and held-ADS switching screenshots were inspected, including
+`test-results/bp08-quality-{rifle,smg,shotgun,sniper}-ads.png` and the corresponding
+Performance captures. The first native run read a stale sprinting telemetry
+sample in the existing sniper slide check. Its simulated wait now allows an
+extra frame beyond the 250 ms telemetry interval; that case then passed without
+changing movement logic or its assertions. Browser servers used isolated ports
+4190/2673. Formatting and whitespace checks also pass.
+
+Native performance on the local Intel UHD 620 / i7-8650U, Chrome 157, Quality
+1280×720, high textures, shadows/AA/adaptive resolution off, with approximately
+125 Hz look input during walk/fire/ADS/reload: after a five-second warmup, the
+20-second rifle run averaged **59.99 rolling FPS** (minimum rolling 1% low
+**39.25 FPS**, 74 samples); SMG averaged **60.03 rolling FPS** (minimum rolling
+1% low **47.34 FPS**, 75 samples). Full reports are
+`test-results/bp08-native-rifle.json` and `bp08-native-smg.json`. Runs were serial
+with no other test browser active. These are local hardware measurements, not
+a locked-60 guarantee for every scene/device. The models remain procedural;
+there is no imported or skeletal sight/weapon asset.
+
+### BP-08 follow-up — rifle red-dot optic
+
+At the user's request, the rifle now uses a red-dot reflex optic instead of
+the initial aperture/front-post design. Its rail-mounted housing has chamfered
+upper corners, a clear window and a side adjustment block; the front iron sight
+is removed. The rifle ADS position is now `(0, -0.146, -0.61)`, with zero rotation
+and the existing 62° world FOV. Other weapons retain their BP-08 sight designs.
+
+`WeaponSights.ts` defines the optic window and reticle dimensions. The housing
+uses 9 pooled box instances (22 rifle instances total). `WeaponViewmodel` adds
+one pooled, eight-sided `CircleGeometry` with an unlit red material, no texture,
+bloom or depth writes. It renders only when the camera aim ray falls inside the
+optic window. Reused matrices/vectors intersect that ray with the optic plane,
+keeping the dot centered during cosmetic recoil and sway. The receiver/housing
+still use one instanced draw; the visible dot adds one tiny draw with depth
+testing. There are no new render targets or passes. Geometry/material disposal
+follows the existing lifecycle.
+
+`Game.ts` passes visible optic-reticle state to `App.tsx`, which hides the normal
+crosshair above 95% ADS while the red dot is visible. Other weapons preserve
+their normal crosshair/scope behavior. Sight tests verify open-window clearance,
+unlit dot color, camera-ray alignment during recoil, pooled geometry and hiding
+after switching or pausing. Browser checks sample actual red framebuffer pixels
+at the aiming center at 360p and 720p, verify crosshair handoff and inspect the
+resulting screenshots. All 306 unit/integration tests and six Chrome browser
+scenarios pass (sights, combat/network combat and all-weapon sprint). Build,
+typecheck and lint pass. This follow-up also changes README and the BP-08 notes.
+The local UHD 620 native-GPU rifle profile at 1280×720 Quality with AA/shadows
+off and continuous look input averaged **59.88 rolling FPS**, with minimum
+rolling 1% low **23.94 FPS**, across 73 samples over 20 seconds after warmup.
+The full report is `test-results/red-dot-native-rifle.json`; results vary with
+hardware and system load.
+
 ## BP-07 — camera and firing sensitivity
 
 Settings → Sensitivity provides two independent groups, Camera and Firing, each
