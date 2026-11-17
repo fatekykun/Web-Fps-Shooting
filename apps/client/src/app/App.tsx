@@ -118,7 +118,12 @@ export function App() {
           }
         }
       },
-      onReticle: (gap: number, ads: number, scoped: number) => {
+      onReticle: (
+        gap: number,
+        ads: number,
+        scoped: number,
+        opticReticle: boolean,
+      ) => {
         if (cancelled || !reticle.current) return;
         const opacity = sniperScopeBlend(scoped);
         if (scope.current) {
@@ -135,7 +140,7 @@ export function App() {
           );
         }
         reticle.current.style.visibility =
-          opacity > 0.95 ? 'hidden' : 'visible';
+          opacity > 0.95 || (opticReticle && ads > 0.95) ? 'hidden' : 'visible';
         const crosshair = preferencesRef.current.crosshair;
         gap = crosshair.dynamic
           ? crosshair.gap + Math.max(0, gap - 5)

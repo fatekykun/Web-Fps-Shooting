@@ -8,8 +8,10 @@ export function sniperRaise(ads: number): number {
   return smoothRange(ads, 0, 0.72);
 }
 
-export function sniperEyePosition(ads: number): number {
-  const eye = -0.192 - 0.11 / (2 * 0.86 * Math.tan(Math.PI / 6));
+export function sniperEyePosition(
+  ads: number,
+  eye = -0.192 - 0.11 / (2 * 0.86 * Math.tan(Math.PI / 6)),
+): number {
   return -0.65 + (eye + 0.65) * smoothRange(ads, 0.35, 1);
 }
 

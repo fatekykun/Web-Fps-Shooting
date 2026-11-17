@@ -178,7 +178,9 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   await page.keyboard.press('c');
   await page.clock.runFor(32);
   await page.keyboard.up('Shift');
-  await page.clock.runFor(224);
+  // Telemetry publishes at 4 Hz. Allow a complete sample interval plus a
+  // render frame after the slide tap, including on the native GPU path.
+  await page.clock.runFor(256);
   await expect(page.getByTestId('position')).toHaveAttribute(
     'data-state',
     'sliding',
