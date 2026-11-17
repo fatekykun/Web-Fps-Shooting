@@ -53,6 +53,7 @@ export interface UserSettings {
   sensitivity: number;
   fov: number;
   scopeStyle: ScopeStyle;
+  autoReload: boolean;
   invertY: boolean;
   reducedMotion: boolean;
   diagnostics: boolean;
@@ -77,6 +78,7 @@ export function defaultUserSettings(): UserSettings {
     sensitivity: 1,
     fov: 85,
     scopeStyle: 'classic',
+    autoReload: true,
     invertY: false,
     reducedMotion:
       typeof matchMedia === 'function' &&
@@ -152,6 +154,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     sensitivity: number(v.sensitivity, d.sensitivity, 0.25, 3),
     fov: number(v.fov, d.fov, 65, 110),
     scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',
+    autoReload: bool('autoReload', d.autoReload),
     invertY: bool('invertY', d.invertY),
     reducedMotion: bool('reducedMotion', d.reducedMotion),
     diagnostics: bool('diagnostics', d.diagnostics),

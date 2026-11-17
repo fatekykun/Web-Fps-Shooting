@@ -22,6 +22,7 @@ const idle: WeaponInput = {
   firePressed: false,
   reloadPressed: false,
   switchTo: null,
+  autoReload: false,
 };
 
 /** Predict presentation; health, ammo readouts and hit markers only use server results. */
@@ -85,6 +86,19 @@ export class NetworkCombat {
     for (const id of weaponOrder) {
       this.weapons.ammo[id].magazine = owner.ammo[id].magazine;
       this.weapons.ammo[id].reserve = owner.ammo[id].reserve;
+    }
+    // Follow confirmed reload progress/completion without undoing a locally
+    // predicted shoot-to-cancel on unchanged, older reload snapshots.
+    const reloadChanged =
+      !previous ||
+      owner.life !== previous.life ||
+      owner.selected !== previous.selected ||
+      owner.reloading !== previous.reloading;
+    if (
+      owner.selected === this.weapons.selected &&
+      (reloadChanged || (owner.reloading && this.weapons.reloading))
+    ) {
+      this.weapons.synchronizeReload(owner.reloading, owner.reloadProgress);
     }
     if (changed) this.onChange();
   }

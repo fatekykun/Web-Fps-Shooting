@@ -47,6 +47,7 @@ describe('bolt-action sniper', () => {
   });
   it('enforces the 45 RPM boundary and all five rounds, then transfers only server-rule reserve ammo', () => {
     const w = sniper();
+    w.autoReload = false;
     for (let i = 0; i < 5; i++) {
       step(w, 1, { ...idle, firePressed: true });
       step(w, 79, { ...idle, fire: true });

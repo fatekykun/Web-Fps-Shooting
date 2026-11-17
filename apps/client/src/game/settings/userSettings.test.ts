@@ -155,3 +155,22 @@ it('saves and restores either scope style', () => {
     expect(loadUserSettings().scopeStyle).toBe(scopeStyle);
   }
 });
+
+it('defaults auto reload on for legacy/invalid preferences and persists either choice', () => {
+  expect(defaultUserSettings().autoReload).toBe(true);
+  expect(
+    normalizeUserSettings({ autoReload: 'false', fov: 103 }).autoReload,
+  ).toBe(true);
+  expect(normalizeUserSettings({ fov: 103 }).autoReload).toBe(true);
+  const data = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => data.set(key, value),
+  });
+  for (const autoReload of [true, false]) {
+    expect(
+      saveUserSettings({ ...defaultUserSettings(), autoReload, fov: 103 }),
+    ).toBe(true);
+    expect(loadUserSettings()).toMatchObject({ autoReload, fov: 103 });
+  }
+});

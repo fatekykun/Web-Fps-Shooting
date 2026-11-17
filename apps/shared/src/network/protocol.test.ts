@@ -77,3 +77,27 @@ describe('room protocol validation', () => {
       expect(codePattern.test(code)).toBe(false);
   });
 });
+
+it('validates the optional auto-reload preference while preserving legacy input and stripping ammo claims', () => {
+  const weapon = {
+    fire: false,
+    firePressed: false,
+    aim: false,
+    reloadPressed: false,
+    switchTo: null,
+  };
+  for (const autoReload of [true, false]) {
+    expect(
+      parseInput({
+        ...input,
+        life: 1,
+        weapon: { ...weapon, autoReload, magazine: 999, reserve: 999 },
+      })?.weapon,
+    ).toEqual({ ...weapon, autoReload });
+  }
+  expect(parseInput({ ...input, life: 1, weapon })?.weapon).toEqual(weapon);
+  for (const autoReload of [null, 'false', 0, {}, []])
+    expect(
+      parseInput({ ...input, life: 1, weapon: { ...weapon, autoReload } }),
+    ).toBeNull();
+});

@@ -244,7 +244,16 @@ disabled in online rooms.
 ADS changes camera FOV, sight alignment and sensitivity without smoothing mouse
 look. Its reversible exponential blend updates at render frequency. Hip FOV is
 85°; ADS uses 62°/67°/60° for rifle/SMG/shotgun. A short trigger tap is retained
-until a simulation tick; empty weapons require R. Switching takes 180 ms and
+until a simulation tick. Empty weapons reload automatically when reserves are
+available. **Settings → Controls → Auto Reload** is on by default and saved in
+this browser; turn it off to require **R**. Manual R works in either mode.
+A fresh shoot press cancels a partial reload and fires the remaining ammunition,
+subject to the normal fire interval and bolt cooldown. Empty-magazine reloads
+cannot be interrupted by shooting. Ammo transfers only when the reload finishes,
+limited by capacity and available reserves; cancellation spends no reserve ammo.
+The weapon blends smoothly out of a cancelled reload. These rules also run on
+the multiplayer server, which validates the preference and owns the ammo counts.
+Switching takes 180 ms and
 cancels reload without spending reserve ammo. Offline pause freezes reload/cooldown
 timers and clears held/queued firing, so resume never causes a stale shot.
 

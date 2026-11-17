@@ -7,6 +7,7 @@ export interface WeaponInput {
   firePressed: boolean;
   reloadPressed: boolean;
   switchTo: WeaponId | null;
+  autoReload?: boolean;
 }
 
 export interface WeaponConfig {
