@@ -42,10 +42,21 @@ Esc and focus restoration. Smaller layouts keep settings in scrollable panels.
 
 Settings apply immediately and save in this browser when storage is available:
 
-- **Controls:** mouse sensitivity (0.25–3×), hip FOV (65–110°), invert Y and all
+- **Controls:** hip FOV (65–110°), invert Y, Auto Reload and all
   keyboard actions. Click a binding and press a key; conflicting bindings swap.
   Esc cancels rebinding. Mouse buttons and Esc remain fixed. ADS retains each
   weapon's aimed FOV and scales sensitivity to the visible FOV.
+- **Sensitivity (BP-07):** separate Camera and Firing groups each provide
+  Steering, ADS, Sniper Scope and Vertical Turning sliders (1–300%, default 100%).
+  Steering/ADS/sniper control horizontal turning; vertical turning is independent.
+  ADS blends from steering to the aimed value, with sniper taking priority over
+  generic ADS. Hold LMB to use Firing values while the weapon has ammo and is
+  equipped; release immediately returns to Camera values. Existing zoom scaling
+  applies once to both axes. Empty weapons and blocked reloads use Camera values;
+  a fresh press that can cancel a partial reload uses Firing values. Reset Sensitivity
+  resets only these eight values; Restore Defaults resets all preferences.
+  Older global sensitivity values migrate into all eight percentages without
+  multiplying them twice or resetting other preferences.
 - **Display:** resolution preset, adaptive resolution, reduced motion and detailed
   diagnostics. FPS remains visible by default; enable diagnostics for movement,
   networking and rendering details. The HUD stays at native resolution.
@@ -518,7 +529,7 @@ npm.cmd run test:browser
 | `apps/client/src/app/`                            | React lifecycle, training entry/pause overlay and CSS                                 |
 | `apps/client/src/components/Telemetry.tsx`        | Native-resolution diagnostic HUD                                                      |
 | `apps/client/src/components/CommandMenu.tsx`      | Main navigation and training/room entry                                               |
-| `apps/client/src/components/SettingsPanel.tsx`    | Controls/display/audio/crosshair settings and live preview                            |
+| `apps/client/src/components/SettingsPanel.tsx`    | Controls/sensitivity/display/audio/crosshair settings and live preview                |
 | `apps/client/src/components/TacticalDialog.tsx`   | Modal lifecycle, keyboard close and focus restoration                                 |
 | `apps/client/src/game/settings/`                  | Validated browser preferences and unique keyboard bindings                            |
 | `apps/client/src/game/audio/`                     | Gesture-unlocked, bounded procedural sound and spatial reports                        |

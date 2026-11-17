@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type CSSProperties } from 'react';
 import {
   bindingActions,
   bindingLabels,
+  defaultUserSettings,
   isBindingCode,
   keyLabel,
   rebind,
@@ -13,7 +14,19 @@ import type { AntiAliasingState } from '../game/rendering/antiAliasing';
 import { GraphicsControls } from './GraphicsControls';
 import { TacticalDialog } from './TacticalDialog';
 
-const tabs = ['CONTROLS', 'DISPLAY', 'AUDIO', 'CROSSHAIR'] as const;
+const tabs = [
+  'CONTROLS',
+  'SENSITIVITY',
+  'DISPLAY',
+  'AUDIO',
+  'CROSSHAIR',
+] as const;
+const sensitivityLabels = {
+  steering: 'Steering Sensitivity',
+  ads: 'ADS Sensitivity',
+  sniper: 'Sniper Scope Sensitivity',
+  vertical: 'Vertical Turning Sensitivity',
+} as const;
 function Range({
   label,
   value,
@@ -187,15 +200,6 @@ export function SettingsPanel({
           <>
             <div className="setting-grid">
               <Range
-                label="Mouse sensitivity"
-                value={settings.sensitivity}
-                min={0.25}
-                max={3}
-                step={0.05}
-                display={`${settings.sensitivity.toFixed(2)}×`}
-                onChange={(sensitivity) => change({ sensitivity })}
-              />
-              <Range
                 label="Field of view"
                 value={settings.fov}
                 min={65}
@@ -254,6 +258,58 @@ export function SettingsPanel({
             <p className="settings-note">
               LMB fires · Hold RMB to aim · Esc releases the mouse.
             </p>
+          </>
+        )}
+        {tab === 'SENSITIVITY' && (
+          <>
+            <p className="settings-note">
+              100% is neutral. Steering, ADS and sniper values control
+              horizontal turning; vertical turning has its own value. Zoom
+              scaling is retained. Hold LMB to use firing sensitivity; release
+              to use camera sensitivity.
+            </p>
+            {(['camera', 'firing'] as const).map((group) => (
+              <fieldset key={group} className="sensitivity-group">
+                <legend>{group.toUpperCase()} SENSITIVITY</legend>
+                <div className="setting-grid">
+                  {(
+                    Object.keys(
+                      sensitivityLabels,
+                    ) as (keyof typeof sensitivityLabels)[]
+                  ).map((key) => (
+                    <Range
+                      key={key}
+                      label={`${group === 'camera' ? 'Camera' : 'Firing'} ${sensitivityLabels[key]}`}
+                      value={settings.sensitivity[group][key]}
+                      min={1}
+                      max={300}
+                      display={`${settings.sensitivity[group][key]}%`}
+                      onChange={(value) =>
+                        change({
+                          sensitivity: {
+                            ...settings.sensitivity,
+                            [group]: {
+                              ...settings.sensitivity[group],
+                              [key]: value,
+                            },
+                          },
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+            <button
+              className="text-button"
+              onClick={() =>
+                change({
+                  sensitivity: defaultUserSettings().sensitivity,
+                })
+              }
+            >
+              RESET SENSITIVITY
+            </button>
           </>
         )}
         {tab === 'DISPLAY' && (

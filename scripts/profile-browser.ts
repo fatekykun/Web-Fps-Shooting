@@ -11,6 +11,7 @@ const { values } = parseArgs({
     preset: { type: 'string', default: 'balanced' },
     headed: { type: 'boolean', default: false },
     software: { type: 'boolean', default: false },
+    look: { type: 'boolean', default: false },
     shadows: { type: 'string', default: 'off' },
     aa: { type: 'string', default: 'off' },
     screenshot: { type: 'boolean', default: false },
@@ -60,6 +61,20 @@ try {
   page.setDefaultNavigationTimeout(60000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  if (values.look)
+    await page.addInitScript(() => {
+      let sample = 0;
+      // Exercise the actual pointer-lock handler at 125 Hz during the profile.
+      setInterval(() => {
+        if (!document.pointerLockElement) return;
+        document.dispatchEvent(
+          new MouseEvent('mousemove', {
+            movementX: Math.sin(++sample * 0.03) * 3,
+            movementY: Math.cos(sample * 0.03) * 1.5,
+          }),
+        );
+      }, 8);
+    });
   await page.goto(url.href);
   await page
     .getByRole('button', { name: 'ENTER TRAINING' })
@@ -180,6 +195,7 @@ try {
         : 'one offline training browser; fixed resolution; walk/fire/ADS/reload; rolling telemetry',
     preset: values.preset,
     weapon: values.weapon,
+    lookInput: values.look,
     rendering,
     seconds,
     viewport,

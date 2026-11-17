@@ -143,6 +143,7 @@ export class Game {
       },
       callbacks.onError,
       callbacks.onScoreboard,
+      () => (this.session ? this.networkCombat : this.combat).weapons,
     );
     this.input.configure(preferences);
     this.setGraphicsSettings(settings);

@@ -49,8 +49,21 @@ export const defaultBindings: Readonly<Record<BindingAction, string>> =
     scoreboard: 'Tab',
   });
 export type ScopeStyle = 'optic' | 'classic';
+export interface SensitivityGroup {
+  steering: number;
+  ads: number;
+  sniper: number;
+  vertical: number;
+}
+export interface SensitivitySettings {
+  camera: SensitivityGroup;
+  firing: SensitivityGroup;
+}
+function defaultSensitivityGroup(): SensitivityGroup {
+  return { steering: 100, ads: 100, sniper: 100, vertical: 100 };
+}
 export interface UserSettings {
-  sensitivity: number;
+  sensitivity: SensitivitySettings;
   fov: number;
   scopeStyle: ScopeStyle;
   autoReload: boolean;
@@ -75,7 +88,10 @@ export interface UserSettings {
 export const userSettingsKey = 'breakpoint.settings.v1';
 export function defaultUserSettings(): UserSettings {
   return {
-    sensitivity: 1,
+    sensitivity: {
+      camera: defaultSensitivityGroup(),
+      firing: defaultSensitivityGroup(),
+    },
     fov: 85,
     scopeStyle: 'classic',
     autoReload: true,
@@ -123,6 +139,22 @@ function object(value: unknown): Record<string, unknown> {
     ? (value as Record<string, unknown>)
     : {};
 }
+function normalizeSensitivity(value: unknown): SensitivitySettings {
+  // Migrate the old global multiplier into each independent percentage once.
+  const legacy =
+    typeof value === 'number' ? number(value, 1, 0.25, 3) * 100 : 100;
+  const saved = object(value);
+  const group = (value: unknown): SensitivityGroup => {
+    const v = object(value);
+    return {
+      steering: Math.round(number(v.steering, legacy, 1, 300)),
+      ads: Math.round(number(v.ads, legacy, 1, 300)),
+      sniper: Math.round(number(v.sniper, legacy, 1, 300)),
+      vertical: Math.round(number(v.vertical, legacy, 1, 300)),
+    };
+  };
+  return { camera: group(saved.camera), firing: group(saved.firing) };
+}
 export function normalizeUserSettings(value: unknown): UserSettings {
   const d = defaultUserSettings(),
     v = object(value),
@@ -151,7 +183,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     bindingActions.every((key) => isBindingCode(b[key])) &&
     new Set(bindingActions.map((key) => b[key])).size === bindingActions.length;
   return {
-    sensitivity: number(v.sensitivity, d.sensitivity, 0.25, 3),
+    sensitivity: normalizeSensitivity(v.sensitivity),
     fov: number(v.fov, d.fov, 65, 110),
     scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',
     autoReload: bool('autoReload', d.autoReload),

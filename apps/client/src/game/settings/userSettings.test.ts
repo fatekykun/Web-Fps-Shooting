@@ -26,7 +26,12 @@ it('sanitizes malformed storage and clamps finite controls without sharing defau
     },
     bindings: { forward: 'Escape' },
   });
-  expect(settings.sensitivity).toBe(3);
+  expect(Object.values(settings.sensitivity.camera)).toEqual([
+    300, 300, 300, 300,
+  ]);
+  expect(Object.values(settings.sensitivity.firing)).toEqual([
+    300, 300, 300, 300,
+  ]);
   expect(settings.fov).toBe(85);
   expect(settings.invertY).toBe(false);
   expect(settings.masterVolume).toBe(0);
@@ -173,4 +178,69 @@ it('defaults auto reload on for legacy/invalid preferences and persists either c
     ).toBe(true);
     expect(loadUserSettings()).toMatchObject({ autoReload, fov: 103 });
   }
+});
+
+it('migrates a legacy global sensitivity once and preserves unrelated settings', () => {
+  const legacy = normalizeUserSettings({
+    sensitivity: 1.75,
+    fov: 103,
+    autoReload: false,
+    muted: true,
+  });
+  for (const group of Object.values(legacy.sensitivity))
+    expect(Object.values(group)).toEqual([175, 175, 175, 175]);
+  expect(legacy).toMatchObject({ fov: 103, autoReload: false, muted: true });
+  expect(normalizeUserSettings(legacy)).toEqual(legacy);
+  const fresh = defaultUserSettings();
+  fresh.sensitivity.camera.ads = 17;
+  expect(fresh.sensitivity.firing.ads).toBe(100);
+  expect(defaultUserSettings().sensitivity.camera.ads).toBe(100);
+});
+it('validates each sensitivity independently and safely fills partial or malformed groups', () => {
+  const value = normalizeUserSettings({
+    sensitivity: {
+      camera: { steering: 500, ads: -10, sniper: 42.7, vertical: Infinity },
+      firing: { steering: 150, ads: '80', sniper: null, vertical: 25 },
+    },
+  });
+  expect(value.sensitivity).toEqual({
+    camera: { steering: 300, ads: 1, sniper: 43, vertical: 100 },
+    firing: { steering: 150, ads: 100, sniper: 100, vertical: 25 },
+  });
+  for (const sensitivity of [
+    undefined,
+    null,
+    'bad',
+    [],
+    { camera: null },
+    NaN,
+    Infinity,
+  ]) {
+    expect(normalizeUserSettings({ sensitivity }).sensitivity).toEqual(
+      defaultUserSettings().sensitivity,
+    );
+  }
+});
+it('persists all eight sensitivity values independently without resetting bindings or preferences', () => {
+  const data = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => data.set(key, value),
+  });
+  const settings = rebind(
+    {
+      ...defaultUserSettings(),
+      sensitivity: {
+        camera: { steering: 11, ads: 22, sniper: 33, vertical: 44 },
+        firing: { steering: 55, ads: 66, sniper: 77, vertical: 88 },
+      },
+      fov: 103,
+      scopeStyle: 'optic',
+      autoReload: false,
+    },
+    'forward',
+    'KeyE',
+  );
+  expect(saveUserSettings(settings)).toBe(true);
+  expect(loadUserSettings()).toEqual(settings);
 });

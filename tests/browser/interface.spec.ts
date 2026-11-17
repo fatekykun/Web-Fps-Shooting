@@ -157,8 +157,12 @@ test('settings persist and drive actual bindings, FOV, reticle, display and audi
   const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
   await page.getByRole('slider', { name: /Field of view/ }).focus();
   await page.keyboard.press('End');
-  await page.getByRole('slider', { name: /Mouse sensitivity/ }).focus();
+  await page.getByRole('tab', { name: /SENSITIVITY/ }).click();
+  await page
+    .getByRole('slider', { name: /Camera Steering Sensitivity/ })
+    .focus();
   await page.keyboard.press('Home');
+  await page.getByRole('tab', { name: /CONTROLS/ }).click();
   await page
     .getByRole('button', { name: 'Rebind Move forward', exact: true })
     .click();
@@ -237,10 +241,15 @@ test('settings persist and drive actual bindings, FOV, reticle, display and audi
   await expect(page.getByRole('slider', { name: /Field of view/ })).toHaveValue(
     '110',
   );
+  await page.getByRole('tab', { name: /SENSITIVITY/ }).click();
   await expect(
-    page.getByRole('slider', { name: /Mouse sensitivity/ }),
-  ).toHaveValue('0.25');
+    page.getByRole('slider', { name: /Camera Steering Sensitivity/ }),
+  ).toHaveValue('1');
   await page.getByRole('button', { name: 'RESTORE DEFAULTS' }).click();
+  await expect(
+    page.getByRole('slider', { name: /Camera Steering Sensitivity/ }),
+  ).toHaveValue('100');
+  await page.getByRole('tab', { name: /CONTROLS/ }).click();
   await expect(page.getByRole('slider', { name: /Field of view/ })).toHaveValue(
     '85',
   );
