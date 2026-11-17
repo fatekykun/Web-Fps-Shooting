@@ -15,10 +15,13 @@ const { values } = parseArgs({
     aa: { type: 'string', default: 'off' },
     screenshot: { type: 'boolean', default: false },
     weapon: { type: 'string', default: 'rifle' },
+    scenario: { type: 'string', default: 'combat' },
     output: { type: 'string', default: 'test-results/browser-profile.json' },
   },
 });
 const seconds = Number(values.seconds);
+if (!['combat', 'sprint'].includes(values.scenario))
+  throw new Error('--scenario must be combat or sprint.');
 const weaponKeys: Record<string, string> = {
   rifle: '1',
   smg: '2',
@@ -110,11 +113,13 @@ try {
     if (next !== phase) {
       await page.keyboard.up('w');
       await page.keyboard.up('s');
+      await page.keyboard.up('Shift');
       await page.mouse.up({ button: 'left' });
       await page.mouse.up({ button: 'right' });
       if (next === 0) {
         await page.keyboard.down('w');
-        await page.mouse.down({ button: 'left' });
+        if (values.scenario === 'sprint') await page.keyboard.down('Shift');
+        else await page.mouse.down({ button: 'left' });
       } else if (next === 1) {
         await page.keyboard.down('s');
         await page.mouse.down({ button: 'right' });
@@ -123,7 +128,11 @@ try {
       phase = next;
     }
     // Semi-automatic weapons need fresh trigger presses, including across bolt cycles.
-    if (values.weapon === 'sniper' && next !== 2) {
+    if (
+      values.weapon === 'sniper' &&
+      next !== 2 &&
+      !(values.scenario === 'sprint' && next === 0)
+    ) {
       await page.mouse.up({ button: 'left' });
       await page.mouse.down({ button: 'left' });
     }
@@ -166,7 +175,9 @@ try {
     recordedAt: new Date().toISOString(),
     url: url.origin,
     scenario:
-      'one offline training browser; fixed resolution; walk/fire/ADS/reload; rolling telemetry',
+      values.scenario === 'sprint'
+        ? 'one offline training browser; fixed resolution; sprint carry/walk ADS fire/idle reload; rolling telemetry'
+        : 'one offline training browser; fixed resolution; walk/fire/ADS/reload; rolling telemetry',
     preset: values.preset,
     weapon: values.weapon,
     rendering,

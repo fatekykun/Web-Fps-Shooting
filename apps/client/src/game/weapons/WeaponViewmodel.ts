@@ -21,6 +21,7 @@ import {
   weaponOrder,
   type MovementState,
   type WeaponId,
+  type WeaponInput,
 } from '@breakpoint/shared';
 import type { WeaponController } from './WeaponController';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
@@ -53,6 +54,8 @@ export class WeaponViewmodel {
   private kick = 0;
   private stance = 0;
   private cant = 0;
+  private sprint = 0;
+  private stridePhase = 0;
   private readonly boltMatrix = new Matrix4();
   private readonly boltScale = new Vector3(0.1, 0.035, 0.035);
   private boltIndex = 0;
@@ -217,6 +220,7 @@ export class WeaponViewmodel {
     motion = 1,
     movement: MovementState = 'walking',
     scopeStyle: ScopeStyle = 'classic',
+    input?: Pick<WeaponInput, 'aim' | 'fire'>,
   ): void {
     if (this.selected !== weapons.selected) {
       this.selected = weapons.selected;
@@ -249,8 +253,7 @@ export class WeaponViewmodel {
     }
     // Cosmetic stance transitions use frame-rate-independent damping; camera and shots stay authoritative.
     const blend = active ? 1 - Math.exp(-12 * Math.min(dt, 0.1)) : 0;
-    const targetStance =
-      movement === 'sprinting' ? 0.075 : movement === 'diving' ? 0.11 : 0;
+    const targetStance = movement === 'diving' ? 0.11 : 0;
     const targetCant =
       movement === 'sliding' || movement === 'backsliding'
         ? -0.18
@@ -259,25 +262,55 @@ export class WeaponViewmodel {
           : 0;
     this.stance += (targetStance - this.stance) * blend;
     this.cant += (targetCant - this.cant) * blend;
+    const recentlyFired =
+      weapons.time - weapons.current.lastShot <
+      Math.min(0.25, weapons.config.fireInterval + 0.08);
+    const carrying =
+      movement === 'sprinting' &&
+      speed > 0.5 &&
+      ads < 0.01 &&
+      !input?.aim &&
+      !input?.fire &&
+      !recentlyFired &&
+      !weapons.reloading &&
+      !weapons.equipping;
+    const sprintBlend = active
+      ? 1 - Math.exp(-(carrying ? 12 : 18) * Math.min(dt, 0.1))
+      : 0;
+    this.sprint += ((carrying ? 1 : 0) - this.sprint) * sprintBlend;
+    // Integrate traveled distance rather than wall-clock time, matching sprint cadence.
+    if (active && movement === 'sprinting' && speed > 0.5)
+      this.stridePhase =
+        (this.stridePhase + (speed * Math.min(dt, 0.1) * Math.PI) / 1.8) %
+        (Math.PI * 2);
+    const carry = this.sprint * (1 - ads) ** 3;
+    const sway = Math.sin(this.stridePhase);
+    const step = Math.sin(this.stridePhase * 2);
     const reload = Math.sin(Math.PI * weapons.reloadProgress);
-    const bob = Math.min(1, speed / 8) * (1 - ads * 0.9) * 0.008 * motion;
+    const bob =
+      Math.min(1, speed / 8) * (1 - ads * 0.9) * 0.008 * motion * (1 - carry);
     this.root.position.set(
-      0.27 * (1 - raise) + Math.cos(weapons.time * 9) * bob,
+      0.27 * (1 - raise) +
+        Math.cos(weapons.time * 9) * bob +
+        carry * (0.02 + sway * 0.012 * motion),
       -0.25 +
         (scoped ? raise * 0.06 : ads * 0.138) -
         reload * 0.16 -
         weapons.equipLowering * 0.22 +
         Math.sin(weapons.time * 18) * bob -
-        this.stance * (1 - ads) * motion,
+        this.stance * (1 - ads) * motion +
+        carry * (-0.03 + step * 0.01 * motion),
       (scoped ? sniperEyePosition(ads) : -0.65 + ads * 0.05) +
-        this.kick * 0.065 * motion,
+        this.kick * 0.065 * motion -
+        carry * 0.22,
     );
     this.root.rotation.set(
-      this.kick * 0.035 * motion,
-      0,
+      this.kick * 0.035 * motion + carry * (0.9 + step * 0.018 * motion),
+      carry * (0.22 + Math.cos(this.stridePhase) * 0.012 * motion),
       -reload * 0.65 +
         this.kick * 0.01 * motion +
-        this.cant * (1 - ads) * motion,
+        this.cant * (1 - ads) * motion +
+        carry * (-0.25 + sway * 0.018 * motion),
     );
     this.flash.position.set(
       0,

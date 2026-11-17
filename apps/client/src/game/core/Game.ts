@@ -427,6 +427,7 @@ export class Game {
       this.userSettings.reducedMotion ? 0.2 : 1,
       this.movement.state,
       this.userSettings.scopeStyle,
+      this.input.weapon,
     );
     if (this.input.locked)
       this.callbacks.onReticle(
