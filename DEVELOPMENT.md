@@ -8,6 +8,57 @@ code and verification tools are implemented; cloud publication and eight-human
 play still require live hosting accounts and participants. BP-01 adds local
 physical-device training measurements on the target Intel UHD 620 hardware.
 
+## BP-05 — dedicated sprint weapon animation
+
+`WeaponViewmodel` now blends the existing shared weapon/hands group into a
+raised diagonal sprint carry, with about 52 degrees of upward pitch, a slight
+side turn/cant and a rearward position offset that keeps the longer sniper
+barrel inside the view. Existing weapon geometry, textures, materials and pooled
+instance counts are unchanged. No skeletal rig, new assets, render pass or
+separate animation system was introduced.
+
+Carry enters with exponential damping at 12/s and exits at 18/s. Additional
+sway and lift integrate sprint distance at a 1.8 m step cadence; the phase
+freezes when stationary/paused rather than jumping with wall-clock time.
+Steady walking retains its original bob/hold. Slides, backslides, jumps, dives
+and recovery blend out of carry into their existing presentation. A blocked
+sprint settles back to a normal hold. The reduced-motion setting reduces the
+extra oscillation while retaining a recognizable static carry pose.
+
+The game passes existing aim/fire intent into the viewmodel by reference.
+Aim, held fire/recent shots, reload and equip suppress carry. ADS also smoothly
+attenuates residual carry so sights align as before, including both sniper
+scope styles and ADS during sprinting/sliding/jumping. These are cosmetic
+priorities only: no movement, camera, mouse-look, fire interval, spread, damage,
+reload inventory, weapon-switch timing or server rule was changed.
+
+Seven new tests cover all four models, smooth entry/exit, 30/60/144 FPS
+consistency, shooting/ADS/reload/equip priorities, traversal transitions,
+blocked/paused movement, reduced-motion amplitude and transformed geometry
+staying clear of the camera's near plane. The full 250-test suite across 39
+files passed. The new browser scenario verifies all four guns with walking,
+sprint, fire, sprint ADS, stop/idle and reload, with unchanged low draw counts.
+Captures are `test-results/bp05-{rifle,smg,shotgun,sniper}-{walking,sprint,sprint-ads,idle}.png`.
+The profiler now accepts `--scenario sprint` for sprint carry, walk ADS/fire
+and idle/reload phases; the original combat scenario remains the default.
+
+The four-weapon browser scenario passed, as did eight focused movement/ADS
+regressions: four facing-directed slide jumps, slide-cancel momentum,
+backslide/dive recovery and sniper sprint/slide/jump ADS in Classic and Optical.
+These functional runs use SwiftShader and a controlled clock; their HUD FPS is
+not a hardware measurement. Production build/typecheck and lint passed.
+
+Native profiling on 2026-11-17 used Intel UHD 620 / i7-8650U, Chrome
+157.0.8103.79 ANGLE D3D11, headless **without SwiftShader**, Quality 1280x720,
+high textures, AA/shadows/adaptive off. The 20-second sprint-carry / backward
+walk-ADS-fire / idle-reload scenario after warmup averaged **60.00 FPS** across
+75 samples; minimum rolling 1% low was **39.49 FPS**. Functional tests were
+finished before profiling. Raw report: `test-results/bp05-sprint-native.json`.
+This meets the average 60 FPS target in a short local training sample; transient
+lows, other devices and full human matches remain separate measurements.
+Test services used isolated ports 4186/2670 and were cleaned up; the user's
+existing room server on 2567 was preserved.
+
 ## BP-04 — bolt-action sniper
 
 SR-04 extends the existing shared weapon controller and validated weapon ID list;

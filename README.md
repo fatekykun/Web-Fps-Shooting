@@ -410,6 +410,18 @@ Graphics tuning lives in `apps/client/src/game/rendering/graphicsConfig.ts`.
 
 ## Movement controls
 
+**Sprint weapon carry (BP-05):** hold **Shift + W** without aiming or firing to
+raise the weapon into a diagonal carry pose. The rifle, SMG, shotgun and sniper
+use the same smooth transition, with their hands moving alongside the weapon.
+Sprint sway follows distance traveled, and stopping or returning to walking
+smoothly restores the normal hold. Aiming, firing, reloading and switching take
+priority, so the carry animation adds no shooting delay and does not block ADS.
+Sliding, jumping and diving keep their existing movement and weapon behavior.
+Reduced motion retains the raised pose while reducing extra sway/bob.
+
+For repeatable local profiling with the preview running:
+`npm run profile:browser -- --scenario sprint --weapon rifle --preset quality --seconds 20`.
+
 | Input                                             | Action                                                                      |
 | ------------------------------------------------- | --------------------------------------------------------------------------- |
 | Shift + W                                         | Sprint, accelerating toward 8 m/s                                           |
