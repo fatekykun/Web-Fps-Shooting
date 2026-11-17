@@ -116,3 +116,41 @@ it.each(['optic', 'classic'] as const)(
     }
   },
 );
+
+it('smoothly exits the reload pose when a remaining round interrupts reload', () => {
+  const model = new WeaponViewmodel(),
+    w = new WeaponController(() => {});
+  const idle = {
+      fire: false,
+      firePressed: false,
+      aim: false,
+      reloadPressed: false,
+      switchTo: null,
+    },
+    context = { speed: 0, grounded: true, verticalSpeed: 0 };
+  const mesh = model.scene.getObjectByName('weapon-rifle')!,
+    root = mesh.parent!;
+  try {
+    w.current.magazine = 10;
+    w.reload();
+    for (let i = 0; i < 45; i++) {
+      w.step(1 / 60, idle, context);
+      model.update(w, 0, 1 / 60, true);
+    }
+    const before = root.rotation.z;
+    expect(before).toBeLessThan(-0.3);
+    w.step(1 / 60, { ...idle, fire: true, firePressed: true }, context);
+    model.update(w, 0, 1 / 60, true);
+    expect(w.reloading).toBe(false);
+    expect(w.current.magazine).toBe(9);
+    expect(root.rotation.z).toBeLessThan(-0.2);
+    expect(Math.abs(root.rotation.z - before)).toBeLessThan(0.2);
+    for (let i = 0; i < 60; i++) {
+      w.step(1 / 60, idle, context);
+      model.update(w, 0, 1 / 60, true);
+    }
+    expect(Math.abs(root.rotation.z)).toBeLessThan(0.01);
+  } finally {
+    model.dispose();
+  }
+});

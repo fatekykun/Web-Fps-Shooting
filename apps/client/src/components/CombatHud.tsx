@@ -46,7 +46,9 @@ export function CombatHud({
                 : combat.equipping
                   ? 'EQUIPPING'
                   : combat.magazine === 0
-                    ? `EMPTY · ${keyLabel(bindings.reload)} TO RELOAD`
+                    ? combat.reserve > 0
+                      ? `EMPTY · ${keyLabel(bindings.reload)} TO RELOAD`
+                      : 'OUT OF AMMO'
                     : combat.ads > 0.5
                       ? 'AIM DOWN SIGHTS'
                       : 'HIP FIRE'}

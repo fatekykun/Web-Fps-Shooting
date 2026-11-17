@@ -440,6 +440,7 @@ it('reloads the server sniper inventory only after the full magazine reload and 
     fire: false,
     firePressed: false,
     switchTo: 'sniper',
+    autoReload: false,
   });
   f.step(15);
   for (let i = 0; i < 5; i++) {
@@ -450,7 +451,12 @@ it('reloads the server sniper inventory only after the full magazine reload and 
     magazine: 0,
     reserve: 20,
   });
-  f.controls(player, { ...trigger, reloadPressed: true });
+  f.controls(player, {
+    ...trigger,
+    fire: false,
+    firePressed: false,
+    reloadPressed: true,
+  });
   f.step(100);
   expect(f.combat.owner(player).ammo.sniper).toEqual({
     magazine: 0,
@@ -464,7 +470,12 @@ it('reloads the server sniper inventory only after the full magazine reload and 
   expect(f.shots).toHaveLength(5);
   f.controls(player);
   f.step();
-  f.controls(player, { ...trigger, reloadPressed: true });
+  f.controls(player, {
+    ...trigger,
+    fire: false,
+    firePressed: false,
+    reloadPressed: true,
+  });
   f.step(40);
   f.controls(player, {
     ...trigger,
@@ -531,4 +542,92 @@ it('allows server-authoritative sniper ADS while sprinting, sliding and slide-ju
     f.step();
   }
   expect(f.combat.owner(player).ads).toBeGreaterThan(0.9);
+});
+
+it('keeps automatic reload and empty-magazine interruption authoritative with limited reserves', () => {
+  const f = fixture(),
+    player = f.add('auto', 0, 12),
+    w = f.combat.get('auto')!.weapons;
+  w.current.magazine = 1;
+  w.current.reserve = 3;
+  f.controls(player, { ...trigger, autoReload: true });
+  f.step();
+  expect(f.combat.owner(player)).toMatchObject({ reloading: true, shots: 1 });
+  expect(f.combat.owner(player).ammo.rifle).toEqual({
+    magazine: 0,
+    reserve: 3,
+  });
+  for (let i = 0; i < 60; i++) {
+    f.controls(player, { ...trigger, autoReload: true });
+    f.step();
+  }
+  expect(f.combat.owner(player)).toMatchObject({ reloading: true, shots: 1 });
+  f.step(60);
+  expect(f.combat.owner(player).ammo.rifle).toEqual({
+    magazine: 3,
+    reserve: 0,
+  });
+  expect(f.combat.owner(player).reloading).toBe(false);
+});
+
+it('cancels a partial server reload on a fresh shot without granting or losing reserve ammo', () => {
+  const f = fixture(),
+    player = f.add('interrupt', 0, 12),
+    w = f.combat.get('interrupt')!.weapons;
+  w.current.magazine = 5;
+  w.current.reserve = 7;
+  f.controls(player, {
+    ...trigger,
+    fire: false,
+    firePressed: false,
+    reloadPressed: true,
+    autoReload: false,
+  });
+  f.step(40);
+  expect(f.combat.owner(player).reloading).toBe(true);
+  f.controls(player, { ...trigger, autoReload: false });
+  f.step();
+  expect(f.combat.owner(player)).toMatchObject({ reloading: false, shots: 1 });
+  expect(f.combat.owner(player).ammo.rifle).toEqual({
+    magazine: 4,
+    reserve: 7,
+  });
+  f.controls(player, {
+    ...trigger,
+    fire: false,
+    firePressed: false,
+    autoReload: false,
+  });
+  f.step(200);
+  expect(f.combat.owner(player).ammo.rifle).toEqual({
+    magazine: 4,
+    reserve: 7,
+  });
+});
+
+it('honors auto reload OFF on the server while manual reload remains available', () => {
+  const f = fixture(),
+    player = f.add('manual', 0, 12),
+    w = f.combat.get('manual')!.weapons;
+  w.current.magazine = 1;
+  w.current.reserve = 2;
+  f.controls(player, { ...trigger, autoReload: false });
+  f.step(200);
+  expect(f.combat.owner(player).reloading).toBe(false);
+  expect(f.combat.owner(player).ammo.rifle).toEqual({
+    magazine: 0,
+    reserve: 2,
+  });
+  f.controls(player, {
+    ...trigger,
+    fire: false,
+    firePressed: false,
+    reloadPressed: true,
+    autoReload: false,
+  });
+  f.step(121);
+  expect(f.combat.owner(player).ammo.rifle).toEqual({
+    magazine: 2,
+    reserve: 0,
+  });
 });

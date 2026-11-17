@@ -212,6 +212,20 @@ export function SettingsPanel({
               />{' '}
               Invert vertical look
             </label>
+            <label className="setting-toggle">
+              <input
+                type="checkbox"
+                checked={settings.autoReload}
+                onChange={(event) =>
+                  change({ autoReload: event.target.checked })
+                }
+              />{' '}
+              Auto Reload
+            </label>
+            <p className="settings-note">
+              Reload empty magazines automatically when reserve ammo is
+              available. R always reloads manually.
+            </p>
             <div className="section-heading">
               <h3>KEYBOARD BINDINGS</h3>
               <span>MOUSE BUTTONS / ESC FIXED</span>

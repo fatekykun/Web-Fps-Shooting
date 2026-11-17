@@ -73,6 +73,7 @@ describe('local weapon rules', () => {
 
   it('never spends more than the magazine or catches up with a burst after a stall', () => {
     const controller = new WeaponController(() => {});
+    controller.autoReload = false;
     step(controller, 400, { ...idle, fire: true });
     expect(controller.current.magazine).toBe(0);
     expect(controller.shotsFired).toBe(30);

@@ -56,6 +56,7 @@ export class WeaponViewmodel {
   private cant = 0;
   private sprint = 0;
   private stridePhase = 0;
+  private reloadPose = 0;
   private readonly boltMatrix = new Matrix4();
   private readonly boltScale = new Vector3(0.1, 0.035, 0.035);
   private boltIndex = 0;
@@ -286,7 +287,12 @@ export class WeaponViewmodel {
     const carry = this.sprint * (1 - ads) ** 3;
     const sway = Math.sin(this.stridePhase);
     const step = Math.sin(this.stridePhase * 2);
-    const reload = Math.sin(Math.PI * weapons.reloadProgress);
+    const reloadTarget = Math.sin(Math.PI * weapons.reloadProgress);
+    const reloadBlend = active
+      ? 1 - Math.exp(-(weapons.reloading ? 12 : 18) * Math.min(dt, 0.1))
+      : 0;
+    this.reloadPose += (reloadTarget - this.reloadPose) * reloadBlend;
+    const reload = this.reloadPose;
     const bob =
       Math.min(1, speed / 8) * (1 - ads * 0.9) * 0.008 * motion * (1 - carry);
     this.root.position.set(

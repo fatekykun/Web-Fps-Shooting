@@ -39,6 +39,7 @@ export class WeaponController {
   spread = (weaponConfigs.rifle.hipSpread * Math.PI) / 180;
   shotsFired = 0;
   time = 0;
+  autoReload = true;
   private reloadEnd = 0;
   private equipEnd = 0;
   private fireBuffer = 0;
@@ -139,17 +140,26 @@ export class WeaponController {
     this.onChange();
   }
 
-  reload(): void {
+  reload(): boolean {
     if (
       this.reloading ||
       this.equipping ||
       this.current.magazine >= this.config.magazine ||
       this.current.reserve <= 0
     )
-      return;
+      return false;
     this.reloadEnd = this.time + this.config.reloadTime;
     this.fireBuffer = 0;
     this.onChange();
+    return true;
+  }
+
+  /** Presentation correction only; ammo always comes from the authoritative owner snapshot. */
+  synchronizeReload(reloading: boolean, progress: number): void {
+    this.reloadEnd = reloading
+      ? this.time +
+        (1 - Math.max(0, Math.min(1, progress))) * this.config.reloadTime
+      : 0;
   }
 
   clearTriggerBuffer(): void {
@@ -158,6 +168,7 @@ export class WeaponController {
 
   step(dt: number, input: WeaponInput, context: AccuracyContext): void {
     this.time += dt;
+    if (input.autoReload !== undefined) this.autoReload = input.autoReload;
     for (const id of weaponOrder) {
       const ammo = this.ammo[id];
       if (this.time - ammo.lastShot > combatConfig.bloomRecoveryDelay)
@@ -168,7 +179,6 @@ export class WeaponController {
     }
     this.recoil.step(dt, this.config.recoilRecovery);
     if (input.switchTo) this.switchWeapon(input.switchTo);
-    if (input.reloadPressed) this.reload();
     if (this.reloading && this.time + 1e-9 >= this.reloadEnd) {
       const amount = Math.min(
         this.config.magazine - this.current.magazine,
@@ -179,6 +189,15 @@ export class WeaponController {
       this.reloadEnd = 0;
       this.onChange();
     }
+    if (input.reloadPressed) this.reload();
+    // Fresh presses interrupt partial reloads. Empty reloads must finish, and
+    // completion is processed first so a press on that tick uses the loaded rounds.
+    if (this.reloading && input.firePressed && this.current.magazine > 0) {
+      this.reloadEnd = 0;
+      this.onChange();
+    }
+    if (this.autoReload && this.current.magazine === 0 && !this.reloading)
+      this.reload();
     this.spread = calculateSpread(
       this.config,
       this.ads,
@@ -216,6 +235,8 @@ export class WeaponController {
       this.current.bloom + this.config.bloomPerShot,
     );
     this.recoil.kick(this.config, shotRandom(this.shotsFired * 17), this.ads);
-    this.onChange();
+    const autoStarted =
+      this.autoReload && this.current.magazine === 0 && this.reload();
+    if (!autoStarted) this.onChange();
   }
 }

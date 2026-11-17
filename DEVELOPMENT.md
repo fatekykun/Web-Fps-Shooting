@@ -8,6 +8,42 @@ code and verification tools are implemented; cloud publication and eight-human
 play still require live hosting accounts and participants. BP-01 adds local
 physical-device training measurements on the target Intel UHD 620 hardware.
 
+## BP-06 — automatic reload and reload interruption
+
+Auto Reload defaults to on in the existing persisted user settings, with a
+Controls checkbox and Restore Defaults support. `InputController` sends the
+preference alongside weapon controls. The input parser accepts only a boolean
+when supplied; legacy inputs retain the shared controller's current preference.
+The server still owns inventory, timing and hit validation.
+
+The shared `WeaponController` starts one reload after the last shot, or when an
+empty weapon finishes equipping / Auto Reload is enabled. Full magazines and
+zero reserves cannot start a reload. R remains available with either preference.
+Completion runs before new actions, transfers only the capacity/reserve minimum,
+and lets a shoot press on that tick use the loaded rounds. A fresh shoot press
+cancels a partial reload without transferring ammo; held fire alone does not
+cancel. Empty reloads continue. Cancellation preserves fire and sniper bolt
+cooldowns; switching retains its existing cancellation behavior.
+
+Network presentation follows confirmed reload progress and completion without
+restarting a locally cancelled reload from unchanged older snapshots. HUD ammo
+and reload state remain server-owned. A damped scalar blends the existing weapon
+pose back after cancellation, without adding geometry, render passes or assets.
+Empty weapons with no reserves now show OUT OF AMMO.
+
+Validation includes all four weapons, limited reserves, duplicate requests,
+completion-tick firing, toggling, switching, sniper cooldowns, settings storage,
+input validation, authoritative server behavior and network reconciliation.
+The full unit/integration suite passes 279 tests across 40 files.
+All 11 Chrome browser checks pass: the three new reload scenarios plus existing
+combat, network combat, sniper and all-weapon sprint cases. The multiplayer
+reload check changes the preference in a live private room, verifies manual R
+with Auto Reload off, partial cancellation, empty-reload protection and exact
+server-owned ammo totals. Screenshots at `test-results/bp06-partial-reload.png`,
+`bp06-interrupted.png` and `bp06-server-reload.png` were inspected. Browser checks
+used isolated client/server ports 4187/2671. Build/typecheck, lint, formatting and
+whitespace checks pass.
+
 ## BP-05 — dedicated sprint weapon animation
 
 `WeaponViewmodel` now blends the existing shared weapon/hands group into a

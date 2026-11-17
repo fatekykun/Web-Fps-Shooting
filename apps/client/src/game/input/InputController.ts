@@ -16,6 +16,7 @@ export class InputController {
     firePressed: false,
     reloadPressed: false,
     switchTo: null,
+    autoReload: true,
   };
   lookScale = 1;
   pitch = 0;
@@ -26,6 +27,7 @@ export class InputController {
 
   configure(settings: UserSettings): void {
     this.settings = settings;
+    this.weapon.autoReload = settings.autoReload;
     this.clear();
   }
 
