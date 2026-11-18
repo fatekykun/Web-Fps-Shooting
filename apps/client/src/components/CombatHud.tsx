@@ -1,4 +1,5 @@
 import type { CombatSnapshot } from '../game/combat/PracticeCombat';
+import { weaponOrder } from '@breakpoint/shared';
 import {
   defaultBindings,
   keyLabel,
@@ -61,9 +62,9 @@ export function CombatHud({
           />
         </div>
         <div className="weapon-keys">
-          {keyLabel(bindings.rifle)} RIFLE · {keyLabel(bindings.smg)} SMG ·{' '}
-          {keyLabel(bindings.shotgun)} SHOTGUN · {keyLabel(bindings.sniper)}{' '}
-          SNIPER
+          {(combat.allowedWeapons ?? weaponOrder)
+            .map((id) => `${keyLabel(bindings[id])} ${id.toUpperCase()}`)
+            .join(' · ')}
         </div>
       </aside>
       {combat.player ? (

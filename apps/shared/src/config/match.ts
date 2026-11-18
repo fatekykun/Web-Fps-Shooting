@@ -1,4 +1,6 @@
 import type { Vector3Like } from '../types/movement';
+import type { WeaponId } from '../types/weapons';
+import { weaponOrder } from './weapons';
 
 export type GameMode = 'ffa' | 'tdm';
 export type Team = 'none' | 'blue' | 'orange';
@@ -7,6 +9,44 @@ export interface MatchSettings {
   mode: GameMode;
   scoreLimit: number;
   durationSeconds: number;
+}
+export const playerLimits = [2, 4, 6, 8] as const;
+export interface PrivateRoomSettings extends MatchSettings {
+  playerLimit?: (typeof playerLimits)[number];
+  /** Omitted means unrestricted; custom restrictions contain one or two categories. */
+  allowedWeapons?: readonly WeaponId[];
+}
+
+export function parsePrivateRoomSettings(
+  value: unknown,
+): PrivateRoomSettings | null {
+  const match = parseMatchSettings(value);
+  if (!match) return null;
+  const v = value as Record<string, unknown>;
+  if (
+    v.playerLimit !== undefined &&
+    !playerLimits.includes(v.playerLimit as 2 | 4 | 6 | 8)
+  )
+    return null;
+  let allowedWeapons: WeaponId[] | undefined;
+  if (v.allowedWeapons !== undefined) {
+    if (
+      !Array.isArray(v.allowedWeapons) ||
+      v.allowedWeapons.length < 1 ||
+      v.allowedWeapons.length > 2 ||
+      new Set(v.allowedWeapons).size !== v.allowedWeapons.length ||
+      [...v.allowedWeapons].some((id) => !weaponOrder.includes(id))
+    )
+      return null;
+    allowedWeapons = weaponOrder.filter((id) =>
+      (v.allowedWeapons as unknown[]).includes(id),
+    );
+  }
+  return {
+    ...match,
+    playerLimit: (v.playerLimit ?? 8) as 2 | 4 | 6 | 8,
+    ...(allowedWeapons ? { allowedWeapons } : {}),
+  };
 }
 export const matchDefaults: Readonly<
   Record<GameMode, Readonly<MatchSettings>>

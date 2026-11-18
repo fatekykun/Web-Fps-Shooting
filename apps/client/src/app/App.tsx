@@ -255,7 +255,7 @@ export function App() {
         <div className="session-label">
           <span className={`status-dot ${locked ? 'active' : ''}`} />
           {room
-            ? `${room.code} / ${room.players.length} OF 8`
+            ? `${room.code} / ${room.players.length} OF ${room.playerLimit ?? 8}`
             : locked
               ? 'TRAINING ACTIVE'
               : 'LOCAL TRAINING'}

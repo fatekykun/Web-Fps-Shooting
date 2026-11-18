@@ -53,6 +53,8 @@ export interface PublicPlayer {
   team: Team;
 }
 export interface RoomView {
+  playerLimit?: number;
+  allowedWeapons?: readonly WeaponId[];
   code: string;
   selfId: string;
   hostId: string;

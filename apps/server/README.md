@@ -16,7 +16,15 @@ or Node's `--env-file` option for local production checks.
 
 `/health` returns the service
 status and room capacity. Rooms are private, have six-character IDs, and cap at
-eight connected players. Ready/start and host migration are included. Disconnects
+eight connected players by default. BP-09 private creation settings can choose
+`playerLimit: 2 | 4 | 6 | 8` and optional `allowedWeapons`, an array of one or two
+unique category IDs (`rifle`, `smg`, `shotgun`, `sniper`). Omit weapon restrictions
+to retain all four categories. Invalid settings reject room creation. The
+authoritative state synchronizes capacity and allowed categories. Colyseus seat
+reservations enforce the selected maximum, counting the host and pending seats;
+server combat enforces the allowed loadout on initial spawn, switching, respawn
+and rematch. Join/configure payloads cannot replace these creation-time rules.
+Ready/start and host migration are included. Disconnects
 release the player's seat; the last departure disposes the room and physics worlds.
 Codes are unique within this process and are not persisted across restarts.
 

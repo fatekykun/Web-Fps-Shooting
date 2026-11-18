@@ -8,6 +8,80 @@ code and verification tools are implemented; cloud publication and eight-human
 play still require live hosting accounts and participants. BP-01 adds local
 physical-device training measurements on the target Intel UHD 620 hardware.
 
+## BP-09 — private weapon restrictions and player limits
+
+Private creation now offers a 2/4/6/8-player limit (default 8, host included) and
+WEAPON SETTINGS with an explicit Restrict weapons toggle. Unrestricted is the
+default. Custom mode permits one or two of Rifle, SMG, Shotgun and Sniper,
+disables unselected options at two, shows the selection count and prevents
+creation with zero choices. Changing game mode preserves the private options.
+The existing dialog stays scrollable at compact viewport sizes; the selection
+count remains visible there. Lobby occupancy and the main header use the
+configured capacity, and room rules list the allowed categories.
+
+`PrivateRoomSettings` extends the existing base match configuration; its parser
+reuses base validation, rejects unsupported limits, empty/duplicate/unknown or
+over-two custom categories, copies only accepted fields and canonicalizes weapon
+order. Missing fields retain unrestricted/eight-player behavior. The base
+`MatchSettings` parser and defaults are unchanged. These settings apply only to
+the existing private Depot room creation flow; public matchmaking behavior is
+unchanged. The room stores `playerLimit` and `allowedWeapons` in authoritative
+Colyseus schema state. Capacity/loadout are fixed at creation and persist through
+host migration, game mode changes, respawn and rematch. Join payloads and the
+existing host match-rule messages cannot overwrite them.
+
+`DepotRoom` sets both `maxClients` and matchmaking capacity to the selected
+limit. Existing Colyseus reservations count connected and reserved seats before
+admission, so simultaneous joins cannot overfill the room; existing leave logic
+reopens seats. No parallel room manager or custom join counter was introduced.
+`ServerCombat` builds its existing ownership sets from the allowed categories,
+selects an allowed initial weapon and restores that loadout on respawn. Its
+existing switch/fire ownership validation rejects forbidden equipment requests.
+The client receives room rules, filters predicted and outgoing switch intent,
+initializes cosmetic selection from the authoritative spawn, and displays only
+allowed HUD shortcuts. Legacy room snapshots fall back to all weapons/eight
+players; offline practice remains unrestricted.
+
+Implementation files: shared `config/match.ts` and `network/protocol.ts`; server
+`rooms/RoomState.ts`, `rooms/DepotRoom.ts` and `combat/ServerCombat.ts`; client
+`components/PrivateRoomFields.tsx`, `RoomPanel.tsx`, `CombatHud.tsx`,
+`app/App.tsx`, `app/interface.css`, `app/styles.css`, `game/networking/NetworkSession.ts`,
+`game/core/Game.ts`, `game/combat/NetworkCombat.ts` and `PracticeCombat.ts`.
+Tests add shared `config/privateRoom.test.ts`, server `rooms/PrivateRooms.test.ts`
+and `tests/browser/private-rooms.spec.ts`; they extend server
+`combat/ServerCombat.test.ts`, `game-modes/MatchController.test.ts` and client
+`game/combat/NetworkCombat.test.ts`.
+README and the server README describe creation-time options and enforcement.
+
+All **329 unit/integration tests across 44 files** pass. New coverage exercises
+all four requested loadouts, each supported capacity with concurrent overbooking,
+malformed creation requests, guest/host override attempts, authoritative ammo,
+late joining, client key filtering, respawn, results/lobby/rematch and live TDM
+seat reuse. Existing unrestricted eight-player and server-owned combat tests
+also pass. Production build/typecheck and lint pass.
+All **12 Chrome browser scenarios** pass on the final build. The five new
+private-room cases cover form defaults/validation, keeping choices through a
+mode change, and these live configurations:
+
+| Loadout          | Capacity | Mode | Result |
+| ---------------- | -------- | ---- | ------ |
+| Sniper only      | 2        | FFA  | Passed |
+| Shotgun only     | 4        | FFA  | Passed |
+| Shotgun + Sniper | 6        | TDM  | Passed |
+| Rifle + SMG      | 8        | FFA  | Passed |
+
+Each live case verifies synchronized rules, allowed HUD keys, blocked shortcuts,
+allowed switching, ADS, authoritative shots/ammo, manual reload, occupancy after
+leave/rejoin and allowed equipment on late entry. The two-player case also
+rejects a third connection. Existing unrestricted room creation/joining, FFA/TDM
+results/rematch, interface settings and server-confirmed death/respawn checks
+pass. Screenshot QA covers the compact create form at
+`test-results/bp09-create-640.png` and lobby/game captures for all four loadouts.
+The player-limit select shares the existing match-field styling. Input filtering
+runs after dead-player controls are cleared, preserving neutral outgoing input.
+Validation used isolated preview/server ports 4194/2675. Formatting and whitespace
+checks pass. Restart both client and server to load the new room schema/rules.
+
 ## BP-08 — weapon-specific iron sights and ADS views
 
 The five generic sight pieces previously shared by every weapon are replaced

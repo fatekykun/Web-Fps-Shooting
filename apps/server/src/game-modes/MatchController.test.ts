@@ -229,3 +229,30 @@ describe('TDM teams and rules', () => {
     expect(f.state.winningTeam).toBe('draw');
   });
 });
+
+it('keeps the restricted loadout through results, return to lobby and a TDM rematch', () => {
+  const f = fixture();
+  f.combat.setAllowedWeapons(['shotgun', 'sniper']);
+  expect(f.match.configure({ ...matchDefaults.ffa, scoreLimit: 1 })).toBeNull();
+  f.add('a');
+  f.add('b');
+  f.ready();
+  expect(f.match.start()).toBeNull();
+  expect(
+    [...f.players.values()].every((p) => p.state.weapon === 'shotgun'),
+  ).toBe(true);
+  f.kill('a', 'b');
+  f.match.afterCombat();
+  expect(f.state.phase).toBe('results');
+  expect(f.match.returnToLobby()).toBeNull();
+  expect(f.match.configure(matchDefaults.tdm)).toBeNull();
+  f.ready();
+  expect(f.match.start()).toBeNull();
+  for (const player of f.players.values()) {
+    expect(player.state.weapon).toBe('shotgun');
+    expect([...f.combat.get(player.state.id)!.owned]).toEqual([
+      'shotgun',
+      'sniper',
+    ]);
+  }
+});

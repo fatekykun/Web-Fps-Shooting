@@ -61,6 +61,23 @@ export class ServerCombat {
   private killId = 0;
   private tick = 0;
   private mode: GameMode = 'ffa';
+  private allowedWeapons: readonly WeaponId[] = weaponOrder;
+
+  setAllowedWeapons(weapons: readonly WeaponId[]): void {
+    if (
+      !weapons.length ||
+      new Set(weapons).size !== weapons.length ||
+      weapons.some((id) => !weaponOrder.includes(id))
+    )
+      throw new Error('Invalid room weapon loadout.');
+    this.allowedWeapons = weaponOrder.filter((id) => weapons.includes(id));
+    for (const [id, loadout] of this.loadouts) {
+      loadout.owned = new Set(this.allowedWeapons);
+      if (!loadout.owned.has(loadout.weapons.selected))
+        loadout.weapons.switchWeapon(this.allowedWeapons[0]!);
+      this.players.get(id)!.state.weapon = loadout.weapons.selected;
+    }
+  }
 
   setMode(mode: GameMode): void {
     this.mode = mode;
@@ -74,13 +91,12 @@ export class ServerCombat {
   ) {}
 
   add(player: ServerPlayer): void {
-    player.state.weapon = 'rifle';
     player.state.protected = false;
     const loadout: Loadout = {
       weapons: new WeaponController((shot) =>
         this.queueShot(player, loadout, shot),
       ),
-      owned: new Set(weaponOrder),
+      owned: new Set(this.allowedWeapons),
       seed: this.seed(),
       held: neutral(),
       inputTick: -100,
@@ -93,6 +109,8 @@ export class ServerCombat {
       yaw: player.state.yaw,
       pitch: player.state.pitch,
     };
+    loadout.weapons.selected = this.allowedWeapons[0]!;
+    player.state.weapon = loadout.weapons.selected;
     this.loadouts.set(player.state.id, loadout);
     player.movementScale = (input) =>
       loadout.weapons.movementScale(
@@ -121,6 +139,8 @@ export class ServerCombat {
         loadout.weapons = new WeaponController((shot) =>
           this.queueShot(player, loadout, shot),
         );
+        loadout.weapons.selected = this.allowedWeapons[0]!;
+        loadout.owned = new Set(this.allowedWeapons);
         loadout.seed = this.seed();
         loadout.held = neutral();
         loadout.inputTick = -100;

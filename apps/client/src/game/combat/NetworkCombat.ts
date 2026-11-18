@@ -2,6 +2,7 @@ import {
   weaponConfigs,
   weaponOrder,
   type WeaponInput,
+  type WeaponId,
 } from '@breakpoint/shared';
 import {
   playerCombatConfig,
@@ -27,6 +28,17 @@ const idle: WeaponInput = {
 
 /** Predict presentation; health, ammo readouts and hit markers only use server results. */
 export class NetworkCombat {
+  allowedWeapons: readonly WeaponId[] = weaponOrder;
+  setAllowedWeapons(weapons: readonly WeaponId[]): void {
+    this.allowedWeapons = weapons.length ? weapons : weaponOrder;
+    if (!this.allowedWeapons.includes(this.weapons.selected))
+      this.weapons.switchWeapon(this.allowedWeapons[0]!);
+  }
+  filterInput(input: WeaponInput): WeaponInput {
+    return input.switchTo && !this.allowedWeapons.includes(input.switchTo)
+      ? { ...input, switchTo: null }
+      : input;
+  }
   weapons = new WeaponController(() => {});
   owner: OwnerCombat | null = null;
   private readonly impacts: PooledImpacts;
@@ -66,6 +78,7 @@ export class NetworkCombat {
       owner.alive !== this.owner.alive
     ) {
       this.weapons = new WeaponController(() => {});
+      this.weapons.selected = owner.selected;
       this.onLifeChange();
     }
     this.owner = owner;
@@ -121,7 +134,7 @@ export class NetworkCombat {
     if (count !== this.feed.length) this.onChange();
     this.impacts.step(dt);
     this.trails.step(dt);
-    this.weapons.step(dt, this.owner?.alive ? input : idle, {
+    this.weapons.step(dt, this.owner?.alive ? this.filterInput(input) : idle, {
       speed: Math.hypot(movement.velocity.x, movement.velocity.z),
       grounded: movement.physics.grounded,
       verticalSpeed: movement.velocity.y,
@@ -133,6 +146,7 @@ export class NetworkCombat {
       id = owner?.selected ?? w.selected;
     const config = weaponConfigs[id];
     return {
+      allowedWeapons: this.allowedWeapons,
       weapon: id,
       name: config.name,
       magazine: owner?.ammo[id].magazine ?? config.magazine,
@@ -158,6 +172,7 @@ export class NetworkCombat {
     };
   }
   reset(): void {
+    this.allowedWeapons = weaponOrder;
     this.owner = null;
     this.feed.length = 0;
     this.weapons = new WeaponController(() => {});
