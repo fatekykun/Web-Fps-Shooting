@@ -605,6 +605,48 @@ it('cancels a partial server reload on a fresh shot without granting or losing r
   });
 });
 
+it.each(['rifle', 'sniper'] as const)(
+  'authoritatively interrupts partial %s reloads on fresh ADS but protects empty reloads',
+  (id) => {
+    const f = fixture(),
+      player = f.add('aim-reload', 0, 12),
+      w = f.combat.get('aim-reload')!.weapons;
+    const aim = { ...trigger, fire: false, firePressed: false, aim: true };
+    f.controls(player, { ...aim, switchTo: id });
+    f.step(15);
+    w.current.magazine = 2;
+    w.current.reserve = 3;
+    f.controls(player, { ...aim, reloadPressed: true });
+    f.step(20);
+    expect(f.combat.owner(player).reloading).toBe(true);
+    // A tap followed by a newer held packet in the same tick must survive coalescing.
+    f.controls(player, { ...aim, aimPressed: true });
+    f.controls(player, aim);
+    f.step();
+    expect(f.combat.owner(player)).toMatchObject({
+      reloading: false,
+      shots: 0,
+    });
+    expect(w.current).toMatchObject({ magazine: 2, reserve: 3 });
+    // Fresh ADS is consumed once; held input cannot cancel a new reload.
+    w.reload();
+    f.step(3);
+    expect(w.reloading).toBe(true);
+    f.step(200);
+    expect(w.current.magazine + w.current.reserve).toBe(5);
+    w.current.magazine = 0;
+    w.current.reserve = 3;
+    f.controls(player, { ...aim, reloadPressed: true, aimPressed: true });
+    f.step(10);
+    expect(w.reloading).toBe(true);
+    expect(w.current).toMatchObject({ magazine: 0, reserve: 3 });
+    f.step(200);
+    expect(w.reloading).toBe(false);
+    expect(w.current).toMatchObject({ magazine: 3, reserve: 0 });
+    expect(f.shots).toHaveLength(0);
+  },
+);
+
 it('honors auto reload OFF on the server while manual reload remains available', () => {
   const f = fixture(),
     player = f.add('manual', 0, 12),

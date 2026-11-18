@@ -167,18 +167,72 @@ it('cancels on switch and automatically reloads an empty weapon only after equip
   expect(w.current).toMatchObject({ magazine: 2, reserve: 0 });
 });
 
-it('keeps sniper bolt and fire-rate validation when a partial reload is interrupted', () => {
-  const w = setup('sniper');
-  step(w, 1, press);
-  w.reload();
-  step(w, 5);
-  step(w, 1, press);
-  expect(w.reloading).toBe(false);
-  expect(w.cycling).toBe(true);
-  expect(w.shotsFired).toBe(1);
-  expect(w.current).toMatchObject({ magazine: 4, reserve: 20 });
-  step(w, 100);
-  step(w, 1, press);
-  expect(w.shotsFired).toBe(2);
-  expect(w.current.magazine).toBe(3);
-});
+it.each(['fire', 'aim'] as const)(
+  'keeps sniper bolt and fire-rate validation when %s interrupts a partial reload',
+  (action) => {
+    const w = setup('sniper');
+    step(w, 1, press);
+    w.reload();
+    step(w, 5);
+    step(
+      w,
+      1,
+      action === 'fire' ? press : { ...idle, aim: true, aimPressed: true },
+    );
+    expect(w.reloading).toBe(false);
+    expect(w.cycling).toBe(true);
+    expect(w.shotsFired).toBe(1);
+    expect(w.current).toMatchObject({ magazine: 4, reserve: 20 });
+    step(w, 100);
+    step(w, 1, press);
+    expect(w.shotsFired).toBe(2);
+    expect(w.current.magazine).toBe(3);
+  },
+);
+
+it.each(weaponOrder)(
+  'cancels a partial %s reload on fresh ADS without firing or transferring ammo',
+  (id) => {
+    const w = setup(id);
+    w.current.magazine = 2;
+    w.current.reserve = 5;
+    w.reload();
+    step(w, 20);
+    step(w, 1, { ...idle, aim: true, aimPressed: true });
+    expect(w.reloading).toBe(false);
+    w.updateAds(0.1, true);
+    expect(w.ads).toBeGreaterThan(0);
+    step(w, 240, { ...idle, aim: true });
+    expect(w.shotsFired).toBe(0);
+    expect(w.current).toMatchObject({ magazine: 2, reserve: 5 });
+    // Reloading while already aiming is intentional; holding ADS is not a new press.
+    step(w, 1, { ...idle, aim: true, reloadPressed: true });
+    step(w, 20, { ...idle, aim: true });
+    expect(w.reloading).toBe(true);
+    step(w, 1, idle);
+    step(w, 1, { ...idle, aim: true, aimPressed: true });
+    expect(w.reloading).toBe(false);
+  },
+);
+
+it.each(weaponOrder)(
+  'protects an empty %s reload from fresh ADS and aims after completion',
+  (id) => {
+    const w = setup(id);
+    w.current.magazine = 0;
+    w.current.reserve = 3;
+    w.reload();
+    const duration = Math.round(w.config.reloadTime / dt);
+    step(w, duration - 1, { ...idle, aim: true, aimPressed: true });
+    w.updateAds(0.1, true);
+    expect(w.reloading).toBe(true);
+    expect(w.ads).toBe(0);
+    expect(w.current).toMatchObject({ magazine: 0, reserve: 3 });
+    step(w, 1, { ...idle, aim: true, aimPressed: true });
+    w.updateAds(0.1, true);
+    expect(w.reloading).toBe(false);
+    expect(w.ads).toBeGreaterThan(0);
+    expect(w.current).toMatchObject({ magazine: 3, reserve: 0 });
+    expect(w.shotsFired).toBe(0);
+  },
+);

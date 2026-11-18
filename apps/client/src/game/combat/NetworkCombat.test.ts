@@ -126,59 +126,67 @@ it('clears pooled online effects when leaving the room', () => {
   }
 });
 
-it('follows server reload completion without spending reserves and preserves predicted interruption against old reload snapshots', () => {
-  const combat = new NetworkCombat(
-    new Scene(),
-    () => {},
-    () => {},
-  );
-  const context = { speed: 0, grounded: true, verticalSpeed: 0 };
-  const input = {
-    fire: false,
-    firePressed: false,
-    aim: false,
-    reloadPressed: false,
-    switchTo: null,
-  };
-  const partial = {
-    ...owner,
-    ammo: { ...owner.ammo, rifle: { magazine: 27, reserve: 120 } },
-  };
-  try {
-    combat.receive(partial);
-    combat.weapons.reload();
-    combat.receive({ ...partial, reloading: true, reloadProgress: 0.4 });
-    expect(combat.weapons.reloadProgress).toBeCloseTo(0.4);
-    combat.weapons.step(
-      1 / 60,
-      { ...input, fire: true, firePressed: true },
-      context,
+it.each(['fire', 'aim'] as const)(
+  'follows server reload completion and preserves predicted %s interruption against old reload snapshots',
+  (action) => {
+    const combat = new NetworkCombat(
+      new Scene(),
+      () => {},
+      () => {},
     );
-    expect(combat.weapons.reloading).toBe(false);
-    combat.receive({ ...partial, reloading: true, reloadProgress: 0.45 });
-    expect(combat.weapons.reloading).toBe(false);
-    combat.receive({
-      ...partial,
-      ammo: { ...partial.ammo, rifle: { magazine: 26, reserve: 120 } },
-      shots: 1,
-    });
-    expect(combat.weapons.reloading).toBe(false);
-    combat.weapons.reload();
-    combat.receive({ ...partial, reloading: true, reloadProgress: 0.7 });
-    expect(combat.weapons.reloading).toBe(true);
-    combat.receive({
+    const context = { speed: 0, grounded: true, verticalSpeed: 0 };
+    const input = {
+      fire: false,
+      firePressed: false,
+      aim: false,
+      reloadPressed: false,
+      switchTo: null,
+    };
+    const partial = {
       ...owner,
-      ammo: { ...owner.ammo, rifle: { magazine: 30, reserve: 117 } },
-    });
-    expect(combat.weapons.reloading).toBe(false);
-    expect(combat.weapons.current).toMatchObject({
-      magazine: 30,
-      reserve: 117,
-    });
-  } finally {
-    combat.dispose();
-  }
-});
+      ammo: { ...owner.ammo, rifle: { magazine: 27, reserve: 120 } },
+    };
+    try {
+      combat.receive(partial);
+      combat.weapons.reload();
+      combat.receive({ ...partial, reloading: true, reloadProgress: 0.4 });
+      expect(combat.weapons.reloadProgress).toBeCloseTo(0.4);
+      combat.weapons.step(
+        1 / 60,
+        action === 'fire'
+          ? { ...input, fire: true, firePressed: true }
+          : { ...input, aim: true, aimPressed: true },
+        context,
+      );
+      expect(combat.weapons.reloading).toBe(false);
+      combat.receive({ ...partial, reloading: true, reloadProgress: 0.45 });
+      expect(combat.weapons.reloading).toBe(false);
+      combat.receive({
+        ...partial,
+        ammo: {
+          ...partial.ammo,
+          rifle: { magazine: action === 'fire' ? 26 : 27, reserve: 120 },
+        },
+        shots: action === 'fire' ? 1 : 0,
+      });
+      expect(combat.weapons.reloading).toBe(false);
+      combat.weapons.reload();
+      combat.receive({ ...partial, reloading: true, reloadProgress: 0.7 });
+      expect(combat.weapons.reloading).toBe(true);
+      combat.receive({
+        ...owner,
+        ammo: { ...owner.ammo, rifle: { magazine: 30, reserve: 117 } },
+      });
+      expect(combat.weapons.reloading).toBe(false);
+      expect(combat.weapons.current).toMatchObject({
+        magazine: 30,
+        reserve: 117,
+      });
+    } finally {
+      combat.dispose();
+    }
+  },
+);
 
 it('initializes a restricted authoritative spawn and filters forbidden keys without changing valid controls', () => {
   const combat = new NetworkCombat(

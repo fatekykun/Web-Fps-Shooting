@@ -42,6 +42,8 @@ describe('room protocol validation', () => {
       { ...weapon, fire: 1 },
       null,
       { ...weapon, aim: NaN },
+      { ...weapon, aimPressed: 'true' },
+      { ...weapon, aimPressed: null },
     ]) {
       expect(parseInput({ ...input, life: 1, weapon: malformed })).toBeNull();
     }
@@ -77,6 +79,21 @@ describe('room protocol validation', () => {
       expect(codePattern.test(code)).toBe(false);
   });
 });
+
+it.each([true, false])(
+  'preserves the optional fresh ADS press %s',
+  (aimPressed) => {
+    const weapon = {
+      fire: false,
+      firePressed: false,
+      aim: true,
+      aimPressed,
+      reloadPressed: false,
+      switchTo: null,
+    };
+    expect(parseInput({ ...input, life: 1, weapon })?.weapon).toEqual(weapon);
+  },
+);
 
 it('validates the optional auto-reload preference while preserving legacy input and stripping ammo claims', () => {
   const weapon = {

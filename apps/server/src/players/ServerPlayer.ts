@@ -78,6 +78,7 @@ export class ServerPlayer {
         weapon: {
           ...input.weapon,
           firePressed: input.weapon.firePressed || !!previous?.firePressed,
+          aimPressed: input.weapon.aimPressed || !!previous?.aimPressed,
           reloadPressed:
             input.weapon.reloadPressed || !!previous?.reloadPressed,
           switchTo: input.weapon.switchTo ?? previous?.switchTo ?? null,

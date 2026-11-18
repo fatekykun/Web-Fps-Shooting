@@ -32,6 +32,45 @@ async function tap(page: Page) {
   await page.mouse.up();
 }
 
+for (const weapon of [
+  { key: '1', name: 'rifle', magazine: 30, reserve: 120 },
+  { key: '4', name: 'sniper', magazine: 5, reserve: 20 },
+]) {
+  test(`fresh ${weapon.name} ADS cancels a partial reload and held ADS allows reloading`, async ({
+    page,
+  }) => {
+    await prepare(page);
+    await enter(page);
+    const hud = page.getByTestId('weapon-status');
+    await page.keyboard.press(weapon.key);
+    await page.clock.runFor(400);
+    await tap(page);
+    await page.clock.runFor(1500);
+    await expect(hud).toHaveAttribute('data-ammo', String(weapon.magazine - 1));
+    await page.keyboard.press('r');
+    await page.clock.runFor(300);
+    await expect(hud).toHaveAttribute('data-reloading', 'true');
+    await page.mouse.down({ button: 'right' });
+    await page.clock.runFor(800);
+    await expect(hud).toHaveAttribute('data-reloading', 'false');
+    if (weapon.name === 'sniper')
+      await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '1');
+    await expect(hud).toHaveAttribute('data-ammo', String(weapon.magazine - 1));
+    await expect(hud).toHaveAttribute('data-reserve', String(weapon.reserve));
+    await page.clock.runFor(3000);
+    await expect(hud).toHaveAttribute('data-ammo', String(weapon.magazine - 1));
+    await page.keyboard.press('r');
+    await page.clock.runFor(300);
+    await expect(hud).toHaveAttribute('data-reloading', 'true');
+    await page.mouse.up({ button: 'right' });
+    await page.clock.runFor(32);
+    await page.mouse.down({ button: 'right' });
+    await page.clock.runFor(32);
+    await expect(hud).toHaveAttribute('data-reloading', 'false');
+    await page.mouse.up({ button: 'right' });
+  });
+}
+
 test('auto reload starts on empty, partial reloads cancel to fire, and empty reloads keep running', async ({
   page,
 }) => {
@@ -183,13 +222,28 @@ test('server honors the auto reload setting and authoritatively cancels or compl
     await page.waitForTimeout(2300);
     await expect(hud).toHaveAttribute('data-ammo', '28');
     await expect(hud).toHaveAttribute('data-reserve', '90');
+    await page.keyboard.press('r');
+    await expect(hud).toHaveAttribute('data-reloading', 'true');
+    await page.mouse.down({ button: 'right' });
+    await expect(hud).toHaveAttribute('data-reloading', 'false');
+    await expect(hud).toHaveAttribute('data-ammo', '28');
+    await expect(hud).toHaveAttribute('data-reserve', '90');
+    await page.keyboard.press('r');
+    await page.waitForTimeout(300);
+    await expect(hud).toHaveAttribute('data-reloading', 'true');
+    await page.mouse.up({ button: 'right' });
+    await page.mouse.down({ button: 'right' });
+    await expect(hud).toHaveAttribute('data-reloading', 'false');
+    await page.mouse.up({ button: 'right' });
     await page.mouse.down();
     await expect(hud).toHaveAttribute('data-ammo', '0', { timeout: 15000 });
     await page.mouse.up();
     await expect(hud).toHaveAttribute('data-reloading', 'true');
     await page.mouse.click(640, 360);
+    await page.mouse.down({ button: 'right' });
     await page.waitForTimeout(100);
     await expect(hud).toHaveAttribute('data-reloading', 'true');
+    await page.mouse.up({ button: 'right' });
     await expect(hud).toHaveAttribute('data-ammo', '30');
     await expect(hud).toHaveAttribute('data-reserve', '60');
     await expect(hud).toHaveAttribute('data-reloading', 'false');

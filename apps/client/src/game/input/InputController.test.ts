@@ -3,6 +3,43 @@ import { InputController } from './InputController';
 import { defaultUserSettings, rebind } from '../settings/userSettings';
 import { movementConfig } from '@breakpoint/shared';
 
+it('captures fresh ADS taps once, preserves held aim, and clears presses with gameplay input', () => {
+  const domDocument = new EventTarget();
+  vi.stubGlobal('document', domDocument);
+  vi.stubGlobal('window', new EventTarget());
+  const input = new InputController(
+    new EventTarget() as HTMLCanvasElement,
+    () => {},
+    () => {},
+    () => {},
+  );
+  const mouse = (type: string) =>
+    domDocument.dispatchEvent(Object.assign(new Event(type), { button: 2 }));
+  try {
+    mouse('mousedown');
+    expect(input.weapon.aimPressed).toBe(false);
+    input.locked = true;
+    mouse('mousedown');
+    mouse('mouseup');
+    expect(input.weapon).toMatchObject({ aim: false, aimPressed: true });
+    input.consumeActions();
+    expect(input.weapon.aimPressed).toBe(false);
+    mouse('mousedown');
+    input.consumeActions();
+    expect(input.weapon).toMatchObject({ aim: true, aimPressed: false });
+    mouse('mousedown');
+    expect(input.weapon.aimPressed).toBe(false);
+    mouse('mouseup');
+    mouse('mousedown');
+    expect(input.weapon.aimPressed).toBe(true);
+    input.clearGameplay();
+    expect(input.weapon).toMatchObject({ aim: false, aimPressed: false });
+  } finally {
+    input.dispose();
+    vi.unstubAllGlobals();
+  }
+});
+
 it('keeps the held scoreboard open when dead gameplay input is neutralized, and closes it on focus/capture reset', () => {
   const domDocument = new EventTarget();
   vi.stubGlobal('document', domDocument);

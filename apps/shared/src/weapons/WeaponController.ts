@@ -192,7 +192,11 @@ export class WeaponController {
     if (input.reloadPressed) this.reload();
     // Fresh presses interrupt partial reloads. Empty reloads must finish, and
     // completion is processed first so a press on that tick uses the loaded rounds.
-    if (this.reloading && input.firePressed && this.current.magazine > 0) {
+    if (
+      this.reloading &&
+      (input.firePressed || input.aimPressed) &&
+      this.current.magazine > 0
+    ) {
       this.reloadEnd = 0;
       this.onChange();
     }

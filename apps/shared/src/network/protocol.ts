@@ -120,10 +120,15 @@ export function parseInput(value: unknown): PlayerInput | null {
       return null;
     if (w.autoReload !== undefined && typeof w.autoReload !== 'boolean')
       return null;
+    if (w.aimPressed !== undefined && typeof w.aimPressed !== 'boolean')
+      return null;
     weapon = {
       fire: w.fire as boolean,
       aim: w.aim as boolean,
       firePressed: w.firePressed as boolean,
+      ...(w.aimPressed !== undefined
+        ? { aimPressed: w.aimPressed as boolean }
+        : {}),
       reloadPressed: w.reloadPressed as boolean,
       switchTo: w.switchTo as WeaponId | null,
       ...(w.autoReload !== undefined

@@ -5,6 +5,7 @@ export interface WeaponInput {
   fire: boolean;
   aim: boolean;
   firePressed: boolean;
+  aimPressed?: boolean;
   reloadPressed: boolean;
   switchTo: WeaponId | null;
   autoReload?: boolean;
