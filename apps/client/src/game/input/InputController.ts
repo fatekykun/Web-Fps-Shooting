@@ -16,6 +16,7 @@ export class InputController {
     fire: false,
     aim: false,
     firePressed: false,
+    aimPressed: false,
     reloadPressed: false,
     switchTo: null,
     autoReload: true,
@@ -179,7 +180,10 @@ export class InputController {
       this.weapon.fire = true;
       this.weapon.firePressed = true;
     }
-    if (event.button === 2) this.weapon.aim = true;
+    if (event.button === 2) {
+      if (!this.weapon.aim) this.weapon.aimPressed = true;
+      this.weapon.aim = true;
+    }
   };
 
   private readonly onMouseUp = (event: MouseEvent): void => {
@@ -210,6 +214,7 @@ export class InputController {
     this.movement.slidePressed = false;
     this.movement.divePressed = false;
     this.weapon.firePressed = false;
+    this.weapon.aimPressed = false;
     this.weapon.reloadPressed = false;
     this.weapon.switchTo = null;
   }

@@ -156,6 +156,7 @@ export class ServerCombat {
         loadout.held = {
           ...input,
           firePressed: false,
+          aimPressed: false,
           reloadPressed: false,
           switchTo: null,
         };
