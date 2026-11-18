@@ -13,6 +13,11 @@ export function Telemetry({ stats }: { stats: GameTelemetry | null }) {
       data-draws={stats?.drawCalls}
       data-triangles={stats?.triangles}
       data-heap-mb={stats?.heapMb}
+      data-trails={stats?.trails.active}
+      data-trails-emitted={stats?.trails.emitted}
+      data-trail-opacity={stats?.trails.opacity}
+      data-trail-thickness={stats?.trails.thickness}
+      data-trail-length={stats?.trails.length}
     >
       <div className="fps-line">
         <span className="perf-icon">▥</span>

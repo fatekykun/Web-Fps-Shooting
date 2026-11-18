@@ -3,6 +3,7 @@ import {
   DynamicDrawUsage,
   InstancedMesh,
   Object3D,
+  Vector3,
   type Scene,
 } from 'three';
 import type { PublicPlayer } from '@breakpoint/shared/network';
@@ -12,6 +13,8 @@ import { characterParts as parts } from '@breakpoint/shared/character';
 import { TacticalSkeleton } from '../characters/TacticalSkeleton';
 import { createTacticalGeometry } from '../characters/TacticalGeometry';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
+import { weaponMuzzles } from '../weapons/WeaponMuzzles';
+import type { WeaponId } from '@breakpoint/shared';
 
 const colors = [
   0x87917a, 0x6b9ca8, 0x9f9676, 0x8d9386, 0x7e9274, 0x968373, 0x80969a,
@@ -31,6 +34,11 @@ export class RemotePlayers {
     () => new TacticalSkeleton(),
   );
   private readonly part = new Object3D();
+  private readonly muzzles = Array.from({ length: 8 }, () => ({
+    id: '',
+    weapon: 'rifle' as WeaponId,
+    position: new Vector3(),
+  }));
   private readonly color = new Color();
   private count = 0;
   private readonly tints = new Uint32Array(8 * parts.length).fill(0xffffffff);
@@ -38,6 +46,17 @@ export class RemotePlayers {
 
   get playerCount(): number {
     return this.count / parts.length;
+  }
+
+  muzzleWorldPosition(id: string, weapon: WeaponId, out: Vector3): boolean {
+    for (let i = 0; i < this.playerCount; i++) {
+      const muzzle = this.muzzles[i]!;
+      if (muzzle.id === id && muzzle.weapon === weapon) {
+        out.copy(muzzle.position);
+        return true;
+      }
+    }
+    return false;
   }
 
   constructor(private readonly scene: Scene) {
@@ -66,6 +85,12 @@ export class RemotePlayers {
     rig.root.position.set(player.x, player.y - standingAnchor, player.z);
     rig.root.rotation.y = player.yaw;
     rig.update(player);
+    const muzzle = this.muzzles[this.playerCount]!;
+    muzzle.id = player.id;
+    muzzle.weapon = player.weapon;
+    muzzle.position
+      .set(...weaponMuzzles[player.weapon].remote)
+      .applyMatrix4(rig.bones[21]!.matrixWorld);
     const uniform =
       player.team === 'blue'
         ? 0x6b9ca8
@@ -85,6 +110,11 @@ export class RemotePlayers {
     for (const definition of parts) {
       this.part.position.set(...definition.position);
       this.part.scale.set(...definition.size);
+      if (definition.name === 'weapon-barrel') {
+        const tip = weaponMuzzles[player.weapon].remote;
+        this.part.position.set(tip[0], tip[1], (-0.27 + tip[2]) / 2);
+        this.part.scale.z = -0.27 - tip[2];
+      }
       this.part.updateMatrix();
       this.part.matrix.premultiply(rig.bones[definition.joint]!.matrixWorld);
       this.mesh.setMatrixAt(this.count, this.part.matrix);

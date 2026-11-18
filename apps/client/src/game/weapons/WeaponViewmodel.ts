@@ -13,6 +13,7 @@ import {
   MeshLambertMaterial,
   NearestFilter,
   NearestMipmapNearestFilter,
+  Object3D,
   PerspectiveCamera,
   RGBAFormat,
   Scene,
@@ -37,6 +38,7 @@ import {
 } from './SniperScope';
 import { FirstPersonArms } from '../characters/FirstPersonArms';
 import { strideRadiansPerMeter } from '@breakpoint/shared/character';
+import { weaponMuzzles } from './WeaponMuzzles';
 
 /** Low-poly models are pooled; the active model is one instanced draw. */
 export class WeaponViewmodel {
@@ -68,6 +70,7 @@ export class WeaponViewmodel {
     2,
   );
   private readonly models = new Map<WeaponId, InstancedMesh>();
+  private readonly muzzles = new Map<WeaponId, Object3D>();
   private selected: WeaponId | null = null;
   private lastShot = 0;
   private kick = 0;
@@ -131,14 +134,7 @@ export class WeaponViewmodel {
   }
 
   private build(id: WeaponId): void {
-    const barrelLength =
-      id === 'sniper'
-        ? 0.83
-        : id === 'smg'
-          ? 0.2
-          : id === 'shotgun'
-            ? 0.52
-            : 0.35;
+    const barrelLength = weaponMuzzles[id].barrelLength;
     const barrelZ = -0.18 - barrelLength / 2;
     const parts: WeaponPart[] = [
       [0, 0, 0, 0.12, 0.14, 0.4, 0x8c9d83],
@@ -190,6 +186,11 @@ export class WeaponViewmodel {
     });
     mesh.frustumCulled = false;
     mesh.visible = false;
+    const muzzle = new Object3D();
+    muzzle.name = `muzzle-${id}`;
+    muzzle.position.set(...weaponMuzzles[id].firstPerson);
+    mesh.add(muzzle);
+    this.muzzles.set(id, muzzle);
     this.models.set(id, mesh);
     this.root.add(mesh);
   }
@@ -205,6 +206,25 @@ export class WeaponViewmodel {
 
   get hasAimDot(): boolean {
     return this.aimDot.visible;
+  }
+
+  /** Match the barrel's screen position across the separate viewmodel/world FOVs. */
+  muzzleWorldPosition(
+    id: WeaponId,
+    camera: PerspectiveCamera,
+    out: Vector3,
+    worldFov = camera.fov,
+  ): Vector3 {
+    this.camera.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
+    this.muzzles.get(id)!.getWorldPosition(out);
+    out.applyMatrix4(this.camera.matrixWorldInverse);
+    const scale =
+      Math.tan((worldFov * Math.PI) / 360) /
+      Math.tan((this.camera.fov * Math.PI) / 360);
+    out.x *= (scale * camera.aspect) / this.camera.aspect;
+    out.y *= scale;
+    return out.applyMatrix4(camera.matrixWorld);
   }
 
   private updateAimDot(weapons: WeaponController, active: boolean): void {
@@ -363,17 +383,7 @@ export class WeaponViewmodel {
         this.stridePhase,
         motion,
       );
-    this.flash.position.set(
-      0,
-      0.025,
-      weapons.selected === 'sniper'
-        ? -1.08
-        : weapons.selected === 'smg'
-          ? -0.4
-          : weapons.selected === 'shotgun'
-            ? -0.73
-            : -0.56,
-    );
+    this.flash.position.set(...weaponMuzzles[weapons.selected].firstPerson);
     this.flash.visible =
       active && weapons.time - weapons.current.lastShot < 0.045;
     this.updateAimDot(weapons, active);

@@ -12,7 +12,6 @@ import {
 } from '@breakpoint/shared/combat';
 import { WeaponController } from '../weapons/WeaponController';
 import { PooledImpacts } from '../effects/PooledImpacts';
-import { ShotTrails } from '../effects/ShotTrails';
 import type { MovementController } from '../movement/MovementController';
 import type { Scene } from 'three';
 import type { CombatSnapshot } from './PracticeCombat';
@@ -42,7 +41,7 @@ export class NetworkCombat {
   weapons = new WeaponController(() => {});
   owner: OwnerCombat | null = null;
   private readonly impacts: PooledImpacts;
-  private readonly trails: ShotTrails;
+  private readonly seenShots = new Set<number>();
   private readonly feed: { event: KillEvent; remaining: number }[] = [];
   constructor(
     scene: Scene,
@@ -50,7 +49,6 @@ export class NetworkCombat {
     private readonly onLifeChange: () => void,
   ) {
     this.impacts = new PooledImpacts(scene);
-    this.trails = new ShotTrails(scene);
   }
   receive(owner: OwnerCombat): void {
     if (this.owner && owner.life < this.owner.life) return;
@@ -115,11 +113,15 @@ export class NetworkCombat {
     }
     if (changed) this.onChange();
   }
-  shot(shot: ServerShot): void {
+  shot(shot: ServerShot): boolean {
+    if (this.seenShots.has(shot.id)) return false;
+    this.seenShots.add(shot.id);
+    if (this.seenShots.size > 128)
+      this.seenShots.delete(this.seenShots.values().next().value!);
     for (const trace of shot.traces) {
-      this.trails.spawn(shot.origin, trace.end);
       if (trace.normal) this.impacts.spawn(trace.end, trace.normal);
     }
+    return true;
   }
   kill(event: KillEvent): void {
     if (this.feed.some((item) => item.event.id === event.id)) return;
@@ -133,7 +135,6 @@ export class NetworkCombat {
     while (this.feed[0] && this.feed[0].remaining <= 0) this.feed.shift();
     if (count !== this.feed.length) this.onChange();
     this.impacts.step(dt);
-    this.trails.step(dt);
     this.weapons.step(dt, this.owner?.alive ? this.filterInput(input) : idle, {
       speed: Math.hypot(movement.velocity.x, movement.velocity.z),
       grounded: movement.physics.grounded,
@@ -177,10 +178,9 @@ export class NetworkCombat {
     this.feed.length = 0;
     this.weapons = new WeaponController(() => {});
     this.impacts.clear();
-    this.trails.clear();
+    this.seenShots.clear();
   }
   dispose(): void {
     this.impacts.dispose();
-    this.trails.dispose();
   }
 }

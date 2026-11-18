@@ -126,6 +126,34 @@ it('clears pooled online effects when leaving the room', () => {
   }
 });
 
+it('accepts each server shot once, bounds duplicate tracking and never produces predicted tracers', () => {
+  const scene = new Scene(),
+    combat = new NetworkCombat(
+      scene,
+      () => {},
+      () => {},
+    );
+  const shot = {
+    id: 1,
+    shooter: 'other',
+    weapon: 'rifle' as const,
+    origin: { x: 0, y: 1, z: 0 },
+    traces: [],
+  };
+  try {
+    expect(scene.getObjectByName('bullet-trails')).toBeUndefined();
+    expect(combat.shot(shot)).toBe(true);
+    expect(combat.shot(shot)).toBe(false);
+    for (let id = 2; id <= 140; id++)
+      expect(combat.shot({ ...shot, id })).toBe(true);
+    expect(combat.shot({ ...shot, id: 140 })).toBe(false);
+    combat.reset();
+    expect(combat.shot(shot)).toBe(true);
+  } finally {
+    combat.dispose();
+  }
+});
+
 it.each(['fire', 'aim'] as const)(
   'follows server reload completion and preserves predicted %s interruption against old reload snapshots',
   (action) => {

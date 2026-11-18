@@ -25,7 +25,8 @@ import {
   sniperScopeDiameter,
 } from '../weapons/SniperScope';
 import type { OpticView } from '../rendering/OpticScope';
-import type { RoomView } from '@breakpoint/shared/network';
+import { networkConfig, type RoomView } from '@breakpoint/shared/network';
+import { ShotTrails, type MuzzleResolver } from '../effects/ShotTrails';
 import type { NetworkSession } from '../networking/NetworkSession';
 import { RemotePlayers } from '../networking/RemotePlayers';
 import { NetworkCombat } from '../combat/NetworkCombat';
@@ -64,6 +65,13 @@ export interface GameTelemetry extends PerformanceStats {
   cameraFar: number;
   combat: CombatSnapshot;
   network: { peers: number; ack: number; tick: number } | null;
+  trails: {
+    active: number;
+    emitted: number;
+    opacity: number;
+    thickness: number;
+    length: number;
+  };
 }
 
 interface GameCallbacks {
@@ -106,6 +114,7 @@ export class Game {
   private session: NetworkSession | undefined;
   private networkGeneration = 0;
   private readonly remotes: RemotePlayers;
+  private readonly trails: ShotTrails;
   private round = 0;
   private userSettings: UserSettings;
   private readonly audio = new AudioEngine();
@@ -132,10 +141,14 @@ export class Game {
     this.rendering = new GameRenderer(host, settings);
     this.arena = new TrainingArena();
     this.remotes = new RemotePlayers(this.arena.scene);
+    this.trails = new ShotTrails(this.arena.scene);
     this.physics = new PhysicsWorld(arenaBoxes, spawn);
     this.movement = new MovementController(this.physics);
-    this.combat = new PracticeCombat(this.physics, this.arena.scene, () =>
-      this.publishCombat(),
+    this.combat = new PracticeCombat(
+      this.physics,
+      this.arena.scene,
+      () => this.publishCombat(),
+      (weapon, origin, end) => this.trails.spawn(weapon, origin, end),
     );
     this.networkCombat = new NetworkCombat(
       this.arena.scene,
@@ -270,8 +283,19 @@ export class Game {
         },
         onShot: (shot) => {
           if (!this.disposed && generation === this.networkGeneration) {
-            this.networkCombat.shot(shot);
-            if (shot.shooter !== this.session?.view?.selfId) {
+            if (!this.networkCombat.shot(shot)) return;
+            const remote = shot.shooter !== this.session?.view?.selfId;
+            for (const trace of shot.traces)
+              this.trails.spawn(
+                shot.weapon,
+                shot.origin,
+                trace.end,
+                remote ? shot.shooter : undefined,
+                remote
+                  ? networkConfig.interpolationDelay / networkConfig.tickRate
+                  : 0,
+              );
+            if (remote) {
               const spatial = spatialAudio(
                 shot.origin,
                 this.physics.position,
@@ -443,6 +467,12 @@ export class Game {
       this.userSettings.scopeStyle,
       this.input.weapon,
     );
+    this.trails.step(
+      delta,
+      weapons.ads,
+      !!weapons.config.scopeMagnification,
+      this.resolveMuzzle,
+    );
     if (this.input.locked)
       this.callbacks.onReticle(
         Math.max(
@@ -502,6 +532,13 @@ export class Game {
         textureTileSize: this.arena.textureTileSize,
         cameraFar: this.camera.camera.far,
         combat: this.combatSnapshot(),
+        trails: {
+          active: this.trails.activeCount,
+          emitted: this.trails.emitted,
+          opacity: this.trails.style.opacity,
+          thickness: this.trails.style.thickness,
+          length: this.trails.style.length,
+        },
         network: this.session?.view
           ? {
               peers: this.remotes.playerCount,
@@ -517,6 +554,7 @@ export class Game {
   };
 
   private resetTiming(): void {
+    this.trails.clear();
     this.audio.resetMotion();
     this.lastTime = null;
     this.clock.reset();
@@ -526,6 +564,26 @@ export class Game {
     this.combat.weapons.clearTriggerBuffer();
     this.networkCombat.weapons.clearTriggerBuffer();
   }
+
+  private readonly resolveMuzzle: MuzzleResolver = (weapon, source, out) => {
+    if (source !== undefined)
+      return this.remotes.muzzleWorldPosition(source, weapon, out);
+    const weapons = (this.session ? this.networkCombat : this.combat).weapons;
+    // A delayed confirmation for a stowed weapon must not emerge from the new gun.
+    if (!this.input.locked || weapons.selected !== weapon) return false;
+    const worldFov =
+      weapons.config.scopeMagnification &&
+      this.userSettings.scopeStyle === 'optic'
+        ? this.userSettings.fov
+        : this.camera.camera.fov;
+    this.viewmodel.muzzleWorldPosition(
+      weapon,
+      this.camera.camera,
+      out,
+      worldFov,
+    );
+    return true;
+  };
 
   private readonly onVisibilityChange = (): void => {
     this.audio.setActive(!document.hidden);
@@ -551,6 +609,7 @@ export class Game {
   };
 
   dispose(): void {
+    this.trails.dispose();
     this.disposed = true;
     ++this.networkGeneration;
     this.session?.leave();
