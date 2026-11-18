@@ -1,6 +1,8 @@
 import { Client, type Room } from '@colyseus/sdk';
 import {
   movementConfig,
+  weaponOrder,
+  type WeaponId,
   type MovementInput,
   type WeaponInput,
 } from '@breakpoint/shared';
@@ -26,11 +28,14 @@ import { waitForRoomServer } from './serverReadiness';
 import type {
   MatchView,
   MatchSettings,
+  PrivateRoomSettings,
   ScoreRow,
   Team,
 } from '@breakpoint/shared/match';
 
 interface WireState extends Omit<MatchView, 'scores'> {
+  playerLimit?: number;
+  allowedWeapons?: Iterable<WeaponId>;
   hostId: string;
   phase: string;
   tick: number;
@@ -72,7 +77,7 @@ export class NetworkSession {
     code: string,
     movement: MovementController,
     callbacks: Callbacks,
-    settings?: MatchSettings,
+    settings?: PrivateRoomSettings,
   ): Promise<NetworkSession> {
     if (!parseName(name)) throw new Error('Choose a name of 1–20 characters.');
     code = code.trim().toUpperCase();
@@ -198,6 +203,10 @@ export class NetworkSession {
       phase,
       tick: state.tick,
       players,
+      playerLimit: state.playerLimit ?? networkConfig.maxPlayers,
+      allowedWeapons: state.allowedWeapons
+        ? Array.from(state.allowedWeapons)
+        : [...weaponOrder],
       match: {
         mode: state.mode,
         scoreLimit: state.scoreLimit,

@@ -43,6 +43,8 @@ export const RoomState = schema(
     hostId: t.string().default(''),
     phase: t.string().default('lobby'),
     tick: t.uint32().default(0),
+    playerLimit: t.uint8().default(8),
+    allowedWeapons: t.array('string'),
     players: t.map(PlayerState),
     mode: t.string().default('ffa'),
     scoreLimit: t.uint16().default(20),

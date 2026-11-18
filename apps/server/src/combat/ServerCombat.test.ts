@@ -631,3 +631,44 @@ it('honors auto reload OFF on the server while manual reload remains available',
     reserve: 0,
   });
 });
+
+it.each([
+  { weapons: ['sniper'] as const },
+  { weapons: ['shotgun'] as const },
+  { weapons: ['shotgun', 'sniper'] as const },
+  { weapons: ['rifle', 'smg'] as const },
+])(
+  'keeps the room loadout $weapons through spawn, forged switches and respawn',
+  ({ weapons }) => {
+    const f = fixture();
+    f.combat.setAllowedWeapons(weapons);
+    const player = f.add('Restricted', 0, 12);
+    expect(player.state.weapon).toBe(weapons[0]);
+    expect([...f.combat.get('Restricted')!.owned]).toEqual(weapons);
+    for (const id of ['rifle', 'smg', 'shotgun', 'sniper'] as const) {
+      f.controls(player, {
+        ...trigger,
+        fire: false,
+        firePressed: false,
+        switchTo: id,
+      });
+      f.step(15);
+      expect(weapons).toContain(player.state.weapon);
+      if (weapons.includes(id as never)) expect(player.state.weapon).toBe(id);
+    }
+    const before = f.combat.get('Restricted')!.weapons.selected;
+    f.controls(player, { ...trigger, switchTo: 'rifle' });
+    f.step();
+    expect(weapons).toContain(f.combat.owner(player).selected);
+    expect(
+      f.shots.every((shot) => weapons.includes(shot.weapon as never)),
+    ).toBe(true);
+    if (!weapons.includes('rifle' as never))
+      expect(player.state.weapon).toBe(before);
+    player.state.alive = false;
+    f.step();
+    expect(player.state.alive).toBe(true);
+    expect(player.state.weapon).toBe(weapons[0]);
+    expect([...f.combat.get('Restricted')!.owned]).toEqual(weapons);
+  },
+);

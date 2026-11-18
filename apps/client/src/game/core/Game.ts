@@ -29,7 +29,12 @@ import type { RoomView } from '@breakpoint/shared/network';
 import type { NetworkSession } from '../networking/NetworkSession';
 import { RemotePlayers } from '../networking/RemotePlayers';
 import { NetworkCombat } from '../combat/NetworkCombat';
-import type { MatchSettings, Team } from '@breakpoint/shared/match';
+import type {
+  MatchSettings,
+  PrivateRoomSettings,
+  Team,
+} from '@breakpoint/shared/match';
+import { weaponOrder } from '@breakpoint/shared';
 import {
   defaultUserSettings,
   type UserSettings,
@@ -218,7 +223,7 @@ export class Game {
     mode: 'create' | 'join',
     name: string,
     code: string,
-    settings?: MatchSettings,
+    settings?: PrivateRoomSettings,
   ): Promise<void> {
     if (this.session) return;
     const generation = ++this.networkGeneration;
@@ -237,6 +242,9 @@ export class Game {
               this.round = view.match.round;
               this.networkCombat.reset();
             }
+            this.networkCombat.setAllowedWeapons(
+              view?.allowedWeapons ?? weaponOrder,
+            );
             if (view?.phase !== 'playing') {
               this.input.clear();
               this.movement.stop();
@@ -356,18 +364,18 @@ export class Game {
         return;
       }
       if (!this.networkCombat.owner?.alive) this.input.clearGameplay();
+      const weaponInput = this.networkCombat.filterInput(this.input.weapon);
       this.session.step(
         this.input.movement,
         this.input.pitch,
         {
-          ...this.input.weapon,
+          ...weaponInput,
           // Desired selection survives an old input being discarded during overload recovery.
-          switchTo:
-            this.input.weapon.switchTo ?? this.networkCombat.weapons.selected,
+          switchTo: weaponInput.switchTo ?? this.networkCombat.weapons.selected,
         },
         scale,
       );
-      this.networkCombat.step(dt, this.input.weapon, this.movement);
+      this.networkCombat.step(dt, weaponInput, this.movement);
     } else {
       this.movement.step(this.input.movement, dt, scale);
       if (this.input.locked)

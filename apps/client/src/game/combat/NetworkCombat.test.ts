@@ -179,3 +179,44 @@ it('follows server reload completion without spending reserves and preserves pre
     combat.dispose();
   }
 });
+
+it('initializes a restricted authoritative spawn and filters forbidden keys without changing valid controls', () => {
+  const combat = new NetworkCombat(
+    new Scene(),
+    () => {},
+    () => {},
+  );
+  try {
+    combat.setAllowedWeapons(['shotgun', 'sniper']);
+    combat.receive({ ...owner, selected: 'sniper' });
+    expect(combat.weapons.selected).toBe('sniper');
+    const forbidden = {
+      fire: true,
+      firePressed: true,
+      aim: true,
+      reloadPressed: false,
+      switchTo: 'rifle' as const,
+    };
+    expect(combat.filterInput(forbidden)).toEqual({
+      ...forbidden,
+      switchTo: null,
+    });
+    expect(forbidden.switchTo).toBe('rifle');
+    expect(
+      combat.filterInput({ ...forbidden, switchTo: 'shotgun' }).switchTo,
+    ).toBe('shotgun');
+    expect(combat.snapshot().allowedWeapons).toEqual(['shotgun', 'sniper']);
+    combat.receive({ ...owner, life: 2, selected: 'shotgun' });
+    expect(combat.weapons.selected).toBe('shotgun');
+    combat.reset();
+    expect(combat.allowedWeapons).toEqual([
+      'rifle',
+      'smg',
+      'shotgun',
+      'sniper',
+    ]);
+    expect(combat.filterInput(forbidden)).toBe(forbidden);
+  } finally {
+    combat.dispose();
+  }
+});

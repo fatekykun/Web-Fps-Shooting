@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { RoomView } from '@breakpoint/shared/network';
 import {
   matchDefaults,
-  parseMatchSettings,
+  parsePrivateRoomSettings,
   type MatchSettings,
+  type PrivateRoomSettings,
   type Team,
 } from '@breakpoint/shared/match';
 import { LobbySettings, MatchFields } from './MatchSettings';
 import { roomInviteUrl } from '../game/networking/invites';
+import { PrivateRoomFields } from './PrivateRoomFields';
 
 interface Props {
   room: RoomView | null;
@@ -16,7 +18,7 @@ interface Props {
     mode: 'create' | 'join',
     name: string,
     code: string,
-    settings: MatchSettings,
+    settings: PrivateRoomSettings,
   ): Promise<void>;
   onReady(ready: boolean): void;
   onStart(): void;
@@ -64,7 +66,7 @@ export function RoomPanel({
   const codeElement = useRef<HTMLElement>(null);
   const inviteElement = useRef<HTMLInputElement>(null);
   const inviteUrl = room ? roomInviteUrl(location.href, room.code) : '';
-  const [settings, setSettings] = useState<MatchSettings>({
+  const [settings, setSettings] = useState<PrivateRoomSettings>({
     ...matchDefaults.ffa,
   });
   useEffect(() => {
@@ -168,7 +170,9 @@ export function RoomPanel({
                 {room.code}
               </strong>
             </div>
-            <span>{room.players.length} / 8 PLAYERS</span>
+            <span data-testid="room-occupancy">
+              {room.players.length} / {room.playerLimit ?? 8} PLAYERS
+            </span>
             <button
               className="room-button copy-code"
               onClick={() => {
@@ -203,6 +207,11 @@ export function RoomPanel({
           <div className="room-rules" data-testid="room-rules">
             {room.match.mode.toUpperCase()} · FIRST TO {room.match.scoreLimit} ·{' '}
             {room.match.durationSeconds / 60} MIN
+            <br />
+            WEAPONS:{' '}
+            {room.allowedWeapons?.length && room.allowedWeapons.length < 4
+              ? room.allowedWeapons.map((id) => id.toUpperCase()).join(' + ')
+              : 'ALL WEAPONS'}
           </div>
           {host && room.phase === 'lobby' && (
             <LobbySettings
@@ -405,14 +414,24 @@ export function RoomPanel({
           >
             {tab === 'create' ? (
               <>
-                <MatchFields value={settings} onChange={setSettings} />
+                <MatchFields
+                  value={settings}
+                  onChange={(value) =>
+                    setSettings((previous) => ({ ...previous, ...value }))
+                  }
+                />
+                <PrivateRoomFields
+                  value={settings}
+                  onChange={setSettings}
+                  disabled={busy}
+                />
                 <button
                   className="room-button primary full-width"
                   disabled={
                     !ready ||
                     busy ||
                     !name.trim() ||
-                    !parseMatchSettings(settings)
+                    !parsePrivateRoomSettings(settings)
                   }
                   onClick={() => {
                     void connect('create');

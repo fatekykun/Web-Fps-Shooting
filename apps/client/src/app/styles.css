@@ -56,7 +56,8 @@
 .match-fields .room-field:first-child {
   grid-column: 1 / -1;
 }
-.match-fields select {
+.match-fields select,
+.private-room-fields select {
   display: block;
   width: 100%;
   margin-top: 8px;
@@ -261,6 +262,10 @@
   }
 }
 :root {
+  color-scheme: dark;
+  --scrollbar-track: #14211b;
+  --scrollbar-thumb: #697c58;
+  --scrollbar-thumb-hover: #91a281;
   font-family: 'Segoe UI', Arial, sans-serif;
   color: #e9e8da;
   background: #171e1b;
@@ -269,7 +274,39 @@
 }
 * {
   box-sizing: border-box;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
 }
+
+/* Native scrolling stays intact; older WebKit browsers use the same palette. */
+@supports not (scrollbar-color: #697c58 #14211b) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: var(--scrollbar-track);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border: 2px solid var(--scrollbar-track);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: auto;
+    scrollbar-width: auto;
+  }
+}
+
 body {
   margin: 0;
 }

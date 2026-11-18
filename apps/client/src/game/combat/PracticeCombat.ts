@@ -15,6 +15,7 @@ import { PooledImpacts } from '../effects/PooledImpacts';
 import type { OwnerCombat, KillEvent } from '@breakpoint/shared/combat';
 
 export interface CombatSnapshot {
+  allowedWeapons?: readonly WeaponId[];
   weapon: WeaponId;
   name: string;
   magazine: number;

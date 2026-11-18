@@ -104,11 +104,25 @@ In the browser, choose **Private rooms**, enter a callsign and **Create private
 room**. Share the six-character room code. Friends choose **Join room** from the
 menu or the room dialog's **Join room** tab, enter their callsign and code, mark
 themselves **Ready**, and the host chooses **Start session**. Close the lobby and
-click **Enter room** to capture the mouse. Up to **eight** players can join,
-including after the session starts. A ninth join is rejected. Rooms are hidden
+click **Enter room** to capture the mouse. Choose a **Player Limit** of 2, 4, 6
+or 8 when creating the room (default 8, including the host). Players can join
+until that limit, including after the session starts. Full rooms reject further
+joins, and vacated seats reopen. Rooms are hidden
 from public matchmaking, and the last player leaving disposes the room. The host
 role passes to the next player when the host leaves. A dropped connection leaves
 the session; join again using the code if others are still there.
+
+**Weapon Settings (BP-09):** rooms remain unrestricted by default. Enable
+**Restrict weapons** and choose one or two categories: Rifle, SMG, Shotgun or
+Sniper. The form shows the selection count, requires at least one custom choice
+and disables additional choices after two. Weapon rules and capacity are chosen
+at creation and apply to everyone for the room's lifetime, including late joins,
+respawns and rematches. The lobby shows the allowed categories and live occupancy;
+the header uses the same configured capacity. HUD shortcuts show only allowed
+weapons. The server enforces these rules, including forged switch requests and
+simultaneous joins. Create another room to change its loadout or player limit.
+Offline training and unrestricted defaults retain all four weapons. Restart or
+rebuild both client and server after updating to BP-09.
 
 Local development defaults to the page's hostname on port **2567**. For another endpoint,
 copy `apps/client/.env.example` to `apps/client/.env.local`, set `VITE_SERVER_URL`,

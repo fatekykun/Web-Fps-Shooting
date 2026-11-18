@@ -7,6 +7,11 @@ import { ServerPlayer } from '../players/ServerPlayer';
 import { ServerCombat } from '../combat/ServerCombat';
 import { MatchController } from '../game-modes/MatchController';
 import { RoomCapacity } from './RoomCapacity';
+import { weaponOrder } from '@breakpoint/shared';
+import {
+  matchDefaults,
+  parsePrivateRoomSettings,
+} from '@breakpoint/shared/match';
 
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const codes = new Set<string>();
@@ -26,7 +31,7 @@ export class DepotRoom extends Room<{ state: RoomState }> {
   static capacity = new RoomCapacity(16);
   private releaseCapacity?: () => void;
   state = new RoomState();
-  maxClients = networkConfig.maxPlayers;
+  maxClients: number = networkConfig.maxPlayers;
   patchRate = networkConfig.patchRate;
   maxMessagesPerSecond = 120;
   private readonly simulations = new Map<string, ServerPlayer>();
@@ -55,15 +60,27 @@ export class DepotRoom extends Room<{ state: RoomState }> {
   }
 
   private async initialize(options?: { settings?: unknown }): Promise<void> {
+    const settings = parsePrivateRoomSettings(
+      options?.settings === undefined ? matchDefaults.ffa : options.settings,
+    );
+    if (!settings)
+      throw new ServerError(
+        400,
+        'Choose FFA/TDM, valid match rules, 2/4/6/8 players and one or two custom weapons.',
+      );
+    this.maxClients = settings.playerLimit!;
+    this.state.playerLimit = this.maxClients;
+    this.state.allowedWeapons.push(...(settings.allowedWeapons ?? weaponOrder));
+    this.combat.setAllowedWeapons(settings.allowedWeapons ?? weaponOrder);
     await initializePhysics();
     if (options?.settings !== undefined) {
-      const error = this.match.configure(options.settings);
+      const error = this.match.configure(settings);
       if (error) throw new ServerError(400, error);
     }
     this.roomId = reserveCode();
     await this.setMatchmaking({
       private: true,
-      maxClients: networkConfig.maxPlayers,
+      maxClients: this.maxClients,
     });
     this.onMessage('input', (client, payload: unknown) => {
       const player = this.simulations.get(client.sessionId);
