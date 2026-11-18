@@ -35,6 +35,7 @@ import {
   sniperEyePosition,
   sniperScopeBlend,
 } from './SniperScope';
+import { FirstPersonArms } from '../characters/FirstPersonArms';
 
 /** Low-poly models are pooled; the active model is one instanced draw. */
 export class WeaponViewmodel {
@@ -58,6 +59,7 @@ export class WeaponViewmodel {
   private readonly texture: DataTexture;
   private readonly lowTexture: DataTexture;
   private readonly material: MeshLambertMaterial;
+  private readonly arms: FirstPersonArms;
   private readonly flashMaterial = new MeshBasicMaterial({ color: 0xffc26b });
   private readonly flash = new InstancedMesh(
     this.geometry,
@@ -71,6 +73,7 @@ export class WeaponViewmodel {
   private stance = 0;
   private cant = 0;
   private sprint = 0;
+  private slide = 0;
   private stridePhase = 0;
   private reloadPose = 0;
   private readonly boltMatrix = new Matrix4();
@@ -108,6 +111,8 @@ export class WeaponViewmodel {
     this.lowTexture.generateMipmaps = true;
     this.lowTexture.needsUpdate = true;
     this.material = createReadableMaterial({ map: this.texture }, 0.12);
+    this.arms = new FirstPersonArms(this.material);
+    this.root.add(this.arms.root);
     const key = new DirectionalLight(0xfff0d9, 1.5);
     key.position.set(-2, 4, 3);
     this.scene.add(new HemisphereLight(0xf1f0dc, 0x8b9e8e, 2.1), key);
@@ -141,8 +146,6 @@ export class WeaponViewmodel {
       [0, -0.13, 0.11, 0.065, 0.2, 0.08, 0x4f6054],
       [0, -0.18, -0.035, 0.085, id === 'shotgun' ? 0.06 : 0.22, 0.13, 0x4b5f67],
       [0.062, 0.02, -0.04, 0.005, 0.045, 0.08, 0xe2b77a],
-      [0.045, -0.1, 0.12, 0.075, 0.1, 0.14, 0xc59b77],
-      [-0.045, -0.075, -0.17, 0.075, 0.08, 0.14, 0xc59b77],
       [0, 0.065, -0.03, 0.125, 0.012, 0.28, 0xb4bdab],
       [
         0,
@@ -153,8 +156,6 @@ export class WeaponViewmodel {
         0.15,
         0x899ba1,
       ],
-      [0.045, -0.125, 0.19, 0.083, 0.11, 0.06, 0x758869],
-      [-0.045, -0.085, -0.1, 0.083, 0.09, 0.05, 0x758869],
       [0, -0.08, 0.025, 0.018, 0.035, 0.07, 0xc8c8ab],
     ];
     if (id === 'shotgun')
@@ -274,12 +275,16 @@ export class WeaponViewmodel {
     const targetStance = movement === 'diving' ? 0.11 : 0;
     const targetCant =
       movement === 'sliding' || movement === 'backsliding'
-        ? -0.18
+        ? -0.055
         : movement === 'diving'
           ? 0.22
           : 0;
     this.stance += (targetStance - this.stance) * blend;
     this.cant += (targetCant - this.cant) * blend;
+    const slideTarget =
+      movement === 'sliding' || movement === 'backsliding' ? 1 : 0;
+    this.slide += (slideTarget - this.slide) * blend;
+    const brace = this.slide * (1 - ads) ** 3;
     const recentlyFired =
       weapons.time - weapons.current.lastShot <
       Math.min(0.25, weapons.config.fireInterval + 0.08);
@@ -316,19 +321,22 @@ export class WeaponViewmodel {
       0.27 +
         (pose.position[0] - 0.27) * raise +
         Math.cos(weapons.time * 9) * bob +
-        carry * (0.02 + sway * 0.012 * motion),
+        carry * (0.02 + sway * 0.012 * motion) +
+        brace * 0.025 * motion,
       -0.25 +
         (pose.position[1] + 0.25) * raise -
         reload * 0.16 -
         weapons.equipLowering * 0.22 +
         Math.sin(weapons.time * 18) * bob -
         this.stance * (1 - ads) * motion +
-        carry * (-0.03 + step * 0.01 * motion),
+        carry * (-0.03 + step * 0.01 * motion) -
+        brace * 0.055 * motion,
       (scoped
         ? sniperEyePosition(ads, pose.position[2])
         : -0.65 + (pose.position[2] + 0.65) * raise) +
         this.kick * 0.065 * motion -
-        carry * 0.22,
+        carry * 0.22 +
+        brace * 0.035 * motion,
     );
     this.root.rotation.set(
       pose.rotation[0] * raise +
@@ -342,6 +350,7 @@ export class WeaponViewmodel {
         this.cant * (1 - ads) * motion +
         carry * (-0.25 + sway * 0.018 * motion),
     );
+    if (active) this.arms.update(reload, brace * motion);
     this.flash.position.set(
       0,
       0.025,
@@ -359,6 +368,7 @@ export class WeaponViewmodel {
   }
 
   dispose(): void {
+    this.arms.dispose();
     for (const mesh of this.models.values()) mesh.dispose();
     this.flash.dispose();
     this.dotGeometry.dispose();

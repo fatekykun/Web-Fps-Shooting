@@ -4,7 +4,8 @@ import { matchDefaults } from '@breakpoint/shared/match';
 import type { PublicPlayer, RoomView } from '@breakpoint/shared/network';
 import { RemotePlayers } from './RemotePlayers';
 import { RemoteInterpolation } from './RemoteInterpolation';
-import { avatarParts, intersectAvatar } from '@breakpoint/shared/avatar';
+import { intersectAvatar } from '@breakpoint/shared/avatar';
+import { characterParts } from '@breakpoint/shared/character';
 
 it('keeps eight avatars in one pool and only uploads colors when their appearance changes', () => {
   const scene = new Scene();
@@ -56,7 +57,7 @@ it('keeps eight avatars in one pool and only uploads colors when their appearanc
     expect(remotes.playerCount).toBe(8);
     expect(scene.children).toHaveLength(1);
     const mesh = scene.children[0] as InstancedMesh;
-    expect(mesh.count).toBe(8 * avatarParts.length);
+    expect(mesh.count).toBe(8 * characterParts.length);
     const version = mesh.instanceColor!.version;
     for (let frame = 0; frame < 30; frame++)
       remotes.update(history, 110 + frame * 16);
@@ -89,15 +90,40 @@ it('keeps eight avatars in one pool and only uploads colors when their appearanc
     history.push({ ...view, tick: 12, players: [animated] }, 900);
     remotes.update(history, 1200);
     const matrix = new Matrix4();
-    for (let index = 0; index < avatarParts.length; index++) {
-      if (!avatarParts[index]!.region) continue;
+    for (let index = 0; index < characterParts.length; index++) {
+      if (!characterParts[index]!.region) continue;
       mesh.getMatrixAt(index, matrix);
-      const center = new Vector3().setFromMatrixPosition(matrix);
-      const direction = new Vector3(0, 0, -1).transformDirection(matrix);
-      const origin = center.clone().addScaledVector(direction, -5);
-      expect(intersectAvatar(origin, direction, animated, 10)?.region).toBe(
-        avatarParts[index]!.region,
-      );
+      const visible = [
+        [0, 0, -1],
+        [0, 0, 1],
+        [-1, 0, 0],
+        [1, 0, 0],
+        [0, -1, 0],
+        [0, 1, 0],
+      ].some((axis) => {
+        const direction = new Vector3(
+          ...(axis as [number, number, number]),
+        ).transformDirection(matrix);
+        // A grip can be partly occluded by a forearm or vest; sample the
+        // exposed surface as well as its center instead of requiring a clear
+        // line to the center from one of only six directions.
+        return [-0.35, 0, 0.35].some((u) =>
+          [-0.35, 0, 0.35].some((v) => {
+            const offset = axis[0]
+              ? new Vector3(0, u, v)
+              : axis[1]
+                ? new Vector3(u, 0, v)
+                : new Vector3(u, v, 0);
+            const point = offset.applyMatrix4(matrix);
+            const origin = point.addScaledVector(direction, -0.5);
+            return (
+              intersectAvatar(origin, direction, animated, 0.6)?.region ===
+              characterParts[index]!.region
+            );
+          }),
+        );
+      });
+      expect(visible, characterParts[index]!.name).toBe(true);
     }
     remotes.update(undefined, 900);
     expect(remotes.playerCount).toBe(0);

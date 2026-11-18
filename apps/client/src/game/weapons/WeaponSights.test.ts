@@ -88,7 +88,7 @@ it.each(['rifle', 'smg', 'shotgun'] as const)(
   },
 );
 it.each(['rifle', 'smg', 'shotgun'] as const)(
-  'keeps every %s part ahead of the near plane throughout reversible ADS without extra meshes',
+  'keeps every %s weapon part ahead of the near plane with one pooled arm mesh',
   (id) => {
     const { model, w, mesh } = setup(id);
     try {
@@ -116,7 +116,7 @@ it.each(['rifle', 'smg', 'shotgun'] as const)(
       }
       expect(
         model.scene.getObjectsByProperty('isInstancedMesh', true),
-      ).toHaveLength(5);
+      ).toHaveLength(6);
     } finally {
       model.dispose();
     }

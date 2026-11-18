@@ -99,6 +99,31 @@ it('follows distance-based cadence consistently at 30, 60 and 144 FPS', () => {
     pose.forEach((value, i) => expect(value).toBeCloseTo(poses[0]![i]!, 5));
 });
 
+it.each(weaponOrder)(
+  'braces %s lower during a slide and keeps full ADS exactly aligned',
+  (id) => {
+    const f = fixture(id);
+    try {
+      for (let i = 0; i < 90; i++) f.update('walking', 0);
+      const hip = f.root.position.clone();
+      for (let i = 0; i < 45; i++) f.update('sliding');
+      expect(f.root.position.y).toBeLessThan(hip.y - 0.04);
+      expect(Math.abs(f.root.rotation.z)).toBeLessThan(0.1);
+      f.weapons.ads = 1;
+      f.update('sliding');
+      const slidePosition = f.root.position.clone(),
+        slideRotation = f.root.rotation.clone();
+      for (let i = 0; i < 90; i++) f.update('walking', 8);
+      expect(f.root.position.distanceTo(slidePosition)).toBeLessThan(1e-6);
+      expect(f.root.rotation.toArray().slice(0, 3)).toEqual(
+        slideRotation.toArray().slice(0, 3),
+      );
+    } finally {
+      f.model.dispose();
+    }
+  },
+);
+
 it('gives aim, fire, reload and equip priority without changing weapon rules', () => {
   const f = fixture();
   try {

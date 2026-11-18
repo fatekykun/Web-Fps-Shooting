@@ -312,8 +312,26 @@ and crosshair presentation uses DOM properties rather than a React game loop.
 
 Prototype limits: magazine-style reloads for all four weapons (no per-shell
 shotgun loading) and primitive viewmodels. Practice uses eleven stationary sensors;
-online avatars use the shared procedural box rig with animated limb joints.
+online avatars use the shared tactical skeleton with articulated limb joints.
 Weapon values are prototype balance settings.
+
+### Tactical characters (BP-11)
+
+Multiplayer players use a faceted military model with natural proportions,
+helmet/goggles, uniform, vest, pouches, gloves, knee pads, boots and backpack.
+A shared 22-joint skeleton drives breathing, walking/running, sprinting, jumping,
+landing, sliding, diving, reloading and directional damage reactions. Body hitboxes
+follow those joints on the server. Gait follows actual capsule travel and stops
+at solid walls. First-person articulated arms keep their hands on the existing
+weapon grips and reach toward the magazine during reloads. Existing sights,
+scope styles and controls retain their alignment and behavior.
+
+The soldier uses one instanced character draw; first-person arms add one draw.
+All assets are generated in the repository. See [BP-11 report](docs/BP-11.md) for
+rigging, animation, modified files, asset sources and native-GPU measurements.
+Restart the room server and refresh connected browsers after updating the
+animation schema. Watch a friend in a private room to inspect the full soldier;
+the blue hologram remains the training calibration target.
 
 ### Weapon-specific sights (BP-08)
 
@@ -646,7 +664,8 @@ Standing uses a Rapier shape-clearance query excluding the player's own collider
 blocked recovery never expands through a ceiling. Upward movement disables ground
 snapping; ceiling contact normals stop ascent without deleting horizontal speed.
 First-person height changes follow the capsule; weapon stance, equip, reload and
-recoil animation remain cosmetic. Remote avatars have no skeletal body rig.
+recoil animation remain cosmetic. Remote avatars use the shared tactical bone
+hierarchy; their movement capsule remains the existing Rapier controller.
 
 Rapier 0.21 can discard horizontal motion when it misclassifies flat-floor
 rounding as slope slipping ([upstream report](https://github.com/dimforge/rapier/pull/1058)).

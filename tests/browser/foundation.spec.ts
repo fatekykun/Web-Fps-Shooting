@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { movementConfig } from '@breakpoint/shared';
+import { arenaBoxes } from '@breakpoint/shared/maps';
 
 async function position(page: Page) {
   return page.getByTestId('position').evaluate((readout) => ({
@@ -32,12 +34,20 @@ test('boots, captures mouse, walks, collides, pauses and resumes', async ({
   await page.keyboard.down('w');
   await expect.poll(async () => (await position(page)).z).toBeLessThan(9);
   await page.screenshot({ path: 'test-results/depot-playing.png' });
+  const cover = arenaBoxes.find(
+    (box) => box.kind === 'crate' && box.position[0] === 0,
+  )!;
+  const stopZ =
+    cover.position[2] +
+    cover.size[2] / 2 +
+    movementConfig.capsuleRadius +
+    movementConfig.collisionOffset;
   await expect
     .poll(async () => (await position(page)).z, { timeout: 30000 })
-    .toBeLessThan(-10.5);
+    .toBeLessThan(stopZ + 0.1);
   await page.waitForTimeout(500);
   const blocked = await position(page);
-  expect(blocked.z).toBeGreaterThan(-10.7);
+  expect(blocked.z).toBeCloseTo(stopZ, 2);
   expect(blocked.y).toBeGreaterThan(0.87);
   await page.keyboard.up('w');
   await page.keyboard.press('Escape');

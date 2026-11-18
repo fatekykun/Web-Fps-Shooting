@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initializePhysics } from '@breakpoint/shared/physics';
+import { arenaBoxes } from '@breakpoint/shared/maps';
 import {
   weaponConfigs,
   weaponOrder,
@@ -16,6 +17,13 @@ import {
   standingAnchor,
   intersectAvatar,
 } from '@breakpoint/shared/avatar';
+import {
+  characterHitboxes,
+  createRigTransforms,
+  evaluateRig,
+  partTransform,
+  rotatePoint,
+} from '@breakpoint/shared/character';
 
 it.each(weaponOrder)(
   'applies all eleven authoritative %s region multipliers without duplicating pellets',
@@ -23,15 +31,81 @@ it.each(weaponOrder)(
     for (const part of avatarParts) {
       if (!part.region) continue;
       const f = fixture(),
-        shooter = f.add('shooter', 0, 12),
+        shooter = f.add('shooter', 0, 4),
         victim = f.add('victim', 0, 8);
       const w = f.combat.get('shooter')!.weapons;
       w.selected = id;
       w.ads = 1;
       const eye =
         shooter.movement.physics.position.y + shooter.movement.eyeOffset;
-      const [x, y, z] = part.position;
-      const dz = 12 - (8 + z);
+      const definition = characterHitboxes.find(
+        (candidate) =>
+          candidate.region === part.region && candidate.name !== 'neck',
+      )!;
+      const rig = createRigTransforms();
+      evaluateRig(victim.state, rig);
+      const center = partTransform(definition, rig, {
+        x: 0,
+        y: 0,
+        z: 0,
+        qx: 0,
+        qy: 0,
+        qz: 0,
+        qw: 1,
+      });
+      // Two-handed poses can cover a region's center. Select an exposed point
+      // on the actual animated hull, then still validate the real server shot.
+      const candidates = [0, -0.25, 0.25].flatMap((x) =>
+        [0, -0.25, 0.25].flatMap((y) =>
+          [0, -0.25, 0.25].map((z) => {
+            const offset = rotatePoint(
+              center,
+              x * definition.size[0],
+              y * definition.size[1],
+              z * definition.size[2],
+              { x: 0, y: 0, z: 0 },
+            );
+            return {
+              x: center.x + offset.x,
+              y: center.y + offset.y,
+              z: center.z + offset.z,
+            };
+          }),
+        ),
+      );
+      const hitsRegion = (point: { x: number; y: number; z: number }) => {
+        const origin = { x: 0, y: eye, z: 4 };
+        const delta = {
+          x: point.x,
+          y: victim.state.y - standingAnchor + point.y - eye,
+          z: 8 + point.z - 4,
+        };
+        const distance = Math.hypot(delta.x, delta.y, delta.z);
+        return (
+          intersectAvatar(
+            origin,
+            {
+              x: delta.x / distance,
+              y: delta.y / distance,
+              z: delta.z / distance,
+            },
+            victim.state,
+            distance + 0.2,
+          )?.region === part.region
+        );
+      };
+      // Keep small ADS spread away from the adjacent support hand as well.
+      const target =
+        candidates.find((point) =>
+          [-0.025, 0, 0.025].every((x) =>
+            [-0.025, 0, 0.025].every((y) =>
+              hitsRegion({ ...point, x: point.x + x, y: point.y + y }),
+            ),
+          ),
+        ) ?? candidates.find(hitsRegion);
+      expect(target, `exposed ${part.region}`).toBeDefined();
+      const { x, y, z } = target!;
+      const dz = 4 - (8 + z);
       const aimY = y - (part.region.includes('Foot') ? 0.035 : 0);
       f.controls(
         shooter,
@@ -61,7 +135,17 @@ it.each(weaponOrder)(
         const hit = intersectAvatar(
           shot.origin,
           direction,
-          victim.state,
+          {
+            ...victim.state,
+            ...victim.animation.values,
+            x: victim.state.x,
+            y: victim.state.y,
+            z: victim.state.z,
+            yaw: victim.state.yaw,
+            pitch: victim.state.pitch,
+            halfHeight: victim.state.halfHeight,
+            hitBlend: 0,
+          },
           distance + 0.00001,
         );
         if (id !== 'shotgun') expect(hit?.region).toBe(part.region);
@@ -132,7 +216,63 @@ it.each(weaponOrder)(
 );
 
 beforeAll(initializePhysics);
+it('publishes directional hit reactions on the next tick without changing same-tick collision poses', () => {
+  const f = fixture(),
+    shooter = f.add('shooter', 0, 12),
+    victim = f.add('victim', 0, 8);
+  victim.state.yaw = 0.5;
+  f.controls(shooter);
+  f.step();
+  expect(victim.state.health).toBeLessThan(100);
+  expect(victim.animation.values.hitBlend).toBe(1);
+  expect(victim.state.hitBlend).toBe(0);
+  f.step();
+  expect(victim.state.hitBlend).toBeGreaterThan(0.8);
+  expect(victim.state.hitYaw).toBeCloseTo(-0.5);
+  f.step(120);
+  expect(victim.state.hitBlend).toBeLessThan(0.001);
+});
 const worlds: ServerPlayer[] = [];
+
+it('publishes sprint carry, ADS, confirmed shot recoil and reload handling from authoritative controls', () => {
+  const f = fixture(),
+    player = f.add('runner', 0, 12);
+  const moving = { forward: 1, sprint: true };
+  const neutralWeapon = { ...trigger, fire: false, firePressed: false };
+  for (let i = 0; i < 45; i++) {
+    f.controls(player, neutralWeapon, 0, 0, player.state.life, moving);
+    f.step();
+  }
+  expect(player.state.carryBlend).toBeGreaterThan(0.9);
+  for (let i = 0; i < 25; i++) {
+    f.controls(
+      player,
+      { ...neutralWeapon, aim: true },
+      0,
+      0,
+      player.state.life,
+      moving,
+    );
+    f.step();
+  }
+  expect(player.state.aimBlend).toBeGreaterThan(0.99);
+  expect(player.state.carryBlend).toBeLessThan(0.001);
+  f.controls(player, trigger, 0, 0, player.state.life, moving);
+  f.step();
+  expect(f.shots).toHaveLength(1);
+  expect(player.state.fireBlend).toBe(1);
+  f.controls(
+    player,
+    { ...neutralWeapon, reloadPressed: true },
+    0,
+    0,
+    player.state.life,
+    moving,
+  );
+  f.step(10);
+  expect(player.state.reloadBlend).toBeGreaterThan(0.8);
+  expect(player.state.carryBlend).toBeLessThan(0.01);
+});
 afterEach(() => {
   for (const player of worlds) player.dispose();
   worlds.length = 0;
@@ -265,7 +405,13 @@ describe('authoritative hitscan', () => {
     f.controls(shooter);
     f.step();
     expect(target.state.health).toBe(100);
-    expect(f.shots[0]!.traces[0]!.end.z).toBeCloseTo(0, 2);
+    const cover = arenaBoxes.find(
+      (box) => box.kind === 'container' && box.position[0] === -7,
+    )!;
+    expect(f.shots[0]!.traces[0]!.end.z).toBeCloseTo(
+      cover.position[2] + cover.size[2] / 2,
+      2,
+    );
     expect(f.combat.owner(shooter).hitSequence).toBe(0);
     expect(f.combat.owner(shooter).ammo.rifle.magazine).toBe(29);
   });
@@ -473,8 +619,8 @@ describe('authoritative sniper', () => {
     [0, 1.48, 135, true],
     [0, 1.15, 100, false],
     [0, 0.8, 81, false],
-    [-0.36, 1.12, 63, false],
-    [0.36, 1.12, 63, false],
+    [-0.33, 1.2, 63, false],
+    [0.33, 1.2, 63, false],
     [-0.15, 0.43, 63, false],
     [0.15, 0.43, 63, false],
   ])(

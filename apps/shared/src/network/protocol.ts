@@ -2,6 +2,7 @@ import type { MovementInput, MovementState } from '../types/movement';
 import type { MovementSnapshot } from '../movement/MovementController';
 import type { WeaponInput, WeaponId } from '../types/weapons';
 import { weaponOrder } from '../config/weapons';
+import type { CharacterAnimationValues } from '../combat/characterAnimation';
 import type { OwnerCombat } from '../combat/networkCombat';
 import type { MatchPhase, MatchView, Team } from '../config/match';
 
@@ -32,7 +33,7 @@ export interface Correction {
   combat?: OwnerCombat;
   look?: { yaw: number; pitch: number };
 }
-export interface PublicPlayer {
+export interface PublicPlayer extends Partial<CharacterAnimationValues> {
   id: string;
   name: string;
   slot: number;

@@ -186,6 +186,19 @@ export class ServerCombat {
         verticalSpeed: movement.velocity.y,
       });
       player.state.weapon = loadout.weapons.selected;
+      player.animation.weapon(
+        movementConfig.fixedStep,
+        loadout.weapons.reloading,
+        loadout.weapons.reloadProgress,
+        loadout.weapons.ads,
+        !controls.aim &&
+          !controls.fire &&
+          !controls.firePressed &&
+          !loadout.weapons.equipping &&
+          loadout.weapons.time - loadout.weapons.current.lastShot >=
+            Math.min(0.25, loadout.weapons.config.fireInterval + 0.08),
+      );
+      Object.assign(player.state, player.animation.values);
     }
     // All living shooters get their tick before damage resolves, allowing same-tick trades.
     for (const shot of this.pending) this.resolve(shot);
@@ -197,6 +210,7 @@ export class ServerCombat {
     shot: ShotEvent,
   ): void {
     const position = player.movement.physics.position;
+    player.animation.fire();
     this.pending.push({
       player,
       shot: { ...shot },
@@ -302,6 +316,11 @@ export class ServerCombat {
       applied += Math.min(victim.state.health, result.amount);
       headshot ||= result.critical;
       victim.state.health = Math.max(0, victim.state.health - result.amount);
+      victim.animation.hit(
+        Math.atan2(origin.x - victim.state.x, origin.z - victim.state.z) -
+          victim.state.yaw,
+      );
+      // Publish the reaction on the next tick so same-tick shots see one pose.
       const victimLoadout = this.loadouts.get(victim.state.id)!;
       victimLoadout.damageSequence++;
       if (victim.state.health === 0 && victim.state.alive) {

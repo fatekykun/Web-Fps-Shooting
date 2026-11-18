@@ -9,9 +9,11 @@ import {
 } from '@breakpoint/shared/network';
 import type { PlayerState } from '../rooms/RoomState';
 import { playerCombatConfig } from '@breakpoint/shared/combat';
+import { CharacterAnimation } from '@breakpoint/shared/animation';
 
 /** Each capsule collides with the shared static map. Player collisions belong to a later pass. */
 export class ServerPlayer {
+  readonly animation = new CharacterAnimation();
   readonly movement: MovementController;
   private readonly queue: PlayerInput[] = [];
   private received = 0;
@@ -96,6 +98,7 @@ export class ServerPlayer {
 
   step(): void {
     this.inputThisTick = null;
+    let simulated = false;
     const input = this.queue.shift();
     if (input) {
       this.idleTicks = 0;
@@ -107,6 +110,7 @@ export class ServerPlayer {
           movementConfig.fixedStep,
           this.movementScale(input),
         );
+        simulated = true;
         this.state.yaw = input.yaw;
         this.state.pitch = input.pitch;
       }
@@ -119,8 +123,9 @@ export class ServerPlayer {
         { forward: 0, right: 0, yaw: this.state.yaw },
         movementConfig.fixedStep,
       );
+      simulated = true;
     }
-    this.publish();
+    this.publish(simulated);
   }
 
   freeze(): void {
@@ -133,6 +138,7 @@ export class ServerPlayer {
 
   respawn(position: { x: number; y: number; z: number }): void {
     this.freeze();
+    this.animation.reset();
     this.state.gaitPhase = this.state.gaitAmount = 0;
     this.state.life++;
     this.state.health = playerCombatConfig.health;
@@ -148,24 +154,22 @@ export class ServerPlayer {
     this.publish();
   }
 
-  private publish(): void {
-    const speed = Math.hypot(
-      this.movement.velocity.x,
-      this.movement.velocity.z,
+  private publish(simulated = false): void {
+    const position = this.movement.physics.position;
+    const speed = simulated
+      ? Math.hypot(
+          position.x - this.movement.previousPosition.x,
+          position.z - this.movement.previousPosition.z,
+        ) / movementConfig.fixedStep
+      : 0;
+    this.animation.step(
+      movementConfig.fixedStep,
+      speed,
+      this.movement.physics.grounded,
+      this.movement.state,
     );
-    const moving =
-      this.movement.physics.grounded &&
-      (this.movement.state === 'walking' ||
-        this.movement.state === 'sprinting');
-    const amount = moving ? Math.min(1, speed / 6) : 0;
-    this.state.gaitAmount +=
-      (amount - this.state.gaitAmount) *
-      (1 - Math.exp(-12 * movementConfig.fixedStep));
-    if (moving)
-      this.state.gaitPhase =
-        (this.state.gaitPhase + speed * movementConfig.fixedStep * 3) %
-        (2 * Math.PI);
-    const { position, halfHeight } = this.movement.physics;
+    Object.assign(this.state, this.animation.values);
+    const { halfHeight } = this.movement.physics;
     this.state.x = position.x;
     this.state.y = position.y;
     this.state.z = position.z;

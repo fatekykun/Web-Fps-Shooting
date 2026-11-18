@@ -4,6 +4,7 @@ export interface ArenaBox {
   position: readonly [number, number, number];
   size: readonly [number, number, number];
   color: number;
+  kind?: 'container' | 'crate';
 }
 
 export const spawn: Vector3Like = { x: 0, y: 0.91, z: 12 };
@@ -15,12 +16,38 @@ export const arenaBoxes: readonly ArenaBox[] = [
   { position: [0, 3, 16], size: [41, 6, 1], color: 0x333a34 },
   { position: [-20, 3, 0], size: [1, 6, 32], color: 0x3e453b },
   { position: [20, 3, 0], size: [1, 6, 32], color: 0x3e453b },
-  { position: [-7, 1.5, -4], size: [4, 3, 8], color: 0x596348 },
-  { position: [7, 1.5, -7], size: [4, 3, 8], color: 0x7d5137 },
-  { position: [-10, 1, 7], size: [3, 2, 3], color: 0x626344 },
-  { position: [6, 0.75, 5], size: [4, 1.5, 2], color: 0x4a5953 },
-  { position: [0, 1, -12], size: [3, 2, 2], color: 0x6e6b4e },
-  { position: [13, 0.75, 8], size: [2, 1.5, 3], color: 0x6b6147 },
+  // Human-scale cover: small crates around waist height; containers remain tall cover.
+  {
+    position: [-7, 1.15, -4],
+    size: [2.6, 2.3, 6],
+    color: 0x596348,
+    kind: 'container',
+  },
+  {
+    position: [7, 1.15, -7],
+    size: [2.6, 2.3, 6],
+    color: 0x7d5137,
+    kind: 'container',
+  },
+  {
+    position: [-10, 0.55, 7],
+    size: [2, 1.1, 2],
+    color: 0x626344,
+    kind: 'crate',
+  },
+  {
+    position: [6, 0.5, 5],
+    size: [2.6, 1, 1.4],
+    color: 0x4a5953,
+    kind: 'crate',
+  },
+  {
+    position: [0, 0.6, -12],
+    size: [2, 1.2, 1.4],
+    color: 0x6e6b4e,
+    kind: 'crate',
+  },
+  { position: [13, 0.5, 8], size: [1.4, 1, 2], color: 0x6b6147, kind: 'crate' },
   // Left lane: 1.1 m clearance for slides and collision-safe standing recovery.
   { position: [-14, 1.7, 0], size: [4, 1.2, 7], color: 0x626344 },
   { position: [-16.2, 1.1, 0], size: [0.4, 2.2, 7], color: 0x40483f },
