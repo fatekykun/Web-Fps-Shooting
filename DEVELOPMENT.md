@@ -50,6 +50,17 @@ lint and formatting. Eight-player Performance/Balanced runs averaged
 59.95/59.93 FPS on UHD 620, with 2.15/2.00 ms CPU submission. Detailed limits and
 reports are in `docs/BP-11.md`; the preview is `test-results/remote-weapon-ready.png`.
 
+One-handed sprint refinement: the right hand carries the weapon while the left
+arm swings freely in both views. The first-person free arm is independent of
+the weapon transform; remote arms and hitboxes share the same swing curve.
+Matched distance cadence and carry damping remove the remote's additional blend
+delay. Aim/fire, reload/equip, stopping and traversal blend back to normal handling.
+No new geometry, draw calls or network fields were added. Restart the server and
+refresh clients together after updating.
+Verified with 425 automated tests and 26 Chrome scenarios, build/typecheck,
+lint and formatting. Previews: `test-results/one-hand-rifle-swing.png` and
+`test-results/one-handed-sprint-remote.png`.
+
 ## BP-10 - weapon statistics, body regions and range falloff
 
 Implemented individual damage profiles, eleven shared animated hit regions,

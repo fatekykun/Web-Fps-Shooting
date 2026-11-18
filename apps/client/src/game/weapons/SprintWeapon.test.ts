@@ -30,6 +30,38 @@ function fixture(id: (typeof weaponOrder)[number] = 'rifle') {
 }
 
 it.each(weaponOrder)(
+  'releases only the support hand during %s sprint carry and returns it for aim and fire',
+  (id) => {
+    const f = fixture(id);
+    const hand = (side: string) =>
+      f.root.worldToLocal(
+        f.model.scene
+          .getObjectByName(`${side}Wrist`)!
+          .getWorldPosition(new Vector3()),
+      );
+    try {
+      f.update('walking', 0);
+      const left = hand('left'),
+        right = hand('right');
+      for (let i = 0; i < 60; i++) f.update('sprinting');
+      expect(hand('left').distanceTo(left)).toBeGreaterThan(0.2);
+      expect(hand('right').distanceTo(right)).toBeLessThan(1e-6);
+      f.weapons.ads = 1;
+      f.update('sprinting', 8, 1 / 60, { aim: true, fire: false });
+      expect(hand('left').distanceTo(left)).toBeLessThan(1e-6);
+      f.weapons.ads = 0;
+      for (let i = 0; i < 60; i++) f.update('sprinting');
+      for (let i = 0; i < 60; i++)
+        f.update('sprinting', 8, 1 / 60, { aim: false, fire: true });
+      expect(hand('left').distanceTo(left)).toBeLessThan(1e-5);
+      expect(hand('right').distanceTo(right)).toBeLessThan(1e-6);
+    } finally {
+      f.model.dispose();
+    }
+  },
+);
+
+it.each(weaponOrder)(
   'carries %s diagonally upward, with its existing hands and geometry, and smoothly restores idle',
   (id) => {
     const f = fixture(id);

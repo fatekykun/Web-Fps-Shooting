@@ -1,6 +1,26 @@
 import { expect, it } from 'vitest';
 import { CharacterAnimation } from './characterAnimation';
 import { createRigTransforms, evaluateRig } from './characterRig';
+import { strideRadiansPerMeter } from './weaponHandling';
+
+it('uses the first-person carry timing and distance cadence without a second sprint blend delay', () => {
+  for (const fps of [30, 60, 144]) {
+    const a = new CharacterAnimation();
+    for (let i = 0; i < fps / 2; i++) {
+      a.step(1 / fps, 8, true, 'sprinting');
+      a.weapon(1 / fps, false, 0, 0);
+    }
+    expect(a.values.carryBlend).toBeCloseTo(1 - Math.exp(-6), 10);
+    expect(a.values.gaitPhase).toBeCloseTo(
+      (4 * strideRadiansPerMeter) % (Math.PI * 2),
+      10,
+    );
+    a.step(1 / fps, 0, true, 'walking');
+    const carry = a.values.carryBlend;
+    a.weapon(1 / fps, false, 0, 0);
+    expect(a.values.carryBlend).toBeCloseTo(carry * Math.exp(-18 / fps), 10);
+  }
+});
 
 it('smoothly exits sprint carry for aim, fire and reload and decays confirmed shot recoil', () => {
   const a = new CharacterAnimation();

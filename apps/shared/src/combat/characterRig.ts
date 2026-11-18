@@ -2,7 +2,11 @@ import type { Vector3Like } from '../types/movement';
 import type { HitRegion } from '../types/weapons';
 import type { CharacterAnimationValues } from './characterAnimation';
 import { solveWeaponArms } from './weaponHandling';
-export { remoteWeaponGrips } from './weaponHandling';
+export {
+  remoteWeaponGrips,
+  sprintArmPose,
+  strideRadiansPerMeter,
+} from './weaponHandling';
 
 type Point = readonly [number, number, number];
 export const rigJoints = [
@@ -195,7 +199,11 @@ export function poseRigJoints(pose: CharacterPose, out: JointPose[]): void {
   for (let i = 0; i < rigJoints.length; i++) jointPose(i, pose, out[i]!);
   const reload =
     (pose.reloadBlend ?? 0) * Math.sin(Math.PI * (pose.reloadProgress ?? 0));
-  solveWeaponArms(out, reload);
+  const carry =
+    (pose.carryBlend ?? pose.sprintBlend ?? 0) *
+    (1 - (pose.aimBlend ?? 0)) ** 3 *
+    (1 - reload);
+  solveWeaponArms(out, reload, carry, pose.gaitPhase ?? 0);
 }
 
 export function rotatePoint(

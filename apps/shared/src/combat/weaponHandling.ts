@@ -2,6 +2,18 @@ import type { JointPose } from './characterRig';
 
 type Vec = { x: number; y: number; z: number };
 type Quat = Vec & { w: number };
+export const strideRadiansPerMeter = Math.PI / 1.8;
+
+/** The free support arm uses the same distance-driven cycle in both views. */
+export function sprintArmPose(phase: number, motion = 1) {
+  const swing = Math.sin(phase) * motion;
+  return {
+    upperPitch: 0.15 + swing * 0.8,
+    upperRoll: -0.12,
+    elbowPitch: 0.45 + Math.max(0, -swing) * 0.3,
+    wristPitch: 0.1,
+  };
+}
 const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
 const length = (v: Vec) => Math.hypot(v.x, v.y, v.z);
@@ -56,6 +68,40 @@ function setRotation(out: JointPose, q: Quat): void {
     out.rz = 0;
   }
 }
+
+function blendRotation(
+  out: JointPose,
+  rx: number,
+  rz: number,
+  weight: number,
+): void {
+  const a = rotation(out),
+    b = rotation({ ...out, rx, ry: 0, rz });
+  let dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+  if (dot < 0) {
+    b.x *= -1;
+    b.y *= -1;
+    b.z *= -1;
+    b.w *= -1;
+    dot = -dot;
+  }
+  const angle = Math.acos(clamp(dot, -1, 1)),
+    sine = Math.sin(angle);
+  const from = sine < 1e-6 ? 1 - weight : Math.sin((1 - weight) * angle) / sine;
+  const to = sine < 1e-6 ? weight : Math.sin(weight * angle) / sine;
+  const q = {
+    x: a.x * from + b.x * to,
+    y: a.y * from + b.y * to,
+    z: a.z * from + b.z * to,
+    w: a.w * from + b.w * to,
+  };
+  const n = Math.hypot(q.x, q.y, q.z, q.w);
+  q.x /= n;
+  q.y /= n;
+  q.z /= n;
+  q.w /= n;
+  setRotation(out, q);
+}
 /** Shortest rotation from the limb's local -Y axis to its solved direction. */
 function limbRotation(v: Vec): Quat {
   const d = normalize(v),
@@ -72,7 +118,12 @@ export const remoteWeaponGrips = {
 } as const;
 
 /** Solve both arms in chest space. Fixed segment lengths also drive server hitboxes. */
-export function solveWeaponArms(joints: JointPose[], reload: number): void {
+export function solveWeaponArms(
+  joints: JointPose[],
+  reload: number,
+  carry = 0,
+  phase = 0,
+): void {
   const weapon = joints[21]!,
     weaponRotation = rotation(weapon);
   const handRotation = multiply(weaponRotation, {
@@ -124,5 +175,11 @@ export function solveWeaponArms(joints: JointPose[], reload: number): void {
     setRotation(upper, upperRotation);
     setRotation(forearm, multiply(inverse(upperRotation), foreRotation));
     setRotation(wrist, multiply(inverse(foreRotation), handRotation));
+    if (left && carry > 0) {
+      const free = sprintArmPose(phase);
+      blendRotation(upper, free.upperPitch, free.upperRoll, carry);
+      blendRotation(forearm, free.elbowPitch, 0, carry);
+      blendRotation(wrist, free.wristPitch, 0, carry);
+    }
   }
 }

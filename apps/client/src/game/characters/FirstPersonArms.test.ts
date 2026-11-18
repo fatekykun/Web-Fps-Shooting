@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { Group, InstancedMesh, MeshBasicMaterial, Vector3 } from 'three';
 import { FirstPersonArms } from './FirstPersonArms';
+import { sprintArmPose } from '@breakpoint/shared/character';
 
 it('keeps hands on the weapon grips under ADS/recoil transforms and articulates the reload hand', () => {
   const material = new MeshBasicMaterial(),
@@ -53,6 +54,54 @@ it('keeps hands on the weapon grips under ADS/recoil transforms and articulates 
     expect(Array.from(mesh.instanceMatrix.array).every(Number.isFinite)).toBe(
       true,
     );
+  } finally {
+    arms.dispose();
+    material.dispose();
+  }
+});
+
+it('swings the free arm independently of the raised gun, retains the firing grip and restores two-handed ADS', () => {
+  const material = new MeshBasicMaterial(),
+    arms = new FirstPersonArms(material),
+    weapon = new Group();
+  weapon.position.set(0.29, -0.28, -0.87);
+  weapon.rotation.set(0.9, 0.22, -0.25);
+  weapon.add(arms.root);
+  const hand = (side: number) =>
+    weapon.worldToLocal(
+      arms.bones[side * 3 + 2]!.getWorldPosition(new Vector3()),
+    );
+  try {
+    arms.update(0);
+    const right = hand(1),
+      left = hand(0);
+    const positions: Vector3[] = [];
+    for (const phase of [
+      0,
+      Math.PI / 2,
+      Math.PI,
+      (3 * Math.PI) / 2,
+      Math.PI * 2,
+    ]) {
+      arms.update(0, 0, 1, phase);
+      expect(hand(1).distanceTo(right)).toBeLessThan(1e-6);
+      expect(hand(0).distanceTo(left)).toBeGreaterThan(0.2);
+      positions.push(arms.bones[2]!.getWorldPosition(new Vector3()));
+      // Both views use the same upper-arm angle, outside the weapon transform.
+      const direction = new Vector3(0, -1, 0).applyQuaternion(
+        arms.bones[0]!.getWorldQuaternion(weapon.quaternion.clone()),
+      );
+      const free = sprintArmPose(phase);
+      expect(direction.z).toBeCloseTo(
+        -Math.sin(free.upperPitch) * Math.cos(free.upperRoll),
+        6,
+      );
+    }
+    expect(positions[1]!.distanceTo(positions[3]!)).toBeGreaterThan(0.5);
+    expect(positions[0]!.distanceTo(positions[4]!)).toBeLessThan(1e-6);
+    arms.update(0, 0, 0, 1);
+    expect(hand(0).distanceTo(left)).toBeLessThan(1e-6);
+    expect(hand(1).distanceTo(right)).toBeLessThan(1e-6);
   } finally {
     arms.dispose();
     material.dispose();

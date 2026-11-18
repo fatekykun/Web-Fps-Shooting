@@ -36,6 +36,7 @@ import {
   sniperScopeBlend,
 } from './SniperScope';
 import { FirstPersonArms } from '../characters/FirstPersonArms';
+import { strideRadiansPerMeter } from '@breakpoint/shared/character';
 
 /** Low-poly models are pooled; the active model is one instanced draw. */
 export class WeaponViewmodel {
@@ -302,9 +303,13 @@ export class WeaponViewmodel {
       : 0;
     this.sprint += ((carrying ? 1 : 0) - this.sprint) * sprintBlend;
     // Integrate traveled distance rather than wall-clock time, matching sprint cadence.
-    if (active && movement === 'sprinting' && speed > 0.5)
+    if (
+      active &&
+      (movement === 'sprinting' || movement === 'walking') &&
+      speed > 0.5
+    )
       this.stridePhase =
-        (this.stridePhase + (speed * Math.min(dt, 0.1) * Math.PI) / 1.8) %
+        (this.stridePhase + speed * Math.min(dt, 0.1) * strideRadiansPerMeter) %
         (Math.PI * 2);
     const carry = this.sprint * (1 - ads) ** 3;
     const sway = Math.sin(this.stridePhase);
@@ -350,7 +355,14 @@ export class WeaponViewmodel {
         this.cant * (1 - ads) * motion +
         carry * (-0.25 + sway * 0.018 * motion),
     );
-    if (active) this.arms.update(reload, brace * motion);
+    if (active)
+      this.arms.update(
+        reload,
+        brace * motion,
+        carry * (1 - reload),
+        this.stridePhase,
+        motion,
+      );
     this.flash.position.set(
       0,
       0.025,

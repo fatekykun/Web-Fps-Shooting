@@ -1,4 +1,5 @@
 import type { MovementState } from '../types/movement';
+import { strideRadiansPerMeter } from './weaponHandling';
 
 export const animationFields = [
   'animationTime',
@@ -30,10 +31,12 @@ export class CharacterAnimation {
     animationFields.map((key) => [key, 0]),
   ) as CharacterAnimationValues;
   private grounded = true;
+  private sprinting = false;
 
   reset(): void {
     for (const key of animationFields) this.values[key] = 0;
     this.grounded = true;
+    this.sprinting = false;
   }
 
   step(
@@ -46,13 +49,15 @@ export class CharacterAnimation {
     v.animationTime += dt;
     const locomotion =
       grounded && (movement === 'walking' || movement === 'sprinting');
+    this.sprinting = movement === 'sprinting' && speed > 0.5;
     v.gaitAmount = damp(
       v.gaitAmount,
       locomotion ? Math.min(1, speed / 6) : 0,
       dt,
     );
     if (locomotion)
-      v.gaitPhase = (v.gaitPhase + speed * dt * 3) % (2 * Math.PI);
+      v.gaitPhase =
+        (v.gaitPhase + speed * dt * strideRadiansPerMeter) % (2 * Math.PI);
     v.sprintBlend = damp(
       v.sprintBlend,
       movement === 'sprinting' && speed > 0.5 ? 1 : 0,
@@ -94,12 +99,8 @@ export class CharacterAnimation {
     if (reloading) v.reloadProgress = progress;
     else if (v.reloadBlend < 0.001) v.reloadProgress = 0;
     v.aimBlend = ads;
-    v.carryBlend = damp(
-      v.carryBlend,
-      canCarry && !reloading && ads < 0.01 ? v.sprintBlend : 0,
-      dt,
-      canCarry ? 12 : 18,
-    );
+    const carrying = this.sprinting && canCarry && !reloading && ads < 0.01;
+    v.carryBlend = damp(v.carryBlend, carrying ? 1 : 0, dt, carrying ? 12 : 18);
   }
 
   fire(): void {

@@ -2,6 +2,7 @@ import {
   Bone,
   Color,
   DynamicDrawUsage,
+  Euler,
   Group,
   InstancedMesh,
   Matrix4,
@@ -11,13 +12,14 @@ import {
   type Material,
 } from 'three';
 import { createTacticalGeometry } from './TacticalGeometry';
+import { sprintArmPose } from '@breakpoint/shared/character';
 
 const down = new Vector3(0, -1, 0);
 const identity = new Quaternion();
 const upperLength = 0.32,
   foreLength = 0.32;
 
-/** Two-bone IK keeps both gloved hands on the existing weapon-local grip points. */
+/** Grip IK blends to a camera-space free support arm during sprint carry. */
 export class FirstPersonArms {
   readonly root = new Group();
   readonly bones: Bone[] = [];
@@ -34,6 +36,10 @@ export class FirstPersonArms {
   private readonly foreRotation = new Quaternion();
   private readonly color = new Color();
   private readonly inverse = new Matrix4();
+  private readonly freeShoulder = new Vector3();
+  private readonly freeRotation = new Quaternion();
+  private readonly parentRotation = new Quaternion();
+  private readonly freeEuler = new Euler();
   private colorsReady = false;
 
   constructor(material: Material) {
@@ -61,7 +67,11 @@ export class FirstPersonArms {
     this.skeleton = new Skeleton(this.bones);
   }
 
-  update(reload: number, brace = 0): void {
+  update(reload: number, brace = 0, carry = 0, phase = 0, motion = 1): void {
+    this.root.updateWorldMatrix(true, false);
+    this.inverse.copy(this.root.matrixWorld).invert();
+    this.root.getWorldQuaternion(this.parentRotation).invert();
+    const free = sprintArmPose(phase, motion);
     let instance = 0;
     for (let side = 0; side < 2; side++) {
       const left = side === 0;
@@ -106,6 +116,25 @@ export class FirstPersonArms {
         .multiply(this.foreRotation);
       wrist.quaternion.copy(this.foreRotation).invert();
       if (left) wrist.rotateZ(reload * 0.6);
+      if (left && carry > 0) {
+        // The free arm swings beside the body in camera space, independently
+        // of the raised weapon. The firing arm keeps its existing grip IK.
+        this.freeShoulder.set(-0.26, -0.2, -0.4).applyMatrix4(this.inverse);
+        upper.position.lerp(this.freeShoulder, carry);
+        this.freeRotation.setFromEuler(
+          this.freeEuler.set(free.upperPitch, 0, free.upperRoll),
+        );
+        this.freeRotation.premultiply(this.parentRotation);
+        upper.quaternion.slerp(this.freeRotation, carry);
+        this.freeRotation.setFromEuler(
+          this.freeEuler.set(free.elbowPitch, 0, 0),
+        );
+        forearm.quaternion.slerp(this.freeRotation, carry);
+        this.freeRotation.setFromEuler(
+          this.freeEuler.set(free.wristPitch, 0, 0),
+        );
+        wrist.quaternion.slerp(this.freeRotation, carry);
+      }
       this.root.updateMatrixWorld(true);
       this.inverse.copy(this.root.matrixWorld).invert();
       const part = (

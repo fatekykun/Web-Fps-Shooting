@@ -2,6 +2,39 @@ import { expect, test } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
 import { movementConfig } from '@breakpoint/shared';
+import {
+  characterParts,
+  createRigTransforms,
+  evaluateRig,
+  partTransform,
+  remoteWeaponGrips,
+  rotatePoint,
+  type CharacterPose,
+} from '@breakpoint/shared/character';
+
+function gripErrors(pose: CharacterPose) {
+  const rig = createRigTransforms();
+  evaluateRig(pose, rig);
+  return (['left', 'right'] as const).map((side) => {
+    const palm = partTransform(
+      characterParts.find((part) => part.name === `${side}-hand`)!,
+      rig,
+      { x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 },
+    );
+    const grip = remoteWeaponGrips[side],
+      weapon = rig[21]!;
+    const target = rotatePoint(weapon, grip.x, grip.y, grip.z, {
+      x: 0,
+      y: 0,
+      z: 0,
+    });
+    return Math.hypot(
+      palm.x - weapon.x - target.x,
+      palm.y - weapon.y - target.y,
+      palm.z - weapon.z - target.z,
+    );
+  });
+}
 
 test('tactical character poses synchronize through locomotion, landing, slide, reload and damage', async ({
   page,
@@ -126,6 +159,7 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     await lookAtActor();
     await page.screenshot({ path: 'test-results/bp11-tactical-idle.png' });
     expect(actor().animationTime).toBeGreaterThan(0);
+    expect(gripErrors(actor()).every((error) => error < 0.005)).toBe(true);
     aim = true;
     await expect.poll(() => actor().aimBlend).toBeGreaterThan(0.99);
     await page.waitForTimeout(200);
@@ -145,6 +179,9 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     await expect.poll(() => actor().sprintBlend).toBeGreaterThan(0.7);
     await expect.poll(() => actor().carryBlend).toBeGreaterThan(0.7);
     await lookAtActor();
+    const [freeHand, firingHand] = gripErrors(actor());
+    expect(freeHand).toBeGreaterThan(0.15);
+    expect(firingHand).toBeLessThan(0.005);
     await page.screenshot({ path: 'test-results/bp11-tactical-sprint.png' });
     fire = true;
     firePressed = true;
@@ -155,6 +192,7 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
       .poll(() => actor().fireBlend, { intervals: [25] })
       .toBeGreaterThan(0.1);
     await lookAtActor();
+    expect(gripErrors(actor()).every((error) => error < 0.1)).toBe(true);
     await page.screenshot({
       path: 'test-results/remote-weapon-sprint-fire.png',
     });
