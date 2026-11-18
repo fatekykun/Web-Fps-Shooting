@@ -18,6 +18,27 @@ const input = (seq: number) => ({
 });
 
 describe('server movement ownership', () => {
+  it('owns gait animation on the server and resets it on respawn', () => {
+    const player = new ServerPlayer(new PlayerState());
+    try {
+      for (let seq = 1; seq <= 30; seq++) {
+        expect(
+          player.enqueue([{ ...input(seq), gaitPhase: 99, gaitAmount: 99 }]),
+        ).toBe(true);
+        player.step();
+      }
+      expect(player.state.movement).toBe('sprinting');
+      expect(player.state.gaitPhase).toBeGreaterThan(0);
+      expect(player.state.gaitPhase).toBeLessThan(2 * Math.PI);
+      expect(player.state.gaitAmount).toBeGreaterThan(0.8);
+      expect(player.state.gaitAmount).toBeLessThanOrEqual(1);
+      player.respawn({ x: 0, y: 0.91, z: 12 });
+      expect(player.state.gaitPhase).toBe(0);
+      expect(player.state.gaitAmount).toBe(0);
+    } finally {
+      player.dispose();
+    }
+  });
   it('consumes at most one fixed input per tick despite a queued burst', () => {
     const player = new ServerPlayer(new PlayerState());
     try {

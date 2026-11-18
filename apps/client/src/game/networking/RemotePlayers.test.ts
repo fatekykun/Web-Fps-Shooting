@@ -1,9 +1,10 @@
 import { expect, it } from 'vitest';
-import { InstancedMesh, Scene } from 'three';
+import { InstancedMesh, Scene, Matrix4, Vector3 } from 'three';
 import { matchDefaults } from '@breakpoint/shared/match';
 import type { PublicPlayer, RoomView } from '@breakpoint/shared/network';
 import { RemotePlayers } from './RemotePlayers';
 import { RemoteInterpolation } from './RemoteInterpolation';
+import { avatarParts, intersectAvatar } from '@breakpoint/shared/avatar';
 
 it('keeps eight avatars in one pool and only uploads colors when their appearance changes', () => {
   const scene = new Scene();
@@ -55,7 +56,7 @@ it('keeps eight avatars in one pool and only uploads colors when their appearanc
     expect(remotes.playerCount).toBe(8);
     expect(scene.children).toHaveLength(1);
     const mesh = scene.children[0] as InstancedMesh;
-    expect(mesh.count).toBe(56);
+    expect(mesh.count).toBe(8 * avatarParts.length);
     const version = mesh.instanceColor!.version;
     for (let frame = 0; frame < 30; frame++)
       remotes.update(history, 110 + frame * 16);
@@ -74,6 +75,30 @@ it('keeps eight avatars in one pool and only uploads colors when their appearanc
     );
     remotes.update(history, 800);
     expect(mesh.instanceColor!.version).toBe(version + 1);
+    const animated = {
+      ...peers[0]!,
+      x: 3,
+      y: 3,
+      z: -4,
+      yaw: 1.1,
+      pitch: 0.4,
+      halfHeight: 0.2,
+      gaitPhase: 1.2,
+      gaitAmount: 0.8,
+    };
+    history.push({ ...view, tick: 12, players: [animated] }, 900);
+    remotes.update(history, 1200);
+    const matrix = new Matrix4();
+    for (let index = 0; index < avatarParts.length; index++) {
+      if (!avatarParts[index]!.region) continue;
+      mesh.getMatrixAt(index, matrix);
+      const center = new Vector3().setFromMatrixPosition(matrix);
+      const direction = new Vector3(0, 0, -1).transformDirection(matrix);
+      const origin = center.clone().addScaledVector(direction, -5);
+      expect(intersectAvatar(origin, direction, animated, 10)?.region).toBe(
+        avatarParts[index]!.region,
+      );
+    }
     remotes.update(undefined, 900);
     expect(remotes.playerCount).toBe(0);
   } finally {

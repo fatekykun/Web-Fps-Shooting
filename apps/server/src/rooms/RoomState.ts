@@ -12,6 +12,8 @@ export const PlayerState = schema(
     yaw: t.float32().default(0),
     pitch: t.float32().default(0),
     halfHeight: t.float32().default(0.55),
+    gaitPhase: t.float32().default(0),
+    gaitAmount: t.float32().default(0),
     movement: t.string().default('walking'),
     ack: t.uint32().default(0),
     health: t.float32().default(100),

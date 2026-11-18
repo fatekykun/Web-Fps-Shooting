@@ -70,6 +70,25 @@ it('takes the short arc across wrapped yaw', () => {
   );
 });
 
+it('interpolates server-owned gait across a wrapped animation cycle', () => {
+  const buffer = new RemoteInterpolation();
+  buffer.push(
+    {
+      ...view(6, 0),
+      players: [{ ...player, gaitPhase: 2 * Math.PI - 0.1, gaitAmount: 0.2 }],
+    },
+    100,
+  );
+  buffer.push(
+    { ...view(12, 6), players: [{ ...player, gaitPhase: 0.1, gaitAmount: 1 }] },
+    200,
+  );
+  buffer.sample(250, (sample) => {
+    expect(sample.gaitPhase).toBeCloseTo(2 * Math.PI);
+    expect(sample.gaitAmount).toBeCloseTo(0.6);
+  });
+});
+
 it('snaps to a new life and removes the living pose immediately on death', () => {
   const buffer = new RemoteInterpolation();
   buffer.push(view(6, 0), 100);

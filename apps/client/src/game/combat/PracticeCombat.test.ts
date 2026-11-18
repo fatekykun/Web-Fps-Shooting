@@ -1,10 +1,11 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Scene } from 'three';
-import type { WeaponInput } from '@breakpoint/shared';
+import { weaponConfigs, type WeaponInput } from '@breakpoint/shared';
 import { initializePhysics, PhysicsWorld } from '../physics/PhysicsWorld';
 import { MovementController } from '../movement/MovementController';
 import { arenaBoxes, spawn } from '../maps/arenaLayout';
 import { PracticeCombat } from './PracticeCombat';
+import { avatarParts } from '@breakpoint/shared/avatar';
 
 const idle: WeaponInput = {
   fire: false,
@@ -40,10 +41,10 @@ describe('local hitscan against Rapier world and target', () => {
       movement.step({ forward: 0, right: 0, yaw: 0 }, dt);
     combat.weapons.ads = 1;
   }
-  function step(count: number, input = idle, pitch = 0) {
+  function step(count: number, input = idle, pitch = 0, yaw = 0) {
     for (let i = 0; i < count; i++) {
       movement.step({ forward: 0, right: 0, yaw: 0 }, dt);
-      combat.step(dt, input, movement, 0, pitch);
+      combat.step(dt, input, movement, yaw, pitch);
     }
   }
 
@@ -54,7 +55,7 @@ describe('local hitscan against Rapier world and target', () => {
       { x: 0, y: 0, z: -1 },
       80,
     )!;
-    expect(combat.dummy.region(body.colliderHandle)).toBe('body');
+    expect(combat.dummy.region(body.colliderHandle)).toBe('upperTorso');
     expect(body.distance).toBeCloseTo(17.83, 1);
     const head = physics.castBullet(
       { x: 0, y: 1.9, z: 12 },
@@ -80,6 +81,56 @@ describe('local hitscan against Rapier world and target', () => {
     expect(combat.lastDamage).toBe(45);
     expect(combat.dummy.health).toBe(30);
   });
+
+  it.each(avatarParts.filter((part) => part.region !== null))(
+    'gives the hologram a dedicated $region sensor matching its rendered part',
+    (part) => {
+      setup();
+      const hit = physics.castBullet(
+        {
+          x: part.position[0] * 1.25,
+          y: part.position[1] * 1.25 + 0.05,
+          z: 12,
+        },
+        { x: 0, y: 0, z: -1 },
+        80,
+      )!;
+      expect(combat.dummy.region(hit.colliderHandle)).toBe(part.region);
+    },
+  );
+
+  it('applies actual SMG range falloff in training without rounding internal damage', () => {
+    setup();
+    combat.weapons.selected = 'smg';
+    step(1, { ...idle, firePressed: true });
+    expect(combat.hitSequence).toBe(1);
+    expect(combat.lastDamage).toBeGreaterThan(14);
+    expect(combat.lastDamage).toBeLessThan(17);
+    expect(Number.isInteger(combat.lastDamage)).toBe(false);
+    expect(combat.dummy.health).toBeCloseTo(100 - combat.lastDamage, 10);
+  });
+
+  it.each(avatarParts.filter((part) => part.region !== null))(
+    'registers actual scoped sniper damage on the hologram $region from the player eye',
+    (part) => {
+      setup();
+      combat.weapons.selected = 'sniper';
+      const x = part.position[0] * 1.25;
+      const y = part.position[1] * 1.25 + 0.05;
+      const distanceZ = physics.position.z - (part.position[2] * 1.25 - 6);
+      const pitch = Math.atan2(
+        y - physics.position.y - movement.eyeOffset,
+        Math.hypot(x, distanceZ),
+      );
+      step(1, { ...idle, firePressed: true }, pitch, -Math.atan2(x, distanceZ));
+      const expected =
+        weaponConfigs.sniper.damage *
+        weaponConfigs.sniper.bodyMultipliers[part.region!];
+      expect(combat.hitSequence, part.region!).toBe(1);
+      expect(combat.lastDamage).toBeCloseTo(Math.min(100, expected));
+      expect(combat.dummy.health).toBeCloseTo(Math.max(0, 100 - expected));
+    },
+  );
 
   it('stops shots at cover before the target', () => {
     setup(true);

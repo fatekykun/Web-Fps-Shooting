@@ -4,6 +4,7 @@ import {
   weaponOrder,
   shotRandom,
   spreadDirection,
+  calculateDamage,
   type WeaponInput,
   type WeaponId,
   type Vector3Like,
@@ -265,9 +266,12 @@ export class ServerCombat {
         distance = hit.distance;
         victim = target;
         critical = hit.head;
-        hitDamage =
-          shot.config.regionDamage?.[hit.region] ??
-          shot.config.damage * (critical ? shot.config.headMultiplier : 1);
+        const meters = Math.hypot(
+          hit.point.x - origin.x,
+          hit.point.y - origin.y,
+          hit.point.z - origin.z,
+        );
+        hitDamage = calculateDamage(shot.config, hit.region, meters);
         normal = { x: -direction.x, y: -direction.y, z: -direction.z };
       }
       event.traces.push({
@@ -321,7 +325,7 @@ export class ServerCombat {
     if (applied > 0) {
       const owner = this.loadouts.get(player.state.id)!;
       owner.hitSequence++;
-      owner.lastDamage = Math.round(applied);
+      owner.lastDamage = applied;
       owner.critical = headshot;
     }
     this.onShot(event);

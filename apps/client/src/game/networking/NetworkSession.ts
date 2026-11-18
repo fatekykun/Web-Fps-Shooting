@@ -151,6 +151,8 @@ export class NetworkSession {
         yaw: player.yaw,
         pitch: player.pitch,
         halfHeight: player.halfHeight,
+        gaitPhase: player.gaitPhase,
+        gaitAmount: player.gaitAmount,
         movement: player.movement,
         ack: player.ack,
         health: player.health,

@@ -6,7 +6,8 @@ import {
   MeshBasicMaterial,
   type Scene,
 } from 'three';
-import { combatConfig } from '@breakpoint/shared';
+import { combatConfig, type HitRegion } from '@breakpoint/shared';
+import { avatarParts } from '@breakpoint/shared/avatar';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 
 /** Holographic local target: sensors allow movement training to pass through it. */
@@ -14,8 +15,7 @@ export class TrainingDummy {
   health: number = combatConfig.dummyHealth;
   private resetTimer = 0;
   private flash = 0;
-  private readonly head: number;
-  private readonly body: number;
+  private readonly regions = new Map<number, HitRegion>();
   private readonly geometry = new BoxGeometry(1, 1, 1);
   private readonly material = new MeshBasicMaterial();
   private readonly mesh: InstancedMesh;
@@ -24,22 +24,27 @@ export class TrainingDummy {
     private readonly physics: PhysicsWorld,
     scene: Scene,
   ) {
-    this.body = physics.addSensorBox(
-      { x: 0, y: 1.23, z: -6 },
-      { x: 0.72, y: 0.9, z: 0.34 },
-    );
-    this.head = physics.addSensorBox(
-      { x: 0, y: 1.9, z: -6 },
-      { x: 0.4, y: 0.4, z: 0.4 },
-    );
+    // A larger stationary version of the same eleven-region rig used online.
+    const body = avatarParts.filter((part) => part.region !== null);
     const parts = [
-      [0, 1.23, 0, 0.72, 0.9, 0.34, 0x5b91a7],
-      [0, 1.9, 0, 0.4, 0.4, 0.4, 0xe3aa6c],
-      [-0.24, 0.38, 0, 0.22, 0.76, 0.26, 0x385e70],
-      [0.24, 0.38, 0, 0.22, 0.76, 0.26, 0x385e70],
-      [-0.48, 1.22, 0, 0.18, 0.8, 0.24, 0x385e70],
-      [0.48, 1.22, 0, 0.18, 0.8, 0.24, 0x385e70],
-      [0, 1.3, 0.18, 0.28, 0.28, 0.02, 0xb1d2d1],
+      ...body.map((part) => {
+        const [x, y, z] = part.position,
+          [sx, sy, sz] = part.size;
+        return [
+          x * 1.25,
+          y * 1.25 + 0.05,
+          z * 1.25,
+          sx * 1.25,
+          sy * 1.25,
+          sz * 1.25,
+          part.region === 'head'
+            ? 0xe3aa6c
+            : part.region!.includes('Torso')
+              ? 0x5b91a7
+              : 0x385e70,
+        ] as const;
+      }),
+      [0, 1.49, -0.2, 0.28, 0.28, 0.02, 0xb1d2d1],
       [0, 0.02, 0, 1.4, 0.04, 1.2, 0x335261],
     ] as const;
     this.mesh = new InstancedMesh(this.geometry, this.material, parts.length);
@@ -49,6 +54,12 @@ export class TrainingDummy {
       matrix.makeScale(sx, sy, sz).setPosition(x, y, z - 6);
       this.mesh.setMatrixAt(index, matrix);
       this.mesh.setColorAt(index, color.setHex(tint));
+      const region = body[index]?.region;
+      if (region)
+        this.regions.set(
+          physics.addSensorBox({ x, y, z: z - 6 }, { x: sx, y: sy, z: sz }),
+          region,
+        );
     });
     this.mesh.computeBoundingSphere();
     scene.add(this.mesh);
@@ -59,11 +70,15 @@ export class TrainingDummy {
   }
   setVisible(visible: boolean): void {
     this.mesh.visible = visible && !this.resetting;
-    this.physics.setColliderEnabled(this.head, visible && !this.resetting);
-    this.physics.setColliderEnabled(this.body, visible && !this.resetting);
+    this.enableSensors(visible && !this.resetting);
   }
-  region(handle: number): 'head' | 'body' | null {
-    return handle === this.head ? 'head' : handle === this.body ? 'body' : null;
+  region(handle: number): HitRegion | null {
+    return this.regions.get(handle) ?? null;
+  }
+
+  private enableSensors(enabled: boolean): void {
+    for (const handle of this.regions.keys())
+      this.physics.setColliderEnabled(handle, enabled);
   }
 
   damage(amount: number): void {
@@ -73,8 +88,7 @@ export class TrainingDummy {
     if (this.health === 0) {
       this.resetTimer = combatConfig.dummyResetTime;
       this.mesh.visible = false;
-      this.physics.setColliderEnabled(this.head, false);
-      this.physics.setColliderEnabled(this.body, false);
+      this.enableSensors(false);
     }
   }
 
@@ -86,8 +100,7 @@ export class TrainingDummy {
     if (this.resetTimer === 0) {
       this.health = combatConfig.dummyHealth;
       this.mesh.visible = true;
-      this.physics.setColliderEnabled(this.head, true);
-      this.physics.setColliderEnabled(this.body, true);
+      this.enableSensors(true);
     }
   }
 

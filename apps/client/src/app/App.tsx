@@ -10,6 +10,7 @@ import { CombatHud } from '../components/CombatHud';
 import { RoomPanel } from '../components/RoomPanel';
 import { MatchHud } from '../components/MatchHud';
 import { CommandMenu } from '../components/CommandMenu';
+import { WeaponPanel } from '../components/WeaponPanel';
 import { PlayPanel, CreditsPanel } from '../components/CommandPanels';
 import { SettingsPanel, crosshairStyle } from '../components/SettingsPanel';
 import {
@@ -54,7 +55,7 @@ export function App() {
   const preferencesRef = useRef(preferences);
   const [saved, setSaved] = useState(true);
   const [overlay, setOverlay] = useState<
-    'play' | 'settings' | 'credits' | null
+    'play' | 'settings' | 'credits' | 'weapons' | null
   >(null);
   const [roomTab, setRoomTab] = useState<'create' | 'join'>(
     inviteCode ? 'join' : 'create',
@@ -214,7 +215,7 @@ export function App() {
     setError(null);
     setRoomsOpen(true);
   }
-  function openPanel(panel: 'play' | 'settings' | 'credits'): void {
+  function openPanel(panel: 'play' | 'settings' | 'credits' | 'weapons'): void {
     setRoomsOpen(false);
     setOverlay(panel);
   }
@@ -304,6 +305,7 @@ export function App() {
           onJoin={() => openRooms('join')}
           onSettings={() => openPanel('settings')}
           onCredits={() => openPanel('credits')}
+          onWeapons={() => openPanel('weapons')}
           onLobby={() => openRooms()}
           onLeave={() => game.current?.leaveRoom()}
         />
@@ -373,6 +375,13 @@ export function App() {
       )}
       {overlay === 'credits' && (
         <CreditsPanel onClose={() => setOverlay(null)} />
+      )}
+      {overlay === 'weapons' && (
+        <WeaponPanel
+          initialWeapon={combat?.weapon}
+          allowedWeapons={room?.allowedWeapons}
+          onClose={() => setOverlay(null)}
+        />
       )}
       {overlay === 'settings' && (
         <SettingsPanel

@@ -13,6 +13,7 @@ export function CommandMenu({
   onJoin,
   onSettings,
   onCredits,
+  onWeapons,
   onLobby,
   onLeave,
 }: {
@@ -27,6 +28,7 @@ export function CommandMenu({
   onJoin(): void;
   onSettings(): void;
   onCredits(): void;
+  onWeapons(): void;
   onLobby(): void;
   onLeave(): void;
 }) {
@@ -59,6 +61,9 @@ export function CommandMenu({
         </button>
         <button onClick={onCredits}>
           <span aria-hidden="true">05</span>CREDITS
+        </button>
+        <button onClick={onWeapons}>
+          <span aria-hidden="true">06</span>ARMORY
         </button>
         {room && (
           <button className="nav-danger" onClick={onLeave}>

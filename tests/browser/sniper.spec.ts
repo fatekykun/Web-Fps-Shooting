@@ -38,41 +38,33 @@ async function enter(page: Page, style: 'optic' | 'classic' = 'optic') {
 }
 
 async function sampleSight(page: Page) {
-  await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
-    canvas.dataset.sightSample = '';
-    requestAnimationFrame(() => {
-      const gl = canvas.getContext('webgl2')!;
-      const values = [
-        [0.08, 0.3],
-        [0.08, 0.5],
-        [0.12, 0.7],
-        [0.52, 0.5],
-        [0.5, 0.55],
-      ].map(([x, y]) => {
-        const pixel = new Uint8Array(4);
-        gl.readPixels(
-          Math.floor(x! * canvas.width),
-          Math.floor(y! * canvas.height),
+  // Read the composited image: native GPUs may discard the WebGL default
+  // framebuffer between frames when preserveDrawingBuffer is disabled.
+  const screenshot = await page.locator('canvas').screenshot();
+  return page.evaluate(async (encoded) => {
+    const picture = new Image();
+    picture.src = `data:image/png;base64,${encoded}`;
+    await picture.decode();
+    const scratch = new OffscreenCanvas(picture.width, picture.height);
+    const context = scratch.getContext('2d')!;
+    context.drawImage(picture, 0, 0);
+    return [
+      [0.08, 0.3],
+      [0.08, 0.5],
+      [0.12, 0.7],
+      [0.52, 0.5],
+      [0.5, 0.55],
+    ].map(([x, y]) =>
+      Array.from(
+        context.getImageData(
+          Math.floor(x! * picture.width),
+          Math.floor((1 - y!) * picture.height),
           1,
           1,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          pixel,
-        );
-        return Array.from(pixel);
-      });
-      canvas.dataset.sightSample = JSON.stringify(values);
-    });
-  });
-  await page.clock.runFor(32);
-  return page
-    .locator('canvas')
-    .evaluate(
-      (canvas) =>
-        JSON.parse(
-          (canvas as HTMLCanvasElement).dataset.sightSample!,
-        ) as number[][],
+        ).data,
+      ),
     );
+  }, screenshot.toString('base64'));
 }
 
 test('sniper scope, bolt lockout, five-round reload and movement remain responsive', async ({
@@ -200,6 +192,54 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   expect(errors).toEqual([]);
 });
 
+for (const region of ['leftArm', 'rightArm', 'leftLeg', 'rightLeg'] as const) {
+  test(`scoped sniper shots damage the training ${region}`, async ({
+    page,
+  }) => {
+    await enter(page);
+    const part = avatarParts.find((part) => part.region === region)!;
+    const position = await page.getByTestId('position').evaluate((element) => ({
+      x: Number(element.dataset.x),
+      y: Number(element.dataset.y),
+      z: Number(element.dataset.z),
+    }));
+    const x = part.position[0] * 1.25 - position.x;
+    const z = position.z - (part.position[2] * 1.25 - 6);
+    const yaw = -Math.atan2(x, z);
+    const pitch = Math.atan2(
+      part.position[1] * 1.25 + 0.05 - position.y - movementConfig.eyeOffset,
+      Math.hypot(x, z),
+    );
+    await page.evaluate(
+      ({ yaw, pitch }) =>
+        document.dispatchEvent(
+          new MouseEvent('mousemove', {
+            movementX: -yaw / 0.002,
+            movementY: -pitch / 0.002,
+          }),
+        ),
+      { yaw, pitch },
+    );
+    await page.mouse.down({ button: 'right' });
+    await page.clock.runFor(1200);
+    await page.mouse.down();
+    await page.clock.runFor(32);
+    await page.mouse.up();
+    await expect(page.getByTestId('weapon-status')).toHaveAttribute(
+      'data-hits',
+      '1',
+    );
+    expect(
+      Number(
+        await page.getByTestId('dummy-status').getAttribute('data-health'),
+      ),
+    ).toBeCloseTo(37);
+    await expect(page.getByTestId('dummy-status')).toContainText(
+      'TARGET 37 / 100',
+    );
+  });
+}
+
 test('sniper damage, kills, ammo and shot effects are server-confirmed in an eight-player room', async ({
   page,
 }) => {
@@ -260,7 +300,7 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
     const pitch = Math.atan2(
       victim.y -
         standingAnchor +
-        avatarParts[0][1] -
+        avatarParts[0]!.position[1] -
         (shooter.y + movementConfig.eyeOffset),
       Math.hypot(dx, dz),
     );
