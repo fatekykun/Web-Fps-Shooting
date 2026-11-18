@@ -1,7 +1,9 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initializePhysics } from '@breakpoint/shared/physics';
 import {
   weaponConfigs,
+  weaponOrder,
+  calculateDamage,
   type WeaponInput,
   type MovementInput,
 } from '@breakpoint/shared';
@@ -9,6 +11,125 @@ import type { KillEvent, ServerShot } from '@breakpoint/shared/combat';
 import { ServerCombat } from './ServerCombat';
 import { ServerPlayer } from '../players/ServerPlayer';
 import { PlayerState } from '../rooms/RoomState';
+import {
+  avatarParts,
+  standingAnchor,
+  intersectAvatar,
+} from '@breakpoint/shared/avatar';
+
+it.each(weaponOrder)(
+  'applies all eleven authoritative %s region multipliers without duplicating pellets',
+  (id) => {
+    for (const part of avatarParts) {
+      if (!part.region) continue;
+      const f = fixture(),
+        shooter = f.add('shooter', 0, 12),
+        victim = f.add('victim', 0, 8);
+      const w = f.combat.get('shooter')!.weapons;
+      w.selected = id;
+      w.ads = 1;
+      const eye =
+        shooter.movement.physics.position.y + shooter.movement.eyeOffset;
+      const [x, y, z] = part.position;
+      const dz = 12 - (8 + z);
+      const aimY = y - (part.region.includes('Foot') ? 0.035 : 0);
+      f.controls(
+        shooter,
+        { ...trigger, aim: true },
+        -Math.atan2(x, dz),
+        Math.atan2(
+          victim.state.y - standingAnchor + aimY - eye,
+          Math.hypot(x, dz),
+        ),
+      );
+      f.step();
+      const shot = f.shots[0]!;
+      expect(f.shots).toHaveLength(1);
+      expect(shot.weapon).toBe(id);
+      expect(shot.traces).toHaveLength(weaponConfigs[id].pellets);
+      const expected = shot.traces.reduce((sum, trace) => {
+        const distance = Math.hypot(
+          trace.end.x - shot.origin.x,
+          trace.end.y - shot.origin.y,
+          trace.end.z - shot.origin.z,
+        );
+        const direction = {
+          x: (trace.end.x - shot.origin.x) / distance,
+          y: (trace.end.y - shot.origin.y) / distance,
+          z: (trace.end.z - shot.origin.z) / distance,
+        };
+        const hit = intersectAvatar(
+          shot.origin,
+          direction,
+          victim.state,
+          distance + 0.00001,
+        );
+        if (id !== 'shotgun') expect(hit?.region).toBe(part.region);
+        return (
+          sum +
+          (hit ? calculateDamage(weaponConfigs[id], hit.region, distance) : 0)
+        );
+      }, 0);
+      expect(victim.state.health, `${id}/${part.region}`).toBeCloseTo(
+        Math.max(0, 100 - expected),
+      );
+      expect(f.combat.owner(shooter).lastDamage).toBeCloseTo(
+        Math.min(100, expected),
+      );
+      expect(w.current.magazine).toBe(weaponConfigs[id].magazine - 1);
+      expect(f.combat.owner(shooter).hitSequence).toBe(1);
+      expect(f.combat.owner(victim).damageSequence).toBe(1);
+    }
+  },
+);
+
+it.each(weaponOrder)(
+  'uses actual diagonal hit distance for %s falloff and keeps health fractional',
+  (id) => {
+    const f = fixture(),
+      shooter = f.add('shooter', 0, 12),
+      victim = f.add('victim', 0.6, -23);
+    const w = f.combat.get('shooter')!.weapons;
+    w.selected = id;
+    w.ads = 1;
+    // Isolate range/region damage from arena cover; cover occlusion is tested separately.
+    vi.spyOn(shooter.movement.physics, 'castBullet').mockReturnValue(null);
+    const eye =
+      shooter.movement.physics.position.y + shooter.movement.eyeOffset;
+    f.controls(
+      shooter,
+      { ...trigger, aim: true },
+      -Math.atan2(0.6, 35),
+      Math.atan2(
+        victim.state.y - standingAnchor + 1.145 - eye,
+        Math.hypot(0.6, 35),
+      ),
+    );
+    f.step();
+    expect(f.shots).toHaveLength(1);
+    const shot = f.shots[0]!;
+    if (id !== 'shotgun') {
+      const point = shot.traces[0]!.end;
+      const meters = Math.hypot(
+        point.x - shot.origin.x,
+        point.y - shot.origin.y,
+        point.z - shot.origin.z,
+      );
+      expect(meters).toBeGreaterThan(34);
+      expect(meters).toBeLessThan(36);
+      const expected = calculateDamage(weaponConfigs[id], 'upperTorso', meters);
+      expect(expected).toBeLessThan(
+        calculateDamage(weaponConfigs[id], 'upperTorso', 0),
+      );
+      expect(victim.state.health).toBeCloseTo(100 - expected, 8);
+      expect(f.combat.owner(shooter).lastDamage).toBeCloseTo(expected, 8);
+    } else {
+      expect(victim.state.health).toBeGreaterThan(
+        100 - weaponConfigs.shotgun.damage * weaponConfigs.shotgun.pellets,
+      );
+    }
+  },
+);
 
 beforeAll(initializePhysics);
 const worlds: ServerPlayer[] = [];
@@ -349,11 +470,13 @@ describe('server weapon budget and life cycle', () => {
 
 describe('authoritative sniper', () => {
   it.each([
-    [0, 1.48, 150, true],
+    [0, 1.48, 135, true],
     [0, 1.15, 100, false],
-    [0, 0.8, 90, false],
-    [0.36, 1.03, 70, false],
-    [0.15, 0.35, 70, false],
+    [0, 0.8, 81, false],
+    [-0.36, 1.12, 63, false],
+    [0.36, 1.12, 63, false],
+    [-0.15, 0.43, 63, false],
+    [0.15, 0.43, 63, false],
   ])(
     'resolves server hitboxes and damage at x=%s y=%s',
     (x, y, damage, headshot) => {
@@ -389,14 +512,18 @@ describe('authoritative sniper', () => {
       }
       f.controls(shooter, { ...trigger, aim: true }, yaw, pitch);
       f.step();
-      expect(victim.state.health).toBe(100 - Math.min(100, Number(damage)));
+      expect(victim.state.health).toBeCloseTo(
+        100 - Math.min(100, Number(damage)),
+      );
       expect(f.combat.owner(shooter)).toMatchObject({
         selected: 'sniper',
         cycling: true,
         shots: 1,
         critical: headshot,
-        lastDamage: Math.min(100, Number(damage)),
       });
+      expect(f.combat.owner(shooter).lastDamage).toBeCloseTo(
+        Math.min(100, Number(damage)),
+      );
       expect(f.combat.owner(shooter).ammo.sniper.magazine).toBe(4);
       expect(f.shots[0]).toMatchObject({
         weapon: 'sniper',

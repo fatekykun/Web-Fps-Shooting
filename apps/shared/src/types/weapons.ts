@@ -1,5 +1,23 @@
 export type WeaponId = 'rifle' | 'smg' | 'shotgun' | 'sniper';
-export type HitRegion = 'head' | 'upperTorso' | 'lowerTorso' | 'arms' | 'legs';
+export type WeaponCategory = 'rifle' | 'smg' | 'shotgun' | 'sniper';
+export type HitRegion =
+  | 'head'
+  | 'upperTorso'
+  | 'lowerTorso'
+  | 'leftArm'
+  | 'rightArm'
+  | 'leftHand'
+  | 'rightHand'
+  | 'leftLeg'
+  | 'rightLeg'
+  | 'leftFoot'
+  | 'rightFoot';
+
+export interface DamageRangePoint {
+  /** One world unit is one meter. Distances must be ascending, starting at zero. */
+  distance: number;
+  multiplier: number;
+}
 
 export interface WeaponInput {
   fire: boolean;
@@ -14,6 +32,7 @@ export interface WeaponInput {
 export interface WeaponConfig {
   id: WeaponId;
   name: string;
+  category: WeaponCategory;
   automatic: boolean;
   magazine: number;
   reserve: number;
@@ -34,12 +53,14 @@ export interface WeaponConfig {
   recoilRecovery: number;
   pellets: number;
   damage: number;
-  headMultiplier: number;
+  bodyMultipliers: Readonly<Record<HitRegion, number>>;
+  /** Empty explicitly means no falloff; the last multiplier persists to maximum range. */
+  damageFalloff: readonly Readonly<DamageRangePoint>[];
+  /** Maximum hitscan travel in meters, separate from effective damage range. */
   range: number;
   scopeMagnification?: number;
   scopedMovementScale?: number;
   boltCycleTime?: number;
-  regionDamage?: Readonly<Record<HitRegion, number>>;
 }
 
 export interface AccuracyContext {

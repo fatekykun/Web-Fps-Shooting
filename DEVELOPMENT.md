@@ -1,5 +1,20 @@
 # BREAKPOINT development log
 
+## BP-10 - weapon statistics, body regions and range falloff
+
+Implemented individual damage profiles, eleven shared animated hit regions,
+centralized fractional damage with range interpolation, authoritative multiplayer
+integration, and an Armory with six statistics derived from gameplay settings.
+See [BP-10 implementation notes](docs/BP-10.md) for balance tables, configuration,
+hitbox details, server validation, modified files and verification evidence.
+
+Sniper follow-up: base damage is 90; close-range limb damage is 63. Added actual
+scoped arm/leg browser checks and eleven eye-to-target training shot tests.
+Upper-body damage is 100 through 25 m and falls smoothly to 90 at 50 m via a
+100/90 body multiplier. All 406 automated tests and eight sniper browser scenarios pass. Corrected
+floating-point health display rounding; the reported zero-damage limb symptom
+was not reproduced in the current build.
+
 ## Scope
 
 The repository initially contained only `prompt.md` and `.git`. The original

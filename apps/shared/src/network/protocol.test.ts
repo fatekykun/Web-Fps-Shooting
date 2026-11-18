@@ -34,6 +34,12 @@ describe('room protocol validation', () => {
           seed: 1,
           origin: { x: 20 },
           victim: 'other',
+          hitRegion: 'head',
+          hitLocation: { x: 0, y: 1.5, z: 8 },
+          distance: 0,
+          bodyMultiplier: 100,
+          damageFalloff: [],
+          gaitPhase: 99,
         },
       }),
     ).toEqual({ ...input, life: 1, weapon });

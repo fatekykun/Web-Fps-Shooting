@@ -35,8 +35,8 @@ mouse clears held inputs. Online rooms use server-owned health, ammunition and d
 
 ## Tactical interface and settings (milestone 8)
 
-The command menu offers **Play**, **Create room**, **Join room**, **Settings** and
-**Credits**. Play opens a choice of solo training or private multiplayer. Esc
+The command menu offers **Play**, **Create room**, **Join room**, **Settings**,
+**Credits** and **Armory**. Play opens a choice of solo training or private multiplayer. Esc
 releases the mouse and returns to command; native dialogs support keyboard focus,
 Esc and focus restoration. Smaller layouts keep settings in scrollable panels.
 
@@ -90,7 +90,16 @@ Menus use brief opacity/position transitions. First-person weapons blend sprint,
 slide and dive poses alongside equip/reload/recoil animation. Reduced motion
 follows the OS on fresh settings, disables menu transitions and reduces cosmetic
 weapon movement while preserving gameplay recoil. Remote avatars keep the exact
-shared hitbox geometry; skeletal character animation is not implemented.
+shared hitbox geometry and procedural joint poses, including walking/sprinting
+gait, head pitch and low movement postures.
+
+**Armory (BP-10)** opens on the equipped weapon and displays Fire Rate, Damage,
+Range, Control, Accuracy and ADS. Select another allowed weapon to inspect its
+ratings and actual gameplay values. Expand **Body multipliers & range profile**
+for all eleven hit regions and distance breakpoints. Training and online damage
+use `base damage * body multiplier * interpolated range multiplier`, preserving
+fractional health internally. See [BP-10 implementation notes](docs/BP-10.md) for
+weapon configurations, balance tables, hitboxes, server validation and testing.
 
 ## Private rooms (milestone 5)
 
@@ -221,8 +230,8 @@ Missing weapon input expires after 100 ms instead of holding fire indefinitely.
 
 The server creates each ray at the current authoritative eye position, applies
 server recoil and secret-seeded accuracy spread, and tests range, map obstruction
-and the nearest living player's body/head parts. These parts share their geometry,
-yaw, head pitch and posture scale with remote rendering. Shotgun pellets resolve
+and the nearest living player's eleven body regions. These parts share their geometry,
+yaw, head pitch, gait and posture scale with remote rendering. Shotgun pellets resolve
 individually, while a shot spends one shell. Player bodies stop rays; protected
 players block them without taking damage. Confirmed traces and impacts use fixed
 instance pools, with no extra dynamic lights. Local muzzle/recoil/ADS presentation
@@ -252,8 +261,8 @@ server-owned in both match modes; only enemies take damage in TDM.
 | 1 / 2 / 3 / 4    | Rifle / SMG / shotgun / sniper; independent ammo inventories          |
 | Hold Tab online  | Show the live scoreboard                                              |
 
-In offline training, aim at the blue **HOLO-01** in the central lane. Its body and head have separate
-hitboxes. Hits flash the target and show a native-resolution marker, damage
+In offline training, aim at the blue **HOLO-01** in the central lane. Its eleven
+body regions have separate hitboxes. Hits flash the target and show a native-resolution marker, damage
 readout and target health. At zero health it disappears and resets after two
 seconds. It is a holographic sensor, so the movement course can pass through it.
 Cover blocks shots before the target. This dummy remains local practice and is
@@ -274,7 +283,9 @@ available. **Settings → Controls → Auto Reload** is on by default and saved 
 this browser; turn it off to require **R**. Manual R works in either mode.
 A fresh shoot press cancels a partial reload and fires the remaining ammunition,
 subject to the normal fire interval and bolt cooldown. Empty-magazine reloads
-cannot be interrupted by shooting. Ammo transfers only when the reload finishes,
+cannot be interrupted by shooting or aiming. A fresh ADS/scope press also cancels
+a partial reload, while already-held ADS allows a new reload to proceed.
+Ammo transfers only when the reload finishes,
 limited by capacity and available reserves; cancellation spends no reserve ammo.
 The weapon blends smoothly out of a cancelled reload. These rules also run on
 the multiplayer server, which validates the preference and owns the ammo counts.
@@ -300,9 +311,9 @@ muzzle flashes add no lights. Combat HUD snapshots update on events plus telemet
 and crosshair presentation uses DOM properties rather than a React game loop.
 
 Prototype limits: magazine-style reloads for all four weapons (no per-shell
-shotgun loading), primitive viewmodels without a skeletal body rig, and static head/body
-practice hitboxes. Online avatars use the shared rendered body-part boxes rather
-than a skeletal animation rig. Weapon values are prototype balance settings.
+shotgun loading) and primitive viewmodels. Practice uses eleven stationary sensors;
+online avatars use the shared procedural box rig with animated limb joints.
+Weapon values are prototype balance settings.
 
 ### Weapon-specific sights (BP-08)
 
@@ -361,17 +372,21 @@ shooting still adds substantial spread. Ground speed is computed independently b
 locally; network packets cannot choose a speed multiplier. Slide-jump impulses
 and other movement tuning are unchanged.
 
-Online damage uses the nearest server hitbox: **head 150, upper torso 100, lower
-torso 90, arms/legs 70**, before remaining-health clamping. Walls and other bodies
-block bullets. TDM team rules and spawn protection still apply. The training
-dummy retains its existing head/body sensors (150/100 sniper damage). Ammo,
+Sniper base damage is **90**. Within 25 m, the nearest hit region determines damage:
+**head 135, upper torso 100, lower torso 81, arms/hands/legs/feet 63**, before remaining-health clamping.
+The upper-body multiplier is 100/90: upper-body damage drops smoothly from 100
+within 25 m to 90 at 50 m (95 at 37.5 m).
+BP-10 adds smooth range falloff: 0.9x at 50 m, 0.8x at 75 m, 0.7x at 100 m and
+0.6x from 125 m to the 220 m bullet limit. Walls and other bodies block bullets.
+TDM team rules and spawn protection still apply. The training dummy uses the same
+damage calculation with eleven body sensors. Ammo,
 reloads, bolt timing, damage and kills remain server-owned; local handling is
 predicted. Peers receive the existing confirmed traces, impacts, weapon selection
 and spatial firing audio. Sounds are original procedural synthesis and obey the
 existing audio settings.
 
 Balance values live in `apps/shared/src/config/weapons.ts`, including magnification,
-ADS time, movement scale, region damage and bolt-cycle duration. Restart/rebuild
+ADS time, movement scale, body multipliers, range profile and bolt-cycle duration. Restart/rebuild
 both the client and room server after updating to this version.
 
 To check: scope the training dummy, fire once, try firing during cycling, empty

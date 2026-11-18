@@ -1,6 +1,7 @@
 import {
   shotRandom,
   spreadDirection,
+  calculateDamage,
   type AccuracyContext,
   type WeaponInput,
   type Vector3Like,
@@ -112,17 +113,17 @@ export class PracticeCombat {
       this.impacts.spawn(hit.point, hit.normal);
       const region = this.dummy.region(hit.colliderHandle);
       if (region && !this.dummy.resetting) {
-        damage +=
-          shot.config.regionDamage?.[
-            region === 'head' ? 'head' : 'upperTorso'
-          ] ??
-          shot.config.damage *
-            (region === 'head' ? shot.config.headMultiplier : 1);
+        const meters = Math.hypot(
+          hit.point.x - this.origin.x,
+          hit.point.y - this.origin.y,
+          hit.point.z - this.origin.z,
+        );
+        damage += calculateDamage(shot.config, region, meters);
         critical ||= region === 'head';
       }
     }
     if (damage > 0) {
-      this.lastDamage = Math.round(Math.min(damage, this.dummy.health));
+      this.lastDamage = Math.min(damage, this.dummy.health);
       this.critical = critical;
       this.hitSequence++;
       this.dummy.damage(damage);

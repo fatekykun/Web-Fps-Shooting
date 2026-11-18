@@ -6,6 +6,9 @@ import {
   type UserSettings,
 } from '../game/settings/userSettings';
 
+// Remove floating-point dust before rounding fractional health up for display.
+const healthLabel = (health: number) => Math.ceil(Math.max(0, health - 1e-9));
+
 export function CombatHud({
   combat,
   bindings = defaultBindings,
@@ -80,14 +83,14 @@ export function CombatHud({
               {combat.player.protected ? 'SPAWN PROTECTED' : 'VITALS'}
             </span>
             <strong>
-              {Math.ceil(combat.player.health)} <small>/ 100</small>
+              {healthLabel(combat.player.health)} <small>/ 100</small>
             </strong>
             <span className="health-track">
               <i style={{ width: `${combat.player.health}%` }} />
             </span>
             {combat.lastDamage > 0 && (
               <span>
-                CONFIRMED {combat.lastDamage}
+                CONFIRMED {Math.round(combat.lastDamage)}
                 {combat.critical ? ' · HEADSHOT' : ''}
               </span>
             )}
@@ -121,11 +124,11 @@ export function CombatHud({
           <strong>
             {combat.dummyResetting
               ? 'RESETTING TARGET'
-              : `TARGET ${Math.ceil(combat.dummyHealth)} / 100`}
+              : `TARGET ${healthLabel(combat.dummyHealth)} / 100`}
           </strong>
           {combat.lastDamage > 0 && (
             <span>
-              LAST HIT {combat.lastDamage}
+              LAST HIT {Math.round(combat.lastDamage)}
               {combat.critical ? ' · HEADSHOT' : ''}
             </span>
           )}

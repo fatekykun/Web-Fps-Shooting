@@ -43,6 +43,8 @@ export interface PublicPlayer {
   yaw: number;
   pitch: number;
   halfHeight: number;
+  gaitPhase?: number;
+  gaitAmount?: number;
   movement: MovementState;
   ack: number;
   health: number;

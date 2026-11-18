@@ -12,6 +12,8 @@ import {
   avatarParts as parts,
   avatarScale,
   standingAnchor,
+  avatarPartPose,
+  type PartPose,
 } from '@breakpoint/shared/avatar';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 
@@ -31,6 +33,7 @@ export class RemotePlayers {
   private readonly root = new Object3D();
   private readonly part = new Object3D();
   private readonly color = new Color();
+  private readonly pose: PartPose = { x: 0, y: 0, z: 0, rotationX: 0 };
   private count = 0;
   private readonly tints = new Uint32Array(8 * parts.length).fill(0xffffffff);
   private colorsChanged = false;
@@ -65,10 +68,11 @@ export class RemotePlayers {
     this.root.rotation.y = player.yaw;
     this.root.scale.set(1, avatarScale(player.halfHeight), 1);
     this.root.updateMatrixWorld(true);
-    parts.forEach(([x, y, z, sx, sy, sz], index) => {
-      this.part.position.set(x, y, z);
-      this.part.scale.set(sx, sy, sz);
-      this.part.rotation.x = index === 0 || index === 6 ? player.pitch : 0;
+    for (const definition of parts) {
+      const pose = avatarPartPose(definition, player, this.pose);
+      this.part.position.set(pose.x, pose.y, pose.z);
+      this.part.scale.set(...definition.size);
+      this.part.rotation.x = pose.rotationX;
       this.part.updateMatrix();
       this.part.matrix.premultiply(this.root.matrixWorld);
       this.mesh.setMatrixAt(this.count, this.part.matrix);
@@ -76,9 +80,9 @@ export class RemotePlayers {
         ? player.team === 'orange'
           ? 0xffd0a0
           : 0x9aedef
-        : index === 0
+        : definition.region === 'head'
           ? 0xd0d2b9
-          : index === 6
+          : definition.region === null
             ? 0x516367
             : player.team === 'blue'
               ? 0x7bd5e5
@@ -91,7 +95,7 @@ export class RemotePlayers {
         this.colorsChanged = true;
       }
       this.count++;
-    });
+    }
   };
 
   dispose(): void {

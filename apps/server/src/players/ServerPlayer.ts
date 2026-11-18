@@ -133,6 +133,7 @@ export class ServerPlayer {
 
   respawn(position: { x: number; y: number; z: number }): void {
     this.freeze();
+    this.state.gaitPhase = this.state.gaitAmount = 0;
     this.state.life++;
     this.state.health = playerCombatConfig.health;
     this.state.alive = true;
@@ -148,6 +149,22 @@ export class ServerPlayer {
   }
 
   private publish(): void {
+    const speed = Math.hypot(
+      this.movement.velocity.x,
+      this.movement.velocity.z,
+    );
+    const moving =
+      this.movement.physics.grounded &&
+      (this.movement.state === 'walking' ||
+        this.movement.state === 'sprinting');
+    const amount = moving ? Math.min(1, speed / 6) : 0;
+    this.state.gaitAmount +=
+      (amount - this.state.gaitAmount) *
+      (1 - Math.exp(-12 * movementConfig.fixedStep));
+    if (moving)
+      this.state.gaitPhase =
+        (this.state.gaitPhase + speed * movementConfig.fixedStep * 3) %
+        (2 * Math.PI);
     const { position, halfHeight } = this.movement.physics;
     this.state.x = position.x;
     this.state.y = position.y;

@@ -65,6 +65,14 @@ export class RemoteInterpolation {
           a.player.halfHeight + (b.player.halfHeight - a.player.halfHeight) * t,
         yaw: lerpAngle(a.player.yaw, b.player.yaw, t),
         pitch: a.player.pitch + (b.player.pitch - a.player.pitch) * t,
+        gaitPhase: lerpAngle(
+          a.player.gaitPhase ?? 0,
+          b.player.gaitPhase ?? 0,
+          t,
+        ),
+        gaitAmount:
+          (a.player.gaitAmount ?? 0) +
+          ((b.player.gaitAmount ?? 0) - (a.player.gaitAmount ?? 0)) * t,
       });
     }
   }

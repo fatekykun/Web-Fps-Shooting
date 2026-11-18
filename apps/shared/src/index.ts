@@ -11,6 +11,7 @@ export type {
   Vector3Like,
 } from './types/movement';
 export { combatConfig, weaponConfigs, weaponOrder } from './config/weapons';
+export { calculateDamage, rangeDamageMultiplier } from './combat/damage';
 export {
   calculateSpread,
   spreadDirection,
@@ -21,5 +22,8 @@ export type {
   WeaponId,
   WeaponInput,
   WeaponConfig,
+  WeaponCategory,
+  HitRegion,
+  DamageRangePoint,
   AccuracyContext,
 } from './types/weapons';
