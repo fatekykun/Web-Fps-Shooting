@@ -30,6 +30,38 @@ function fixture(id: (typeof weaponOrder)[number] = 'rifle') {
 }
 
 it.each(weaponOrder)(
+  'releases only the support hand during %s sprint carry and returns it for aim and fire',
+  (id) => {
+    const f = fixture(id);
+    const hand = (side: string) =>
+      f.root.worldToLocal(
+        f.model.scene
+          .getObjectByName(`${side}Wrist`)!
+          .getWorldPosition(new Vector3()),
+      );
+    try {
+      f.update('walking', 0);
+      const left = hand('left'),
+        right = hand('right');
+      for (let i = 0; i < 60; i++) f.update('sprinting');
+      expect(hand('left').distanceTo(left)).toBeGreaterThan(0.2);
+      expect(hand('right').distanceTo(right)).toBeLessThan(1e-6);
+      f.weapons.ads = 1;
+      f.update('sprinting', 8, 1 / 60, { aim: true, fire: false });
+      expect(hand('left').distanceTo(left)).toBeLessThan(1e-6);
+      f.weapons.ads = 0;
+      for (let i = 0; i < 60; i++) f.update('sprinting');
+      for (let i = 0; i < 60; i++)
+        f.update('sprinting', 8, 1 / 60, { aim: false, fire: true });
+      expect(hand('left').distanceTo(left)).toBeLessThan(1e-5);
+      expect(hand('right').distanceTo(right)).toBeLessThan(1e-6);
+    } finally {
+      f.model.dispose();
+    }
+  },
+);
+
+it.each(weaponOrder)(
   'carries %s diagonally upward, with its existing hands and geometry, and smoothly restores idle',
   (id) => {
     const f = fixture(id);
@@ -98,6 +130,31 @@ it('follows distance-based cadence consistently at 30, 60 and 144 FPS', () => {
   for (const pose of poses.slice(1))
     pose.forEach((value, i) => expect(value).toBeCloseTo(poses[0]![i]!, 5));
 });
+
+it.each(weaponOrder)(
+  'braces %s lower during a slide and keeps full ADS exactly aligned',
+  (id) => {
+    const f = fixture(id);
+    try {
+      for (let i = 0; i < 90; i++) f.update('walking', 0);
+      const hip = f.root.position.clone();
+      for (let i = 0; i < 45; i++) f.update('sliding');
+      expect(f.root.position.y).toBeLessThan(hip.y - 0.04);
+      expect(Math.abs(f.root.rotation.z)).toBeLessThan(0.1);
+      f.weapons.ads = 1;
+      f.update('sliding');
+      const slidePosition = f.root.position.clone(),
+        slideRotation = f.root.rotation.clone();
+      for (let i = 0; i < 90; i++) f.update('walking', 8);
+      expect(f.root.position.distanceTo(slidePosition)).toBeLessThan(1e-6);
+      expect(f.root.rotation.toArray().slice(0, 3)).toEqual(
+        slideRotation.toArray().slice(0, 3),
+      );
+    } finally {
+      f.model.dispose();
+    }
+  },
+);
 
 it('gives aim, fire, reload and equip priority without changing weapon rules', () => {
   const f = fixture();

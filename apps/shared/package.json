@@ -12,6 +12,8 @@
     "./weapons/*": "./src/weapons/*.ts",
     "./combat": "./src/combat/networkCombat.ts",
     "./avatar": "./src/combat/avatar.ts",
+    "./character": "./src/combat/characterRig.ts",
+    "./animation": "./src/combat/characterAnimation.ts",
     "./match": "./src/config/match.ts"
   },
   "dependencies": {

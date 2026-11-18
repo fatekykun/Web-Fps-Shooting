@@ -1,6 +1,15 @@
 import { movementConfig } from '../config/movement';
 import type { Vector3Like } from '../types/movement';
 import type { HitRegion } from '../types/weapons';
+import {
+  characterHitboxes,
+  createRigTransforms,
+  createJointPoses,
+  evaluateRig,
+  partTransform,
+  rotatePoint,
+  type CharacterPose,
+} from './characterRig';
 
 interface AvatarPart {
   region: HitRegion | null;
@@ -10,7 +19,7 @@ interface AvatarPart {
   swing?: number;
 }
 
-/** One small box rig: rendering and server hit validation use these exact regions/joints. */
+/** Stationary HOLO-01 calibration target. Live tactical players use characterRig. */
 export const avatarParts: readonly AvatarPart[] = [
   { region: 'head', position: [0, 1.48, 0], size: [0.38, 0.38, 0.38] },
   { region: 'upperTorso', position: [0, 1.145, 0], size: [0.53, 0.31, 0.3] },
@@ -79,46 +88,13 @@ export const standingAnchor =
 export function avatarScale(halfHeight: number): number {
   return (halfHeight + movementConfig.capsuleRadius) / standingAnchor;
 }
-export interface AvatarPose extends Vector3Like {
+export interface AvatarPose extends Vector3Like, CharacterPose {
   yaw: number;
   pitch: number;
   halfHeight: number;
   gaitPhase?: number;
   gaitAmount?: number;
 }
-export interface PartPose extends Vector3Like {
-  rotationX: number;
-}
-
-/** Evaluate in rig space, with hands/feet attached to their arm/leg joint. */
-export function avatarPartPose(
-  part: AvatarPart,
-  pose: Pick<AvatarPose, 'pitch' | 'gaitPhase' | 'gaitAmount'>,
-  out: PartPose,
-): PartPose {
-  const angle =
-    part.swing !== undefined
-      ? part.swing *
-        Math.sin(pose.gaitPhase ?? 0) *
-        Math.max(0, Math.min(1, pose.gaitAmount ?? 0))
-      : part.region === 'head' || part.region === null
-        ? pose.pitch
-        : 0;
-  out.x = part.position[0];
-  out.y = part.position[1];
-  out.z = part.position[2];
-  out.rotationX = angle;
-  if (part.pivot) {
-    const dy = out.y - part.pivot[1],
-      dz = out.z - part.pivot[2];
-    const c = Math.cos(angle),
-      s = Math.sin(angle);
-    out.y = part.pivot[1] + c * dy - s * dz;
-    out.z = part.pivot[2] + s * dy + c * dz;
-  }
-  return out;
-}
-
 export interface AvatarHit {
   distance: number;
   head: boolean;
@@ -126,7 +102,9 @@ export interface AvatarHit {
   point: Vector3Like;
 }
 
-/** Invert root yaw/posture and each joint rotation before the local-space slab test. */
+const bones = createRigTransforms();
+const jointLocals = createJointPoses();
+/** Invert the authoritative skeleton and each region's local collision hull. */
 export function intersectAvatar(
   origin: Vector3Like,
   direction: Vector3Like,
@@ -134,40 +112,49 @@ export function intersectAvatar(
   range: number,
 ): AvatarHit | null {
   const c = Math.cos(pose.yaw),
-    s = Math.sin(pose.yaw),
-    scale = avatarScale(pose.halfHeight);
+    s = Math.sin(pose.yaw);
   const ox = origin.x - pose.x,
     oz = origin.z - pose.z;
   const localOrigin = [
     c * ox - s * oz,
-    (origin.y - pose.y + standingAnchor) / scale,
+    origin.y - pose.y + standingAnchor,
     s * ox + c * oz,
   ];
   const localDirection = [
     c * direction.x - s * direction.z,
-    direction.y / scale,
+    direction.y,
     s * direction.x + c * direction.z,
   ];
-  const transform: PartPose = { x: 0, y: 0, z: 0, rotationX: 0 };
+  evaluateRig(pose, bones, jointLocals);
+  const transform = { x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 };
+  const inverse = { qx: 0, qy: 0, qz: 0, qw: 1 };
+  const point = { x: 0, y: 0, z: 0 },
+    vector = { x: 0, y: 0, z: 0 };
   let closest = range,
     region: HitRegion | null = null;
-  for (const part of avatarParts) {
+  for (const part of characterHitboxes) {
     if (part.region === null) continue;
-    avatarPartPose(part, pose, transform);
-    const cp = Math.cos(transform.rotationX),
-      sp = Math.sin(transform.rotationX);
-    const oy = localOrigin[1]! - transform.y,
-      oz = localOrigin[2]! - transform.z;
-    const o = [
+    partTransform(part, bones, transform);
+    inverse.qx = -transform.qx;
+    inverse.qy = -transform.qy;
+    inverse.qz = -transform.qz;
+    inverse.qw = transform.qw;
+    rotatePoint(
+      inverse,
       localOrigin[0]! - transform.x,
-      cp * oy + sp * oz,
-      -sp * oy + cp * oz,
-    ];
-    const d = [
+      localOrigin[1]! - transform.y,
+      localOrigin[2]! - transform.z,
+      point,
+    );
+    rotatePoint(
+      inverse,
       localDirection[0]!,
-      cp * localDirection[1]! + sp * localDirection[2]!,
-      -sp * localDirection[1]! + cp * localDirection[2]!,
-    ];
+      localDirection[1]!,
+      localDirection[2]!,
+      vector,
+    );
+    const o = [point.x, point.y, point.z],
+      d = [vector.x, vector.y, vector.z];
     let near = 0,
       far = closest;
     for (let axis = 0; axis < 3; axis++) {

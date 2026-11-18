@@ -1,6 +1,10 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Scene } from 'three';
-import { weaponConfigs, type WeaponInput } from '@breakpoint/shared';
+import {
+  movementConfig,
+  weaponConfigs,
+  type WeaponInput,
+} from '@breakpoint/shared';
 import { initializePhysics, PhysicsWorld } from '../physics/PhysicsWorld';
 import { MovementController } from '../movement/MovementController';
 import { arenaBoxes, spawn } from '../maps/arenaLayout';
@@ -160,7 +164,15 @@ describe('local hitscan against Rapier world and target', () => {
     setup();
     for (let i = 0; i < 400; i++)
       movement.step({ forward: 1, right: 0, yaw: 0 }, dt);
-    expect(physics.position.z).toBeLessThan(-10.5);
-    expect(physics.position.z).toBeGreaterThan(-10.7);
+    const cover = arenaBoxes.find(
+      (box) => box.kind === 'crate' && box.position[0] === 0,
+    )!;
+    expect(physics.position.z).toBeCloseTo(
+      cover.position[2] +
+        cover.size[2] / 2 +
+        movementConfig.capsuleRadius +
+        movementConfig.collisionOffset,
+      2,
+    );
   });
 });

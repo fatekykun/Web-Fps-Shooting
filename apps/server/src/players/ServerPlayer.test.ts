@@ -100,6 +100,7 @@ describe('server movement ownership', () => {
       }
       expect(player.state.z).toBeGreaterThan(-15.2);
       expect(player.state.y).toBeGreaterThan(0.87);
+      expect(player.state.gaitAmount).toBeLessThan(0.01);
     } finally {
       player.dispose();
     }

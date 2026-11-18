@@ -31,9 +31,30 @@ describe('Rapier capsule integration', () => {
     const player = makePlayer();
     for (let i = 0; i < 600; i++)
       player.step({ forward: 1, right: 0, yaw: 0 }, movementConfig.fixedStep);
-    expect(world!.position.z).toBeGreaterThan(-10.7);
-    expect(world!.position.z).toBeLessThan(-10.5);
+    const cover = arenaBoxes.find(
+      (box) => box.kind === 'crate' && box.position[0] === 0,
+    )!;
+    expect(world!.position.z).toBeCloseTo(
+      cover.position[2] +
+        cover.size[2] / 2 +
+        movementConfig.capsuleRadius +
+        movementConfig.collisionOffset,
+      2,
+    );
     expect(Math.abs(player.velocity.z)).toBeLessThan(0.01);
+  });
+
+  it('lets standing eye-height shots clear waist-high crates while lower shots still hit their solid cover', () => {
+    makePlayer();
+    const crate = arenaBoxes.find(
+      (box) => box.kind === 'crate' && box.position[0] === 6,
+    )!;
+    const direction = { x: 0, y: 0, z: -1 };
+    expect(
+      world!.castBullet({ x: 6, y: 1.56, z: 12 }, direction, 8),
+    ).toBeNull();
+    const low = world!.castBullet({ x: 6, y: 0.6, z: 12 }, direction, 8)!;
+    expect(low.point.z).toBeCloseTo(crate.position[2] + crate.size[2] / 2, 3);
   });
 
   it('reaches the configured walking speed on open ground', () => {

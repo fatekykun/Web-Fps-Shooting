@@ -41,12 +41,12 @@ export class TrainingArena {
   private readonly solidMaterial = createAtlasMaterial(
     this.atlas,
     this.solidGeometry,
-    arenaBoxes.map((_, index) =>
+    arenaBoxes.map((box, index) =>
       index === 0
         ? 0
         : index < 5
           ? 1
-          : index < 7
+          : box.kind === 'container'
             ? 2
             : index === 11
               ? 4
@@ -112,16 +112,25 @@ export class TrainingArena {
     this.instances.push(solids);
 
     // Corrugations and silhouette trim share the structural decoration draw.
-    for (const x of [-9.02, -4.98, 4.98, 9.02]) {
-      const centerZ = x < 0 ? -4 : -7;
-      for (let i = 0; i < 16; i++) {
-        this.box(
-          [x, 1.5, centerZ - 3.7 + i * 0.49],
-          [0.05, 2.8, 0.07],
-          this.trimMaterial,
-          x < 0 ? 0x536d43 : 0x8c5839,
-        );
-      }
+    for (const container of arenaBoxes.filter(
+      (box) => box.kind === 'container',
+    )) {
+      const [cx, cy, cz] = container.position,
+        [width, height, length] = container.size;
+      const ribs = Math.max(2, Math.round(length / 0.5));
+      for (const side of [-1, 1])
+        for (let i = 0; i < ribs; i++) {
+          this.box(
+            [
+              cx + side * (width / 2 + 0.02),
+              cy,
+              cz - length / 2 + 0.3 + (i * (length - 0.6)) / (ribs - 1),
+            ],
+            [0.05, height - 0.2, 0.07],
+            this.trimMaterial,
+            cx < 0 ? 0x536d43 : 0x8c5839,
+          );
+        }
     }
     for (let index = 5; index <= 11; index++) this.frameBox(index);
 

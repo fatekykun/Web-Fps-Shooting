@@ -1,13 +1,14 @@
 import { expect, it } from 'vitest';
+import { intersectAvatar, standingAnchor } from './avatar';
 import {
-  intersectAvatar,
-  standingAnchor,
-  avatarScale,
-  avatarParts,
-  avatarPartPose,
-} from './avatar';
+  characterHitboxes,
+  createRigTransforms,
+  evaluateRig,
+  partTransform,
+  rotatePoint,
+} from './characterRig';
 
-const pose = {
+const base = {
   x: 0,
   y: standingAnchor,
   z: 0,
@@ -15,145 +16,173 @@ const pose = {
   pitch: 0,
   halfHeight: 0.55,
 };
-const ray = { x: 0, y: 0, z: -1 };
-it('uses the visible head and torso parts and ignores the gaps and cosmetic gun', () => {
-  expect(intersectAvatar({ x: 0, y: 1.48, z: 5 }, ray, pose, 10)?.head).toBe(
-    true,
-  );
-  expect(intersectAvatar({ x: 0, y: 1, z: 5 }, ray, pose, 10)?.head).toBe(
-    false,
-  );
+it('hits the natural head/torso, respects range and ignores cosmetic weapon geometry', () => {
+  expect(
+    intersectAvatar({ x: 0, y: 1.53, z: 5 }, { x: 0, y: 0, z: -1 }, base, 10)
+      ?.head,
+  ).toBe(true);
+  expect(
+    intersectAvatar({ x: 0, y: 1.16, z: 5 }, { x: 0, y: 0, z: -1 }, base, 10)
+      ?.region,
+  ).toBe('upperTorso');
+  expect(
+    intersectAvatar({ x: 0, y: 1.53, z: 5 }, { x: 0, y: 0, z: -1 }, base, 3),
+  ).toBeNull();
+  expect(
+    intersectAvatar({ x: 0, y: 0.3, z: 5 }, { x: 0, y: 0, z: -1 }, base, 10),
+  ).toBeNull();
   expect(
     intersectAvatar(
-      { x: 0.28, y: 1.08, z: -0.8 },
+      { x: 0.15, y: 1.1, z: -1.5 },
       { x: 0, y: 0, z: 1 },
-      pose,
-      0.2,
+      base,
+      0.3,
     ),
   ).toBeNull();
-  expect(intersectAvatar({ x: 0, y: 0.3, z: 5 }, ray, pose, 10)).toBeNull();
-  expect(intersectAvatar({ x: 0, y: 1.48, z: 5 }, ray, pose, 3)).toBeNull();
 });
 
 it.each([
-  ['standing', 0.55, 0, 0],
-  ['walking', 0.55, 0.7, 0],
-  ['sprinting', 0.55, 1, 0],
-  ['jumping', 0.55, 0.5, 2],
-  ['sliding', 0.2, 0.2, 0],
-  ['backsliding', 0.2, 0.2, 0],
-  ['diving', 0.04, 0.1, 1],
-  ['recovering', 0.35, 0.1, 0],
+  ['idle', 0.55, 0, 0, 0, 0, 0],
+  ['walking', 0.55, 0.7, 0, 0, 0, 0],
+  ['running', 0.55, 1, 0, 0, 0, 0],
+  ['sprinting', 0.55, 1, 1, 0, 0, 0],
+  ['jumping', 0.55, 0.3, 0, 1, 0, 0],
+  ['sliding', 0.2, 0.1, 0, 0, 1, 0],
+  ['backsliding', 0.2, 0.1, 0, 0, 1, 0],
+  ['diving', 0.04, 0, 0, 0, 0, 1],
+  ['recovering', 0.35, 0.1, 0, 0, 0.4, 0],
 ] as const)(
-  'keeps all eleven rig regions attached during %s, including yaw and head pitch',
-  (_, halfHeight, gaitAmount, lift) => {
-    const animated = {
-      ...pose,
+  'keeps all eleven articulated hit regions valid during %s',
+  (_, halfHeight, gaitAmount, sprintBlend, airBlend, slideBlend, diveBlend) => {
+    const pose = {
+      ...base,
       x: 3,
-      y: standingAnchor + lift,
+      y: standingAnchor + 2,
       z: -4,
-      halfHeight,
       yaw: 1.1,
       pitch: 0.4,
+      halfHeight,
       gaitPhase: 1.2,
+      animationTime: 3,
       gaitAmount,
+      sprintBlend,
+      airBlend,
+      slideBlend,
+      diveBlend,
+      reloadBlend: 0.5,
+      reloadProgress: 0.3,
     };
-    const c = Math.cos(animated.yaw),
-      s = Math.sin(animated.yaw);
-    const body = avatarParts.filter((part) => part.region !== null);
-    expect(new Set(body.map((part) => part.region)).size).toBe(11);
-    for (const part of body) {
-      const local = avatarPartPose(part, animated, {
+    const rig = createRigTransforms();
+    evaluateRig(pose, rig);
+    const c = Math.cos(pose.yaw),
+      s = Math.sin(pose.yaw);
+    expect(new Set(characterHitboxes.map((part) => part.region)).size).toBe(11);
+    for (const part of characterHitboxes) {
+      const t = partTransform(part, rig, {
         x: 0,
         y: 0,
         z: 0,
-        rotationX: 0,
+        qx: 0,
+        qy: 0,
+        qz: 0,
+        qw: 1,
       });
-      // Approach the part's own front face; a frontal world ray can correctly hit
-      // the leg before a foot swinging behind it.
-      const cp = Math.cos(local.rotationX),
-        sp = Math.sin(local.rotationX),
-        scale = avatarScale(halfHeight);
-      const length = Math.hypot(cp, sp * scale);
-      const direction = {
-        x: (-s * cp) / length,
-        y: (sp * scale) / length,
-        z: (-c * cp) / length,
-      };
       const center = {
-        x: animated.x + c * local.x + s * local.z,
-        y: animated.y - standingAnchor + local.y * avatarScale(halfHeight),
-        z: animated.z - s * local.x + c * local.z,
+        x: pose.x + c * t.x + s * t.z,
+        y: pose.y - standingAnchor + t.y,
+        z: pose.z - s * t.x + c * t.z,
       };
-      const origin = {
-        x: center.x - direction.x * 5,
-        y: center.y - direction.y * 5,
-        z: center.z - direction.z * 5,
-      };
-      const hit = intersectAvatar(origin, direction, animated, 10);
-      expect(hit?.region, part.region!).toBe(part.region);
-      expect(
-        Math.hypot(
-          hit!.point.x - origin.x,
-          hit!.point.y - origin.y,
-          hit!.point.z - origin.z,
-        ),
-      ).toBeCloseTo(hit!.distance);
+      const hits = [
+        [0, 0, -1],
+        [0, 0, 1],
+        [-1, 0, 0],
+        [1, 0, 0],
+        [0, -1, 0],
+        [0, 1, 0],
+      ].some(([x, y, z]) => {
+        const local = rotatePoint(t, x!, y!, z!, { x: 0, y: 0, z: 0 });
+        const direction = {
+          x: c * local.x + s * local.z,
+          y: local.y,
+          z: -s * local.x + c * local.z,
+        };
+        const origin = {
+          x: center.x - direction.x * 0.5,
+          y: center.y - direction.y * 0.5,
+          z: center.z - direction.z * 0.5,
+        };
+        const hit = intersectAvatar(origin, direction, pose, 0.6);
+        if (hit?.region !== part.region) return false;
+        expect(
+          Math.hypot(
+            hit.point.x - origin.x,
+            hit.point.y - origin.y,
+            hit.point.z - origin.z,
+          ),
+        ).toBeCloseTo(hit.distance);
+        return true;
+      });
+      expect(hits, part.name).toBe(true);
     }
   },
 );
 
-it('moves an animated hand with its shoulder, rather than classifying it by world height', () => {
-  const hand = avatarParts.find((part) => part.region === 'leftHand')!;
-  const animated = { ...pose, gaitPhase: Math.PI / 2, gaitAmount: 1 };
-  const current = avatarPartPose(hand, animated, {
-    x: 0,
-    y: 0,
-    z: 0,
-    rotationX: 0,
-  });
-  expect(current.z).not.toBe(hand.position[2]);
-  expect(
-    intersectAvatar(
-      { x: current.x, y: current.y, z: -5 },
-      { x: 0, y: 0, z: 1 },
-      animated,
-      10,
-    )?.region,
-  ).toBe('leftHand');
-});
-it('moves hitboxes with yaw, head pitch and actual low posture', () => {
-  expect(
-    intersectAvatar(
-      { x: 5, y: 1.48, z: 0 },
-      { x: -1, y: 0, z: 0 },
-      { ...pose, yaw: Math.PI / 2, pitch: 0.7 },
-      10,
-    )?.head,
-  ).toBe(true);
-  const low = { ...pose, halfHeight: 0.04 };
-  expect(intersectAvatar({ x: 0, y: 1.48, z: 5 }, ray, low, 10)).toBeNull();
-  expect(
-    intersectAvatar({ x: 0, y: 1.48 * avatarScale(0.04), z: 5 }, ray, low, 10)
-      ?.head,
-  ).toBe(true);
+it('bends elbows and knees and lowers posture without squashing limb dimensions', () => {
+  const standing = createRigTransforms(),
+    sliding = createRigTransforms();
+  evaluateRig(base, standing);
+  evaluateRig({ ...base, halfHeight: 0.2, slideBlend: 1 }, sliding);
+  expect(sliding[4]!.y).toBeLessThan(standing[4]!.y - 0.4);
+  for (const [a, b, length] of [
+    [6, 7, 0.28],
+    [7, 8, 0.26],
+    [14, 15, 0.36],
+    [15, 16, 0.32],
+  ]) {
+    const p = sliding[a!]!,
+      q = sliding[b!]!;
+    expect(Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z)).toBeCloseTo(length!);
+  }
 });
 
-it.each([
-  [0, 1.48, 'head'],
-  [0, 1.15, 'upperTorso'],
-  [0, 0.8, 'lowerTorso'],
-  [-0.36, 1.12, 'leftArm'],
-  [0.36, 1.12, 'rightArm'],
-  [-0.36, 0.84, 'leftHand'],
-  [0.36, 0.84, 'rightHand'],
-  [-0.15, 0.43, 'leftLeg'],
-  [0.15, 0.43, 'rightLeg'],
-  [-0.15, 0.08, 'leftFoot'],
-  [0.15, 0.08, 'rightFoot'],
-])('classifies the rendered hit region at (%s, %s)', (x, y, region) => {
-  expect(
-    intersectAvatar({ x: Number(x), y: Number(y), z: 5 }, ray, pose, 10)
-      ?.region,
-  ).toBe(region);
+it('slides feet-first with a low seated pelvis, one extended leg, a tucked leg and a level head', () => {
+  const rig = createRigTransforms();
+  evaluateRig({ ...base, halfHeight: 0.2, slideBlend: 1 }, rig);
+  expect(rig[0]!.y).toBeLessThan(0.3);
+  expect(rig[20]!.z).toBeLessThan(rig[0]!.z - 0.5);
+  expect(Math.abs(rig[16]!.z - rig[0]!.z)).toBeLessThan(0.25);
+  const facing = rotatePoint(rig[4]!, 0, 0, -1, { x: 0, y: 0, z: 0 });
+  expect(Math.abs(facing.y)).toBeLessThan(0.05);
+  expect(rig[4]!.y).toBeLessThan(0.95);
+  for (const slideBlend of [0.1, 0.25, 0.5, 0.75, 1]) {
+    evaluateRig({ ...base, halfHeight: 0.2, slideBlend }, rig);
+    for (const part of characterHitboxes.filter((part) =>
+      part.region?.includes('Foot'),
+    )) {
+      const transform = partTransform(part, rig, {
+        x: 0,
+        y: 0,
+        z: 0,
+        qx: 0,
+        qy: 0,
+        qz: 0,
+        qw: 1,
+      });
+      for (const x of [-0.5, 0.5])
+        for (const y of [-0.5, 0.5])
+          for (const z of [-0.5, 0.5]) {
+            const corner = rotatePoint(
+              transform,
+              x * part.size[0],
+              y * part.size[1],
+              z * part.size[2],
+              { x: 0, y: 0, z: 0 },
+            );
+            expect(
+              transform.y + corner.y,
+              `sole clearance at blend ${slideBlend}`,
+            ).toBeGreaterThanOrEqual(-0.015);
+          }
+    }
+  }
 });

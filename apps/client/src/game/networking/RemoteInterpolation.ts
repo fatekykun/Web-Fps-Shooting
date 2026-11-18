@@ -3,6 +3,7 @@ import {
   type PublicPlayer,
   type RoomView,
 } from '@breakpoint/shared/network';
+import { animationFields } from '@breakpoint/shared/animation';
 
 interface Sample {
   tick: number;
@@ -56,7 +57,7 @@ export class RemoteInterpolation {
         b.tick === a.tick
           ? 0
           : Math.max(0, Math.min(1, (tick - a.tick) / (b.tick - a.tick)));
-      consume({
+      const result: PublicPlayer = {
         ...b.player,
         x: a.player.x + (b.player.x - a.player.x) * t,
         y: a.player.y + (b.player.y - a.player.y) * t,
@@ -73,7 +74,17 @@ export class RemoteInterpolation {
         gaitAmount:
           (a.player.gaitAmount ?? 0) +
           ((b.player.gaitAmount ?? 0) - (a.player.gaitAmount ?? 0)) * t,
-      });
+      };
+      for (const field of animationFields) {
+        if (field === 'gaitPhase') continue;
+        if (a.player[field] === undefined && b.player[field] === undefined)
+          continue;
+        const from = a.player[field] ?? 0,
+          to = b.player[field] ?? 0;
+        result[field] =
+          field === 'hitYaw' ? lerpAngle(from, to, t) : from + (to - from) * t;
+      }
+      consume(result);
     }
   }
 

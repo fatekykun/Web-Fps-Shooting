@@ -1,5 +1,66 @@
 # BREAKPOINT development log
 
+## BP-11 - tactical characters and animation
+
+Implemented a procedural 39-piece tactical soldier with a 22-joint Bone/Skeleton
+hierarchy, shared articulated server hitboxes, server-owned blended animation
+state and six-bone first-person grip IK. Added clothing/gear, breathing,
+walk/run/sprint, jumping/landing, slide/dive, reload and directional hit poses.
+The movement capsule and weapon/sight transforms retain their behavior.
+
+Verification: 401 tests in 49 files, 33 browser scenarios, build/typecheck, lint
+and formatting. Eight-player native-GPU runs averaged 59.92/59.99 FPS on Intel
+UHD 620 at Performance/Balanced, with 1.34 ms average CPU submission in both.
+Detailed low-FPS readings, asset sources, migration notes and file inventory are
+in the [BP-11 report](docs/BP-11.md).
+
+Slide refinement: lowered seated hips, extended leading leg, deeply tucked
+trailing leg, level gaze and ankle counter-rotation replace the large torso
+slant. Floor clearance controls the entry/recovery height. First-person handling
+uses a lower weapon/elbow brace with reduced roll and full ADS alignment.
+The shared server hitboxes follow the pose; slide physics remain unchanged.
+Verified with 406 automated tests and 18 Chrome scenarios, including close-view
+capture, slide jumps, running scopes and full ADS alignment.
+
+Character build refinement: broader chest/shoulders and hips, roughly 25-35%
+thicker limbs, larger matching tactical gear, and fuller first-person sleeves
+and gloves. A modest head/neck adjustment brings the standing silhouette to
+about 1.75 m. Shared hitboxes match the new proportions; capsule, grip anchors,
+slide mechanics and the existing geometry/draw-call budget are preserved.
+Verified with 406 tests and 13 Chrome scenarios; the current preview is
+`test-results/character-broader-build.png`.
+
+Arena scale refinement: crates now stand 1.0-1.2 m high and containers are
+2.6 x 2.3 x 6 m, with smaller footprints to suit the soldier. Shared layout
+dimensions keep rendering, frames, container ribs and both sides' colliders
+aligned. Standing eye-height shots clear the lower crates; lower shots remain
+blocked. The preview is `test-results/environment-human-scale.png`.
+Verified with 407 automated tests, 14 Chrome scenarios, build, typecheck, lint
+and formatting. Restart the room server and refresh clients together.
+
+Remote weapon handling refinement: both hands now solve onto a shared chest-space
+weapon target, with a matching muzzle-up sprint carry, shoulder ADS, look pitch,
+accepted-shot recoil and support-hand reload motion. Aim, fire/recent shots,
+equip and reload suppress sprint carry. Server-owned `carryBlend`/`fireBlend`
+are copied and interpolated with the existing animation state, and server arm
+hitboxes use the same IK pose. No geometry or draw calls were added. Restart
+the server and refresh clients together for the updated player schema.
+Verified with 419 automated tests and 22 Chrome scenarios, build/typecheck,
+lint and formatting. Eight-player Performance/Balanced runs averaged
+59.95/59.93 FPS on UHD 620, with 2.15/2.00 ms CPU submission. Detailed limits and
+reports are in `docs/BP-11.md`; the preview is `test-results/remote-weapon-ready.png`.
+
+One-handed sprint refinement: the right hand carries the weapon while the left
+arm swings freely in both views. The first-person free arm is independent of
+the weapon transform; remote arms and hitboxes share the same swing curve.
+Matched distance cadence and carry damping remove the remote's additional blend
+delay. Aim/fire, reload/equip, stopping and traversal blend back to normal handling.
+No new geometry, draw calls or network fields were added. Restart the server and
+refresh clients together after updating.
+Verified with 425 automated tests and 26 Chrome scenarios, build/typecheck,
+lint and formatting. Previews: `test-results/one-hand-rifle-swing.png` and
+`test-results/one-handed-sprint-remote.png`.
+
 ## BP-10 - weapon statistics, body regions and range falloff
 
 Implemented individual damage profiles, eleven shared animated hit regions,
