@@ -252,8 +252,6 @@
   overscroll-behavior: contain;
   min-height: 0;
   padding: 24px 28px;
-  scrollbar-color: #697c58 #14211b;
-  scrollbar-width: thin;
 }
 .settings-panel .dialog-content {
   padding: 0;
