@@ -63,6 +63,11 @@ export class PracticeCombat {
     private readonly physics: PhysicsWorld,
     scene: Scene,
     private readonly onChange: () => void,
+    private readonly onTrace?: (
+      weapon: WeaponId,
+      origin: Vector3Like,
+      end: Vector3Like,
+    ) => void,
   ) {
     this.dummy = new TrainingDummy(physics, scene);
     this.impacts = new PooledImpacts(scene);
@@ -109,6 +114,14 @@ export class PracticeCombat {
         this.direction,
         shot.config.range,
       );
+      if (this.onTrace) {
+        const end = hit?.point ?? {
+          x: this.origin.x + this.direction.x * shot.config.range,
+          y: this.origin.y + this.direction.y * shot.config.range,
+          z: this.origin.z + this.direction.z * shot.config.range,
+        };
+        this.onTrace(shot.config.id, this.origin, end);
+      }
       if (!hit) continue;
       this.impacts.spawn(hit.point, hit.normal);
       const region = this.dummy.region(hit.colliderHandle);

@@ -1,5 +1,20 @@
 # BREAKPOINT development log
 
+## BP-12 - barrel-origin tracers
+
+Added individual muzzle attachments for all four weapons, animated first-person
+world conversion and matching remote barrel exits. One shared 128-ray instanced
+pool renders training and confirmed multiplayer hitscan trails with a short
+barrel-to-ray bridge. Opacity blends from 52% hip fire to 14% ADS / 8% scoped,
+with thinner/shorter trails, a protected reticle center and 75 ms expiry.
+Duplicate server events are rejected. Hit rays, damage and timing retain their
+existing implementations.
+
+Verified with 435 tests, 34 Chrome scenarios, an additional GPU pixel/depth test,
+build/typecheck, lint and formatting. Eight-player Performance/Balanced samples
+averaged 59.99 FPS on UHD 620 at 1.28/1.25 ms CPU submission. Full file inventory,
+muzzle coordinates, settings, limitations and reports are in [BP-12](docs/BP-12.md).
+
 ## BP-11 - tactical characters and animation
 
 Implemented a procedural 39-piece tactical soldier with a 22-joint Bone/Skeleton

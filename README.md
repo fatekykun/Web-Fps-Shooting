@@ -14,6 +14,11 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for the exact launch steps and friends playte
 
 ## Run locally
 
+BP-12 adds animated barrel-origin bullet trails for all four weapons in training
+and private rooms. Hip-fire opacity is 52%, ADS is 14%, and scoped sniper is 8%,
+with shorter/thinner trails and reticle-center protection. Visual tuning,
+attachment coordinates and verification are in [BP-12](docs/BP-12.md).
+
 Use Node.js **24 LTS** for deployment (`.node-version` pins 24.21.0) and npm.
 Local development also supports Node 22.13+. Development was initialized with Node
 24.21.0 and npm 11.19.0. From the repository root:

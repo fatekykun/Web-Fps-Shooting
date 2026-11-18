@@ -6,6 +6,7 @@ import { RemotePlayers } from './RemotePlayers';
 import { RemoteInterpolation } from './RemoteInterpolation';
 import { intersectAvatar } from '@breakpoint/shared/avatar';
 import { characterParts } from '@breakpoint/shared/character';
+import { weaponOrder } from '@breakpoint/shared';
 
 it('keeps eight avatars in one pool and only uploads colors when their appearance changes', () => {
   const scene = new Scene();
@@ -125,7 +126,24 @@ it('keeps eight avatars in one pool and only uploads colors when their appearanc
       });
       expect(visible, characterParts[index]!.name).toBe(true);
     }
-    remotes.update(undefined, 900);
+    for (const [index, weapon] of weaponOrder.entries()) {
+      history.push(
+        { ...view, tick: 13 + index, players: [{ ...animated, weapon }] },
+        1300 + index * 300,
+      );
+      remotes.update(history, 1600 + index * 300);
+      const muzzle = new Vector3();
+      expect(remotes.muzzleWorldPosition(animated.id, weapon, muzzle)).toBe(
+        true,
+      );
+      mesh.getMatrixAt(
+        characterParts.findIndex((part) => part.name === 'weapon-barrel'),
+        matrix,
+      );
+      const barrelExit = new Vector3(0, 0, -0.5).applyMatrix4(matrix);
+      expect(muzzle.distanceTo(barrelExit)).toBeLessThan(1e-5);
+    }
+    remotes.update(undefined, 2600);
     expect(remotes.playerCount).toBe(0);
   } finally {
     remotes.dispose();
