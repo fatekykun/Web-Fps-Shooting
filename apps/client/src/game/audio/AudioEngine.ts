@@ -2,6 +2,7 @@ import type { Vector3Like, WeaponId } from '@breakpoint/shared';
 import type { WeaponController } from '../weapons/WeaponController';
 import type { MovementController } from '../movement/MovementController';
 import type { CombatSnapshot } from '../combat/PracticeCombat';
+import type { RoomView } from '@breakpoint/shared/network';
 import {
   defaultUserSettings,
   type UserSettings,
@@ -42,6 +43,7 @@ type Cue =
   | 'slide'
   | 'dive'
   | 'step';
+type MatchCue = 'countdown' | 'match-start';
 // All weapon cues are synthesized locally; no licensed recordings or downloads.
 interface Voice {
   source: AudioScheduledSourceNode;
@@ -73,6 +75,10 @@ export class AudioEngine {
   private hit = 0;
   private damage = 0;
   private life = 0;
+  private countdownMatch = '';
+  private lastCountdown = 4;
+  private sawCountdown = false;
+  private matchStarted = false;
   get status(): string {
     return (
       this.context?.state ??
@@ -268,7 +274,16 @@ export class AudioEngine {
       this.tone(110, 38, 0.12, 0.17 * gain, 'triangle', pan);
     }
   }
-  cue(cue: Cue): void {
+  cue(cue: Cue | MatchCue): void {
+    if (cue === 'countdown') {
+      this.tone(880, 880, 0.11, 0.085, 'sine', 0, true);
+      return;
+    }
+    if (cue === 'match-start') {
+      this.tone(440, 880, 0.32, 0.09, 'triangle', 0, true);
+      this.tone(660, 1320, 0.28, 0.055, 'sine', 0, true);
+      return;
+    }
     if (cue === 'ui') {
       const now = this.context?.currentTime ?? 0;
       if (now - this.lastUi < 0.06) return;
@@ -376,6 +391,31 @@ export class AudioEngine {
     this.hit = snapshot.hitSequence;
     this.damage = snapshot.player?.damageSequence ?? 0;
     this.life = snapshot.player?.life ?? 0;
+  }
+
+  /** State patches trigger each beat once; late joiners and hidden tabs never replay missed cues. */
+  observeMatch(view: RoomView | null): void {
+    if (!view || (view.phase !== 'countdown' && view.phase !== 'playing')) {
+      this.countdownMatch = '';
+      return;
+    }
+    const key = `${view.code}:${view.match.round}`;
+    if (key !== this.countdownMatch) {
+      this.countdownMatch = key;
+      this.lastCountdown = 4;
+      this.sawCountdown = this.matchStarted = false;
+    }
+    if (view.phase === 'countdown') {
+      this.sawCountdown = true;
+      const remaining = view.match.countdownSeconds ?? 3;
+      if (remaining >= 1 && remaining <= 3 && remaining < this.lastCountdown) {
+        this.lastCountdown = remaining;
+        this.cue('countdown');
+      }
+    } else if (this.sawCountdown && !this.matchStarted) {
+      this.matchStarted = true;
+      this.cue('match-start');
+    }
   }
   resetMotion(): void {
     this.distance = 0;

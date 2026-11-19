@@ -4,7 +4,11 @@ import { weaponOrder } from './weapons';
 
 export type GameMode = 'ffa' | 'tdm';
 export type Team = 'none' | 'blue' | 'orange';
-export type MatchPhase = 'lobby' | 'playing' | 'results';
+export type MatchPhase = 'lobby' | 'countdown' | 'playing' | 'results';
+export const matchCountdownSeconds = 3;
+export function isMatchActive(phase: MatchPhase | string | undefined): boolean {
+  return phase === 'countdown' || phase === 'playing';
+}
 export interface MatchSettings {
   mode: GameMode;
   scoreLimit: number;
@@ -71,6 +75,7 @@ export interface ScoreRow {
   connected: boolean;
 }
 export interface MatchView extends MatchSettings {
+  countdownSeconds?: number;
   round: number;
   remainingSeconds: number;
   blueScore: number;

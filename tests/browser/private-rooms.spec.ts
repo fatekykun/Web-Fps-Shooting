@@ -1,3 +1,4 @@
+import { enterStartedMatch } from './helpers/matchEntry';
 import { expect, test } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
 import { weaponOrder, weaponConfigs, type WeaponId } from '@breakpoint/shared';
@@ -147,8 +148,7 @@ for (const scenario of [
         page.getByRole('button', { name: 'START SESSION' }),
       ).toBeEnabled();
       await page.getByRole('button', { name: 'START SESSION' }).click();
-      await page.getByRole('button', { name: 'BACK TO ARENA' }).click();
-      await page.getByRole('button', { name: 'ENTER ROOM' }).click();
+      await enterStartedMatch(page);
       const hud = page.getByTestId('weapon-status');
       await expect(hud).toHaveAttribute('data-weapon', scenario.allowed[0]!);
       await expect(hud.locator('.weapon-keys')).toHaveText(

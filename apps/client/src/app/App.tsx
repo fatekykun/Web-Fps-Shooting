@@ -22,6 +22,7 @@ import {
   type UserSettings,
 } from '../game/settings/userSettings';
 import type { RoomView } from '@breakpoint/shared/network';
+import { isMatchActive } from '@breakpoint/shared/match';
 import { readInviteCode } from '../game/networking/invites';
 import type { CombatSnapshot } from '../game/combat/PracticeCombat';
 import {
@@ -47,6 +48,8 @@ export function App() {
   const scope = useRef<HTMLDivElement>(null);
   const reticleValues = useRef({ gap: -1, ads: -1 });
   const [room, setRoom] = useState<RoomView | null>(null);
+  const previousRoom = useRef<RoomView | null>(null);
+  const [matchEntry, setMatchEntry] = useState(false);
   const [inviteCode] = useState(() => readInviteCode(location.href));
   const [roomsOpen, setRoomsOpen] = useState(Boolean(inviteCode));
   const roomSignature = useRef('');
@@ -73,6 +76,7 @@ export function App() {
         reticleValues.current.gap = -1;
         reticleValues.current.ads = -1;
         if (value) {
+          setMatchEntry(false);
           setEntered(true);
           setError(null);
         }
@@ -94,6 +98,22 @@ export function App() {
       },
       onRoom: (view: RoomView | null) => {
         if (cancelled) return;
+        const previous = previousRoom.current;
+        previousRoom.current = view;
+        if (
+          view &&
+          isMatchActive(view.phase) &&
+          (!isMatchActive(previous?.phase) ||
+            !previous ||
+            previous.code !== view.code ||
+            previous.match.round !== view.match.round)
+        ) {
+          setRoomsOpen(false);
+          setOverlay(null);
+          setShowScores(false);
+          setError(null);
+          setMatchEntry(true);
+        } else if (!isMatchActive(view?.phase)) setMatchEntry(false);
         // The roster changes on membership/ready/phase events, independently of 20 Hz transforms.
         const signature = view
           ? JSON.stringify([
@@ -194,6 +214,13 @@ export function App() {
     };
   }, []);
 
+  // Run after React has removed the native modal, so the arena is no longer inert.
+  // Background tabs keep the arena prompt until the player returns and clicks.
+  useEffect(() => {
+    if (matchEntry && ready && !document.hidden && document.hasFocus())
+      game.current?.enter(true);
+  }, [matchEntry, ready]);
+
   function changeGraphics(settings: GraphicsSettings): void {
     settings = normalizeGraphicsSettings(settings);
     graphicsRef.current = settings;
@@ -221,6 +248,7 @@ export function App() {
   }
   function enter(): void {
     setOverlay(null);
+    setRoomsOpen(false);
     setError(null);
     game.current?.enter();
   }
@@ -288,11 +316,15 @@ export function App() {
       </header>
 
       <Telemetry stats={stats} />
-      {!locked && room?.phase !== 'results' && !overlay && !roomsOpen && (
-        <GraphicsControls settings={graphics} onChange={changeGraphics} />
-      )}
+      {!locked &&
+        !matchEntry &&
+        room?.phase !== 'results' &&
+        !overlay &&
+        !roomsOpen && (
+          <GraphicsControls settings={graphics} onChange={changeGraphics} />
+        )}
 
-      {!locked && room?.phase !== 'results' && (
+      {!locked && !matchEntry && room?.phase !== 'results' && (
         <CommandMenu
           ready={ready}
           entered={entered}
@@ -309,6 +341,30 @@ export function App() {
           onLobby={() => openRooms()}
           onLeave={() => game.current?.leaveRoom()}
         />
+      )}
+
+      {matchEntry && !locked && isMatchActive(room?.phase) && (
+        <section className="match-entry" aria-label="Match ready">
+          <div className="match-entry-card">
+            <span className="eyebrow">SESSION STARTED</span>
+            <h2>YOU'RE IN.</h2>
+            <p>The match is live. Click to capture your mouse and play.</p>
+            <button className="enter-button" onClick={enter}>
+              CLICK TO PLAY
+            </button>
+            <button
+              className="room-button"
+              onClick={() => setMatchEntry(false)}
+            >
+              BACK TO MENU
+            </button>
+            {error && (
+              <p className="error-message" role="alert">
+                {error}
+              </p>
+            )}
+          </div>
+        </section>
       )}
 
       {roomsOpen && (

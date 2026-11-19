@@ -1,3 +1,4 @@
+import { enterStartedMatch } from './helpers/matchEntry';
 import { expect, test } from '@playwright/test';
 import { Client } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
@@ -48,9 +49,8 @@ test('creates and joins a private room, starts, synchronizes movement and leaves
     ).toBeDisabled();
     await guest.getByRole('button', { name: 'READY UP' }).click();
     await page.getByRole('button', { name: 'START SESSION' }).click();
-    await expect(
-      guest.getByText('Session in progress.', { exact: false }),
-    ).toBeVisible();
+    await expect(guest.getByRole('dialog')).toHaveCount(0);
+    await expect(guest.getByTestId('match-timer')).toBeVisible();
     await page.screenshot({ path: 'test-results/private-room-lobby.png' });
 
     observer = await new Client('http://127.0.0.1:2567').joinById<RoomState>(
@@ -61,8 +61,7 @@ test('creates and joins a private room, starts, synchronizes movement and leaves
     observer.onMessage('notice', () => {});
     await expect.poll(() => observer!.state?.players?.size).toBe(3);
     const hostId = observer.state.hostId;
-    await page.getByRole('button', { name: 'BACK TO ARENA' }).click();
-    await page.getByRole('button', { name: 'ENTER ROOM' }).click();
+    await enterStartedMatch(page);
     await expect(page.locator('.crosshair')).toBeVisible();
     await page.keyboard.down('w');
     await expect
@@ -105,6 +104,14 @@ test('creates and joins a private room, starts, synchronizes movement and leaves
     await expect(
       page.getByRole('button', { name: 'CREATE PRIVATE ROOM' }),
     ).toBeVisible();
+    if (await guest.evaluate(() => document.pointerLockElement !== null))
+      await guest.keyboard.press('Escape');
+    const back = guest.getByRole('button', {
+      name: 'BACK TO MENU',
+      exact: true,
+    });
+    if (await back.isVisible()) await back.click();
+    await guest.getByRole('button', { name: 'ROOM LOBBY' }).click();
     await expect(
       guest.getByRole('list', { name: 'Players' }).getByRole('listitem'),
     ).toHaveCount(2);

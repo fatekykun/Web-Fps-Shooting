@@ -3,6 +3,37 @@ import { InputController } from './InputController';
 import { defaultUserSettings, rebind } from '../settings/userSettings';
 import { movementConfig } from '@breakpoint/shared';
 
+it('quietly handles automatic capture denial and still reports an explicit retry failure', async () => {
+  const domDocument = new EventTarget();
+  vi.stubGlobal('document', domDocument);
+  vi.stubGlobal('window', new EventTarget());
+  const canvas = Object.assign(new EventTarget(), {
+    requestPointerLock: vi.fn(() =>
+      Promise.reject(new Error('gesture required')),
+    ),
+  });
+  const error = vi.fn(),
+    input = new InputController(
+      canvas as unknown as HTMLCanvasElement,
+      () => {},
+      error,
+    );
+  try {
+    input.requestLock(true);
+    await Promise.resolve();
+    domDocument.dispatchEvent(new Event('pointerlockerror'));
+    expect(error).not.toHaveBeenCalled();
+    input.requestLock();
+    await Promise.resolve();
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('Mouse capture was denied'),
+    );
+  } finally {
+    input.dispose();
+    vi.unstubAllGlobals();
+  }
+});
+
 it('captures fresh ADS taps once, preserves held aim, and clears presses with gameplay input', () => {
   const domDocument = new EventTarget();
   vi.stubGlobal('document', domDocument);

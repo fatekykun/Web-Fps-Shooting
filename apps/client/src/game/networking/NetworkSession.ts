@@ -190,9 +190,11 @@ export class NetworkSession {
     const phase =
       state.phase === 'playing'
         ? 'playing'
-        : state.phase === 'results'
-          ? 'results'
-          : 'lobby';
+        : state.phase === 'countdown'
+          ? 'countdown'
+          : state.phase === 'results'
+            ? 'results'
+            : 'lobby';
     if (this.view?.phase === 'playing' && phase !== 'playing') {
       if (this.outbox.length) {
         this.room.send('input', this.outbox);
@@ -228,6 +230,7 @@ export class NetworkSession {
         durationSeconds: state.durationSeconds,
         remainingSeconds: state.remainingSeconds,
         round: state.round,
+        countdownSeconds: state.countdownSeconds ?? 0,
         blueScore: state.blueScore,
         orangeScore: state.orangeScore,
         winnerId: state.winnerId,

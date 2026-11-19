@@ -62,7 +62,7 @@ it('runs a private eight-player room through capacity, readiness, movement, host
   await new Promise((resolve) => setTimeout(resolve, 100));
   expect(host.state.phase).toBe('lobby');
   host.send('start');
-  await expect.poll(() => host.state.phase).toBe('playing');
+  await expect.poll(() => host.state.phase, { timeout: 6000 }).toBe('playing');
   let correction: Correction | undefined;
   host.onMessage('correction', (message: Correction) => {
     correction = message;
@@ -122,7 +122,7 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
     )
     .toBe(true);
   host.send('start');
-  await expect.poll(() => host.state.phase).toBe('playing');
+  await expect.poll(() => host.state.phase, { timeout: 6000 }).toBe('playing');
   host.send('damage', { victim: target.sessionId, damage: 9999, health: 0 });
   host.send('shot', {
     victim: target.sessionId,
@@ -217,7 +217,7 @@ it('scores an actual elimination, freezes results, then rematches as four-versus
     .toBe(true);
   expect(host.state.mode).toBe('ffa');
   host.send('start');
-  await expect.poll(() => host.state.phase).toBe('playing');
+  await expect.poll(() => host.state.phase, { timeout: 6000 }).toBe('playing');
   let seq = 0,
     firing = true,
     owner: OwnerCombat | undefined;
@@ -265,7 +265,7 @@ it('scores an actual elimination, freezes results, then rematches as four-versus
     expect(host.state.players.get(host.sessionId)!.z).toBe(position);
     firing = false;
     host.send('lobby');
-    await expect.poll(() => host.state.phase).toBe('lobby');
+    await expect.poll(() => host.state.phase, { timeout: 6000 }).toBe('lobby');
     expect(host.state.scores.size).toBe(0);
     host.send('configure', matchDefaults.tdm);
     await expect.poll(() => host.state.mode).toBe('tdm');
@@ -277,7 +277,9 @@ it('scores an actual elimination, freezes results, then rematches as four-versus
       .poll(() => [...host.state.players.values()].every((p) => p.ready))
       .toBe(true);
     host.send('start');
-    await expect.poll(() => host.state.phase).toBe('playing');
+    await expect
+      .poll(() => host.state.phase, { timeout: 6000 })
+      .toBe('playing');
     expect(host.state.round).toBe(2);
     expect(host.state.durationSeconds).toBe(420);
     expect(

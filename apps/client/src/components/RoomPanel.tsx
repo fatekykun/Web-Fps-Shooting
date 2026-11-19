@@ -283,11 +283,13 @@ export function RoomPanel({
                   <span>
                     {room.phase === 'results'
                       ? 'RESULTS'
-                      : room.phase === 'playing'
-                        ? 'IN SESSION'
-                        : player.ready
-                          ? 'READY'
-                          : 'NOT READY'}
+                      : room.phase === 'countdown'
+                        ? 'GET READY'
+                        : room.phase === 'playing'
+                          ? 'IN SESSION'
+                          : player.ready
+                            ? 'READY'
+                            : 'NOT READY'}
                   </span>
                 </li>
               ))}

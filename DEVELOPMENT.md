@@ -1,5 +1,48 @@
 # BREAKPOINT development log
 
+## Three-second match countdown and start audio
+
+Private matches now transition from lobby to a server-owned three-second
+countdown, then playing. The arena opens at countdown start. The server freezes
+movement/combat and discards early input queues; the client keeps the weapon
+visible and consumes action taps without predicting gameplay. Looking around
+remains available. The full match timer starts at GO.
+
+The HUD shows 3-2-1 and a brief GO signal. Server state updates trigger three
+880 Hz beeps and one ascending two-tone start chime in the existing AudioEngine.
+Cues are deduplicated per room/round, respect mute/master/interface volume, and
+do not replay missed events after hidden tabs or late joins. Reduced-motion
+settings suppress countdown animations. Escape during the countdown remains
+released when GO arrives, preserving the automatic-entry fix.
+
+The shared phase type, room schema and client snapshots include countdown state.
+Server lifecycle tests and socket waits account for the warmup. Verified with
+440 automated tests and 13 Chrome scenarios covering actual audio scheduling,
+all countdown numbers, frozen client and forged socket inputs, full match time,
+FFA/TDM results/rematch, private limits, combat and automatic entry/fallback.
+Build/typecheck, lint and formatting pass. Previews:
+`test-results/countdown-3.png`, `countdown-1.png` and `countdown-go.png`.
+Restart the server and refresh every connected browser for the updated schema.
+
+## Automatic entry when a private match starts
+
+The confirmed match start now closes room/settings panels
+for hosts and guests and requests mouse capture after the native lobby dialog
+has unmounted. The arena opens directly, including on a new round. Browsers that
+deny automatic capture, and unfocused tabs, show one Click to Play button over
+the arena. Automatic denial is quiet; an explicit retry still reports errors.
+Back to Menu remains available. Repeated playing snapshots do not recapture
+after Escape or close a lobby/settings panel opened during the match.
+
+Changed App, interface styling, Game entry and InputController; updated existing
+multiplayer scenarios to the new entry flow. Added focused host/guest and forced
+denial browser checks plus a capture-error regression test.
+Verified with 436 automated tests and 17 Chrome scenarios covering host/guest
+entry, two-browser room lifecycle, forced capture denial/retry, Escape, FFA/TDM
+results/rematch, private room limits, combat, reload, sensitivity and visibility.
+Build/typecheck, lint and formatting pass. Captures include
+`test-results/session-guest-auto-play.png` and `session-click-to-play.png`.
+
 ## BP-12 - barrel-origin tracers
 
 Added individual muzzle attachments for all four weapons, animated first-person
