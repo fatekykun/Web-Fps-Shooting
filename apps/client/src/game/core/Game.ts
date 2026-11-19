@@ -36,6 +36,7 @@ import type {
   Team,
 } from '@breakpoint/shared/match';
 import { weaponOrder } from '@breakpoint/shared';
+import { isMatchActive } from '@breakpoint/shared/match';
 import {
   defaultUserSettings,
   type UserSettings,
@@ -188,11 +189,12 @@ export class Game {
     this.publishCombat();
   }
 
-  enter(): void {
-    if (this.session && this.session.view?.phase !== 'playing') return;
-    this.input.requestLock();
+  enter(automatic = false): void {
+    if (this.session && !isMatchActive(this.session.view?.phase)) return;
+    this.input.requestLock(automatic);
     void this.audio.unlock().then((ready) => {
-      if (ready) this.audio.cue('enter');
+      if (ready && this.session?.view?.phase !== 'countdown')
+        this.audio.cue('enter');
     });
   }
 
@@ -258,7 +260,8 @@ export class Game {
             this.networkCombat.setAllowedWeapons(
               view?.allowedWeapons ?? weaponOrder,
             );
-            if (view?.phase !== 'playing') {
+            this.audio.observeMatch(view);
+            if (!isMatchActive(view?.phase)) {
               this.input.clear();
               this.movement.stop();
               if (
@@ -353,6 +356,7 @@ export class Game {
     this.networkCombat.reset();
     this.combat.setOnline(false);
     this.audio.resetFeedback(this.combat.snapshot());
+    this.audio.observeMatch(null);
     const fresh = new MovementController(this.physics).capture();
     this.movement.restore({
       ...fresh,
@@ -383,6 +387,23 @@ export class Game {
       this.movement.state,
     );
     if (this.session) {
+      if (this.session.view?.phase === 'countdown') {
+        this.movement.stop();
+        this.networkCombat.step(
+          dt,
+          {
+            fire: false,
+            aim: false,
+            firePressed: false,
+            reloadPressed: false,
+            switchTo: null,
+            autoReload: false,
+          },
+          this.movement,
+        );
+        this.input.consumeActions();
+        return;
+      }
       if (this.session.view?.phase !== 'playing') {
         this.input.clear();
         return;
@@ -430,10 +451,15 @@ export class Game {
     const weapons = activeCombat.weapons;
     const armed =
       !this.session ||
-      (this.session.view?.phase === 'playing' &&
+      (isMatchActive(this.session.view?.phase) &&
         !!this.networkCombat.owner?.alive);
     if (this.input.locked || this.session)
-      weapons.updateAds(delta, armed && this.input.weapon.aim);
+      weapons.updateAds(
+        delta,
+        armed &&
+          (!this.session || this.session.view?.phase === 'playing') &&
+          this.input.weapon.aim,
+      );
     this.input.lookScale =
       Math.tan((this.displayedFov * Math.PI) / 360) /
       Math.tan((this.userSettings.fov * Math.PI) / 360);

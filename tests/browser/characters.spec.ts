@@ -1,3 +1,4 @@
+import { enterStartedMatch } from './helpers/matchEntry';
 import { expect, test } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
@@ -111,8 +112,7 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
       );
       jumpPressed = slidePressed = reloadPressed = firePressed = false;
     }, 1000 / 30);
-    await page.getByRole('button', { name: 'BACK TO ARENA' }).click();
-    await page.getByRole('button', { name: 'ENTER ROOM' }).click();
+    await enterStartedMatch(page);
     yaw = 0;
     right = 1;
     await page.keyboard.down('d');

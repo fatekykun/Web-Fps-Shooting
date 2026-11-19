@@ -1,5 +1,7 @@
 import {
   matchLimits,
+  matchCountdownSeconds,
+  isMatchActive,
   parseMatchSettings,
   spawnCandidates,
 } from '@breakpoint/shared/match';
@@ -15,6 +17,7 @@ import type { ServerCombat } from '../combat/ServerCombat';
 /** Match rules own scores and lifecycle; combat only reports validated eliminations. */
 export class MatchController {
   private endsAt = 0;
+  private beginsAt = 0;
   private lastKill = 0;
   constructor(
     private readonly state: RoomState,
@@ -81,17 +84,17 @@ export class MatchController {
   }
   canJoin(): boolean {
     return (
-      this.state.phase !== 'playing' ||
+      !isMatchActive(this.state.phase) ||
       this.state.scores.size < matchLimits.maxParticipants
     );
   }
   joined(player: ServerPlayer): void {
-    if (this.state.phase !== 'playing') return;
+    if (!isMatchActive(this.state.phase)) return;
     this.addScore(player.state);
     if (this.state.mode === 'tdm') this.place(player, true);
   }
   left(id: string): void {
-    if (this.state.phase === 'playing') {
+    if (isMatchActive(this.state.phase)) {
       const row = this.state.scores.get(id);
       if (row) row.connected = false;
     }
@@ -148,7 +151,9 @@ export class MatchController {
     this.state.winningTeam = 'none';
     this.state.round++;
     this.lastKill = 0;
-    this.endsAt = this.now() + this.state.durationSeconds * 1000;
+    this.beginsAt = this.now() + matchCountdownSeconds * 1000;
+    this.endsAt = 0;
+    this.state.countdownSeconds = matchCountdownSeconds;
     this.state.remainingSeconds = this.state.durationSeconds;
     for (const player of this.players.values()) {
       player.freeze();
@@ -156,7 +161,7 @@ export class MatchController {
       this.combat.add(player);
       this.addScore(player.state);
     }
-    this.state.phase = 'playing';
+    this.state.phase = 'countdown';
     return null;
   }
 
@@ -187,6 +192,16 @@ export class MatchController {
     }
   }
   beforeTick(): boolean {
+    if (this.state.phase === 'countdown') {
+      this.state.countdownSeconds = Math.max(
+        0,
+        Math.ceil((this.beginsAt - this.now()) / 1000),
+      );
+      if (this.state.countdownSeconds > 0) return false;
+      for (const player of this.players.values()) player.freeze();
+      this.endsAt = this.now() + this.state.durationSeconds * 1000;
+      this.state.phase = 'playing';
+    }
     if (this.state.phase !== 'playing') return false;
     this.state.remainingSeconds = Math.max(
       0,
@@ -234,6 +249,7 @@ export class MatchController {
     if (this.state.phase !== 'results')
       return 'Return to lobby after the match ends.';
     this.state.phase = 'lobby';
+    this.state.countdownSeconds = 0;
     this.state.scores.clear();
     this.state.blueScore = this.state.orangeScore = 0;
     this.state.winnerId = this.state.winnerName = this.state.endReason = '';

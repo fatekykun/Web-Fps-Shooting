@@ -108,7 +108,9 @@ it.each([
       .poll(() => [...host.state.players.values()].every((p) => p.ready))
       .toBe(true);
     host.send('start');
-    await expect.poll(() => host.state.phase).toBe('playing');
+    await expect
+      .poll(() => host.state.phase, { timeout: 6000 })
+      .toBe('playing');
     let owner: OwnerCombat | undefined;
     guest.onMessage('correction', (message: Correction) => {
       owner = message.combat;
@@ -192,7 +194,7 @@ it('retains restrictions and the player cap in a two-player TDM match', async ()
     .poll(() => [...host.state.players.values()].every((p) => p.ready))
     .toBe(true);
   host.send('start');
-  await expect.poll(() => host.state.phase).toBe('playing');
+  await expect.poll(() => host.state.phase, { timeout: 6000 }).toBe('playing');
   expect([...host.state.players.values()].map((p) => p.team).sort()).toEqual([
     'blue',
     'orange',
@@ -213,4 +215,4 @@ it('retains restrictions and the player cap in a two-player TDM match', async ()
   expect(replacement.state.players.get(replacement.sessionId)!.team).toBe(
     'orange',
   );
-});
+}, 12000);

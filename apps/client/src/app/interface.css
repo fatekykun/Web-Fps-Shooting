@@ -1115,3 +1115,95 @@
 .weapon-choice:has(input:disabled) {
   opacity: 0.5;
 }
+.match-entry {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(8 17 14 / 35%);
+}
+
+.match-entry-card {
+  width: min(100%, 480px);
+  padding: 32px;
+  border: 1px solid var(--accent, #edb07b);
+  background: #172720;
+  color: #e7e9d4;
+}
+
+.match-entry-card h2 {
+  margin: 12px 0;
+}
+.match-entry-card p {
+  line-height: 1.6;
+}
+.match-entry-card .enter-button {
+  width: 100%;
+  margin-top: 20px;
+}
+.match-countdown {
+  position: absolute;
+  z-index: 21;
+  top: 43%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  gap: 10px;
+  text-align: center;
+  color: var(--cream, #eef0d9);
+  pointer-events: none;
+  text-shadow: 0 2px 4px #07120d;
+}
+.match-countdown > span,
+.match-countdown > small {
+  font: 12px var(--mono);
+  letter-spacing: 3px;
+}
+.match-countdown > strong {
+  font: 900 96px/1 var(--display, sans-serif);
+  color: var(--amber);
+  animation: countdown-beat 240ms ease-out;
+}
+.match-countdown.go {
+  top: max(245px, 36%);
+  animation: countdown-go 1s ease-out forwards;
+}
+.match-countdown.go > strong {
+  font-size: 68px;
+}
+.match-countdown.uncaptured {
+  top: 104px;
+  transform: translateX(-50%);
+  gap: 4px;
+}
+.match-countdown.uncaptured > strong {
+  font-size: 48px;
+}
+.match-countdown.uncaptured > small {
+  display: none;
+}
+@keyframes countdown-beat {
+  from {
+    opacity: 0.5;
+    transform: scale(1.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes countdown-go {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.motion-reduced .match-countdown,
+.motion-reduced .match-countdown > strong {
+  animation: none;
+}

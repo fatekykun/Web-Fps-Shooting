@@ -1,6 +1,91 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { AudioEngine, spatialAudio } from './AudioEngine';
 import { defaultUserSettings } from '../settings/userSettings';
+import type { RoomView } from '@breakpoint/shared/network';
+import { matchDefaults } from '@breakpoint/shared/match';
+
+function matchView(
+  phase: RoomView['phase'],
+  countdownSeconds = 0,
+  round = 1,
+): RoomView {
+  return {
+    code: 'ABC234',
+    selfId: 'a',
+    hostId: 'a',
+    phase,
+    tick: 0,
+    players: [],
+    match: {
+      ...matchDefaults.ffa,
+      round,
+      countdownSeconds,
+      remainingSeconds: 300,
+      blueScore: 0,
+      orangeScore: 0,
+      winnerId: '',
+      winnerName: '',
+      winningTeam: 'none',
+      endReason: '',
+      scores: [],
+    },
+  };
+}
+
+it('plays one beep per server countdown number and one start cue per round without replaying patches or late joins', async () => {
+  vi.stubGlobal('AudioContext', Context);
+  const audio = new AudioEngine(),
+    cue = vi.spyOn(audio, 'cue');
+  try {
+    await audio.unlock();
+    for (const seconds of [3, 3, 2, 2, 1, 1])
+      audio.observeMatch(matchView('countdown', seconds));
+    audio.observeMatch(matchView('playing'));
+    audio.observeMatch(matchView('playing'));
+    expect(cue.mock.calls.map(([name]) => name)).toEqual([
+      'countdown',
+      'countdown',
+      'countdown',
+      'match-start',
+    ]);
+    expect(audio.voiceCount).toBe(5); // Three short beats and a two-tone start chord.
+    audio.observeMatch(null);
+    audio.observeMatch(matchView('playing'));
+    expect(cue).toHaveBeenCalledTimes(4);
+    audio.observeMatch(matchView('countdown', 2, 2));
+    audio.observeMatch(matchView('playing', 0, 2));
+    expect(cue).toHaveBeenCalledTimes(6);
+  } finally {
+    audio.dispose();
+  }
+});
+
+it('honors mute/interface volume and consumes hidden countdown events without a delayed burst', async () => {
+  vi.stubGlobal('AudioContext', Context);
+  const audio = new AudioEngine();
+  try {
+    await audio.unlock();
+    audio.configure({ ...defaultUserSettings(), interfaceVolume: 0 });
+    audio.observeMatch(matchView('countdown', 3));
+    expect(audio.voiceCount).toBe(0);
+    audio.configure(defaultUserSettings());
+    audio.observeMatch(matchView('countdown', 3));
+    expect(audio.voiceCount).toBe(0);
+    audio.observeMatch(matchView('countdown', 2));
+    expect(audio.voiceCount).toBe(1);
+    audio.setActive(false);
+    audio.observeMatch(matchView('countdown', 1));
+    audio.observeMatch(matchView('playing'));
+    audio.setActive(true);
+    audio.observeMatch(matchView('playing'));
+    expect(audio.voiceCount).toBe(0);
+    audio.configure({ ...defaultUserSettings(), muted: true });
+    audio.observeMatch(matchView('countdown', 3, 2));
+    expect(audio.voiceCount).toBe(0);
+  } finally {
+    audio.dispose();
+  }
+});
 
 class Node {
   gain = {

@@ -1,4 +1,5 @@
 import type { RoomView } from '@breakpoint/shared/network';
+import { isMatchActive } from '@breakpoint/shared/match';
 import { keyLabel, type UserSettings } from '../game/settings/userSettings';
 
 export function CommandMenu({
@@ -116,14 +117,14 @@ export function CommandMenu({
         </p>
         <button
           className="enter-button"
-          disabled={!ready || (room !== null && room.phase !== 'playing')}
+          disabled={!ready || (room !== null && !isMatchActive(room.phase))}
           onClick={onEnter}
         >
           <span>
             {!ready
               ? 'INITIALIZING ARENA'
               : room
-                ? room.phase === 'playing'
+                ? isMatchActive(room.phase)
                   ? 'ENTER ROOM'
                   : 'WAITING FOR HOST'
                 : entered

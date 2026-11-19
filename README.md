@@ -81,7 +81,15 @@ action (with manual-selection fallback), player count, roster, readiness, host
 rules, team choices and start controls. A pending connection can be cancelled by
 closing its dialog. **Copy invite** shares a website link that opens Join with
 the room code filled; friends still enter a callsign and choose Join. A sleeping
-host is checked for readiness before matchmaking. Server-confirmed health, ammo, hits, kill feed, timer,
+host is checked for readiness before matchmaking. Starting a session automatically
+closes the lobby and enters the arena for the host and joined players. If a browser
+requires a fresh mouse-capture gesture, use the single **Click to Play** button
+over the arena. Esc still releases the mouse without leaving the room.
+Before each round, a synchronized **3-2-1** countdown plays three beeps followed
+by a **GO** start chime. Movement and firing stay locked until GO; the match timer
+then starts at its full duration. Countdown audio uses the interface-volume and
+mute settings.
+Server-confirmed health, ammo, hits, kill feed, timer,
 scoreboard and final standings retain the existing match authority.
 
 Audio is generated with Web Audio after a user gesture; no sound downloads or new

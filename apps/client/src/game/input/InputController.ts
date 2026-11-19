@@ -26,6 +26,7 @@ export class InputController {
   locked = false;
   private readonly keys = new Set<string>();
   private scoreboard = false;
+  private automaticLock = false;
   private settings = defaultUserSettings();
 
   configure(settings: UserSettings): void {
@@ -55,11 +56,13 @@ export class InputController {
     canvas.addEventListener('contextmenu', this.onContextMenu);
   }
 
-  requestLock(): void {
+  requestLock(automatic = false): void {
+    this.automaticLock = automatic;
     if (!this.canvas.requestPointerLock) {
-      this.onError(
-        'Pointer lock is unavailable. Open BREAKPOINT in a desktop browser.',
-      );
+      if (!automatic)
+        this.onError(
+          'Pointer lock is unavailable. Open BREAKPOINT in a desktop browser.',
+        );
       return;
     }
     try {
@@ -73,14 +76,14 @@ export class InputController {
 
   private readonly onPointerLockChange = (): void => {
     this.locked = document.pointerLockElement === this.canvas;
+    if (this.locked) this.automaticLock = false;
     this.clear();
     this.onLockChange(this.locked);
   };
 
   private readonly onPointerLockError = (): void => {
-    this.onError(
-      'Mouse capture was denied. Click Enter training to try again.',
-    );
+    if (this.automaticLock) return;
+    this.onError('Mouse capture was denied. Click Play or Enter to try again.');
   };
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {

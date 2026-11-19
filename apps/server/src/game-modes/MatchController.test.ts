@@ -62,6 +62,14 @@ function fixture() {
     match,
     add,
     ready,
+    begin: () => {
+      const error = match.start();
+      if (error === null) {
+        time += 3000;
+        match.beforeTick();
+      }
+      return error;
+    },
     kill,
     advance: (ms: number) => {
       time += ms;
@@ -69,11 +77,55 @@ function fixture() {
   };
 }
 describe('match lifecycle and score authority', () => {
-  it('finishes FFA at the kill limit, counts deaths once and freezes results', () => {
+  it('counts down exactly three seconds on the server, blocks premature scores and starts the full match clock at GO', () => {
     const f = fixture();
     f.add('a');
     f.add('b');
     expect(f.match.start()).toBeNull();
+    expect(f.state.phase).toBe('countdown');
+    expect(f.state.countdownSeconds).toBe(3);
+    expect(f.match.beforeTick()).toBe(false);
+    f.kill('a', 'b');
+    expect(f.state.scores.get('a')!.kills).toBe(0);
+    for (const expected of [3, 2, 1]) {
+      f.advance(999);
+      expect(f.match.beforeTick()).toBe(false);
+      expect(f.state.countdownSeconds).toBe(expected);
+      expect(f.state.remainingSeconds).toBe(300);
+      f.advance(1);
+      expect(f.match.beforeTick()).toBe(expected === 1);
+    }
+    expect(f.state.phase).toBe('playing');
+    expect(f.state.countdownSeconds).toBe(0);
+    expect(f.state.remainingSeconds).toBe(300);
+    f.advance(1000);
+    f.match.beforeTick();
+    expect(f.state.remainingSeconds).toBe(299);
+    f.kill('a', 'b');
+    expect(f.state.scores.get('a')!.kills).toBe(1);
+  });
+
+  it('supports joining and leaving during the countdown and locks ready/rule changes once it starts', () => {
+    const f = fixture();
+    f.add('a');
+    expect(f.match.start()).toBeNull();
+    f.advance(1500);
+    f.match.beforeTick();
+    f.add('b');
+    expect(f.state.countdownSeconds).toBe(2);
+    expect(f.state.scores.get('b')!.connected).toBe(true);
+    f.match.left('b');
+    expect(f.state.scores.get('b')!.connected).toBe(false);
+    expect(f.match.configure(matchDefaults.tdm)).not.toBeNull();
+    expect(f.match.start()).not.toBeNull();
+    f.advance(1500);
+    expect(f.match.beforeTick()).toBe(true);
+  });
+  it('finishes FFA at the kill limit, counts deaths once and freezes results', () => {
+    const f = fixture();
+    f.add('a');
+    f.add('b');
+    expect(f.begin()).toBeNull();
     for (let i = 0; i < 20; i++) f.kill('a', 'b');
     f.match.afterCombat();
     expect(f.state.phase).toBe('results');
@@ -91,7 +143,7 @@ describe('match lifecycle and score authority', () => {
     const f = fixture();
     f.add('a');
     f.add('b');
-    f.match.start();
+    f.begin();
     f.kill('b', 'a');
     f.advance(299999);
     expect(f.match.beforeTick()).toBe(true);
@@ -102,7 +154,7 @@ describe('match lifecycle and score authority', () => {
     expect(f.state.endReason).toBe('time');
     f.match.returnToLobby();
     f.ready();
-    f.match.start();
+    f.begin();
     f.advance(300000);
     f.match.beforeTick();
     expect(f.state.winningTeam).toBe('draw');
@@ -111,7 +163,7 @@ describe('match lifecycle and score authority', () => {
     const f = fixture();
     f.add('a');
     f.add('b');
-    f.match.start();
+    f.begin();
     const event = {
       id: 1,
       killerId: 'a',
@@ -140,7 +192,7 @@ describe('match lifecycle and score authority', () => {
     f.add('b');
     f.match.configure({ ...matchDefaults.ffa, scoreLimit: 1 });
     f.ready();
-    f.match.start();
+    f.begin();
     f.kill('a', 'b');
     f.match.afterCombat();
     const life = a.state.life;
@@ -148,9 +200,9 @@ describe('match lifecycle and score authority', () => {
     expect(a.state.life).toBeGreaterThan(life);
     expect(f.state.scores.size).toBe(0);
     expect(f.state.players.get('b')!.ready).toBe(false);
-    expect(f.match.start()).not.toBeNull();
+    expect(f.begin()).not.toBeNull();
     f.ready();
-    expect(f.match.start()).toBeNull();
+    expect(f.begin()).toBeNull();
     expect(f.state.round).toBe(2);
     expect(f.state.scores.get('a')!.kills).toBe(0);
     expect(f.combat.owner(a).ammo.rifle.magazine).toBe(30);
@@ -166,7 +218,7 @@ describe('TDM teams and rules', () => {
     ).toHaveLength(4);
     expect(f.match.changeTeam('1', 'blue')).not.toBeNull();
     f.ready();
-    expect(f.match.start()).toBeNull();
+    expect(f.begin()).toBeNull();
     for (const p of f.state.players.values()) {
       expect(p.team === 'blue' ? p.z > 0 : p.z < 0).toBe(true);
       expect(p.y).toBeCloseTo(0.91);
@@ -177,16 +229,16 @@ describe('TDM teams and rules', () => {
     const f = fixture();
     f.match.configure(matchDefaults.tdm);
     f.add('a');
-    expect(f.match.start()).not.toBeNull();
+    expect(f.begin()).not.toBeNull();
     f.add('b');
     f.add('c');
     f.add('d');
     expect(f.match.changeTeam('b', 'blue')).toBeNull();
     f.ready();
-    expect(f.match.start()).not.toBeNull();
+    expect(f.begin()).not.toBeNull();
     f.match.changeTeam('b', 'orange');
     f.ready();
-    expect(f.match.start()).toBeNull();
+    expect(f.begin()).toBeNull();
     expect(f.match.configure(matchDefaults.ffa)).not.toBeNull();
     expect(f.match.changeTeam('a', 'orange')).not.toBeNull();
   });
@@ -197,7 +249,7 @@ describe('TDM teams and rules', () => {
     f.add('b');
     f.add('c');
     f.ready();
-    f.match.start();
+    f.begin();
     f.kill('a', 'c');
     expect(f.state.blueScore).toBe(0);
     for (let i = 0; i < 40; i++) f.kill('a', 'b');
@@ -206,7 +258,7 @@ describe('TDM teams and rules', () => {
     expect(f.state.blueScore).toBe(40);
     f.match.returnToLobby();
     f.ready();
-    f.match.start();
+    f.begin();
     f.advance(420000);
     f.match.beforeTick();
     expect(f.state.winningTeam).toBe('draw');
@@ -218,7 +270,7 @@ describe('TDM teams and rules', () => {
     f.add('a');
     f.add('b');
     f.ready();
-    f.match.start();
+    f.begin();
     f.add('c');
     expect(f.state.players.get('c')!.team).toBe('blue');
     f.add('d');
@@ -237,7 +289,7 @@ it('keeps the restricted loadout through results, return to lobby and a TDM rema
   f.add('a');
   f.add('b');
   f.ready();
-  expect(f.match.start()).toBeNull();
+  expect(f.begin()).toBeNull();
   expect(
     [...f.players.values()].every((p) => p.state.weapon === 'shotgun'),
   ).toBe(true);
@@ -247,7 +299,7 @@ it('keeps the restricted loadout through results, return to lobby and a TDM rema
   expect(f.match.returnToLobby()).toBeNull();
   expect(f.match.configure(matchDefaults.tdm)).toBeNull();
   f.ready();
-  expect(f.match.start()).toBeNull();
+  expect(f.begin()).toBeNull();
   for (const player of f.players.values()) {
     expect(player.state.weapon).toBe('shotgun');
     expect([...f.combat.get(player.state.id)!.owned]).toEqual([

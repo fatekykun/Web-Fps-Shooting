@@ -73,6 +73,7 @@ export const RoomState = schema(
     winningTeam: t.string().default('none'),
     endReason: t.string().default(''),
     scores: t.map(ScoreState),
+    countdownSeconds: t.uint8().default(0),
   },
   'RoomState',
 );

@@ -1,3 +1,4 @@
+import { enterStartedMatch } from './helpers/matchEntry';
 import { expect, test, type Page } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
@@ -27,8 +28,7 @@ async function create(
 }
 async function enter(page: Page) {
   await page.getByRole('button', { name: 'START SESSION' }).click();
-  await page.getByRole('button', { name: 'BACK TO ARENA' }).click();
-  await page.getByRole('button', { name: 'ENTER ROOM' }).click();
+  await enterStartedMatch(page);
   await expect(page.locator('.crosshair')).toBeVisible();
 }
 

@@ -1,5 +1,5 @@
 import type { RoomView } from '@breakpoint/shared/network';
-import { rankScores } from '@breakpoint/shared/match';
+import { rankScores, isMatchActive } from '@breakpoint/shared/match';
 
 function clock(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -25,6 +25,11 @@ export function MatchHud({
   const match = room.match;
   const rows = rankScores(match.scores);
   const results = room.phase === 'results';
+  const counting = room.phase === 'countdown';
+  const startSignal =
+    room.phase === 'playing' &&
+    match.round > 0 &&
+    match.remainingSeconds === match.durationSeconds;
   const self = rows.find((p) => p.id === room.selfId);
   const heading =
     match.winningTeam === 'draw'
@@ -34,8 +39,13 @@ export function MatchHud({
         : `${match.winnerName} WINS`;
   return (
     <>
-      {room.phase === 'playing' && (
-        <aside className="match-status" aria-label="Match status">
+      {isMatchActive(room.phase) && (
+        <aside
+          className="match-status"
+          aria-label="Match status"
+          data-testid="match-status"
+          data-phase={room.phase}
+        >
           <span>
             {match.mode.toUpperCase()} · ROUND {match.round}
           </span>
@@ -62,6 +72,21 @@ export function MatchHud({
             )}
           </span>
         </aside>
+      )}
+      {(counting || startSignal) && (
+        <div
+          className={`match-countdown ${locked ? '' : 'uncaptured'} ${counting ? '' : 'go'}`}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          data-testid={counting ? 'match-countdown' : 'match-start-signal'}
+        >
+          <span>{counting ? 'GET READY' : 'MATCH STARTED'}</span>
+          <strong key={counting ? match.countdownSeconds : 'go'}>
+            {counting ? Math.max(1, match.countdownSeconds ?? 3) : 'GO'}
+          </strong>
+          {counting && <small>THE DEPOT / {match.mode.toUpperCase()}</small>}
+        </div>
       )}
       {(results || showScores) && room.phase !== 'lobby' && (
         <div className={`scoreboard-layer ${locked ? 'captured' : ''}`}>

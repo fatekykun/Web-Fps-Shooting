@@ -1,3 +1,4 @@
+import { enterStartedMatch } from './helpers/matchEntry';
 import { expect, test } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
@@ -26,8 +27,7 @@ test('server-confirmed hits, ammo, kill feed, death and respawn work through the
     target.onMessage('notice', () => {});
     target.send('ready', true);
     await page.getByRole('button', { name: 'START SESSION' }).click();
-    await page.getByRole('button', { name: 'BACK TO ARENA' }).click();
-    await page.getByRole('button', { name: 'ENTER ROOM' }).click();
+    await enterStartedMatch(page);
     await expect(page.getByTestId('player-health')).toHaveAttribute(
       'data-health',
       '100',

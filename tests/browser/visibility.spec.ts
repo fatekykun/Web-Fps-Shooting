@@ -1,3 +1,4 @@
+import { enterStartedMatch } from './helpers/matchEntry';
 import { expect, test, type Page } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
 import { PerspectiveCamera, Vector3 } from 'three';
@@ -127,8 +128,7 @@ test('remote silhouettes remain readable at 16–24 m and disappear behind solid
         })),
       );
     }, 1000 / 30);
-    await page.getByRole('button', { name: 'BACK TO ARENA' }).click();
-    await page.getByRole('button', { name: 'ENTER ROOM' }).click();
+    await enterStartedMatch(page);
     await expect(page.locator('.crosshair')).toBeVisible();
     await page.keyboard.down('d');
     await expect
