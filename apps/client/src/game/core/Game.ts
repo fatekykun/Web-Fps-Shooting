@@ -1,6 +1,7 @@
 import { FirstPersonCamera } from '../camera/FirstPersonCamera';
 import type { MovementState } from '@breakpoint/shared';
 import { InputController } from '../input/InputController';
+import { readDevice, requestLandscape } from '../input/deviceCapabilities';
 import { TrainingArena } from '../maps/TrainingArena';
 import { arenaBoxes, spawn } from '../maps/arenaLayout';
 import { MovementController } from '../movement/MovementController';
@@ -168,6 +169,7 @@ export class Game {
       callbacks.onError,
       callbacks.onScoreboard,
       () => (this.session ? this.networkCombat : this.combat).weapons,
+      () => this.session?.view?.allowedWeapons ?? weaponOrder,
     );
     this.input.configure(preferences);
     this.setGraphicsSettings(settings);
@@ -190,7 +192,10 @@ export class Game {
   }
 
   enter(automatic = false): void {
+    const device = readDevice();
+    if (device.handheld && !device.landscape) return;
     if (this.session && !isMatchActive(this.session.view?.phase)) return;
+    if (!automatic && device.handheld) void requestLandscape(true);
     this.input.requestLock(automatic);
     void this.audio.unlock().then((ready) => {
       if (ready && this.session?.view?.phase !== 'countdown')
@@ -200,6 +205,15 @@ export class Game {
 
   unlockAudio(): void {
     void this.audio.unlock();
+  }
+  useTouchControls(enabled: boolean): void {
+    this.input.useTouchControls(enabled);
+  }
+  attachTouchControls(root: HTMLElement): () => void {
+    return this.input.attachTouchControls(root);
+  }
+  pause(): void {
+    this.input.release();
   }
   uiClick(): void {
     void this.audio.uiClick();
@@ -262,13 +276,8 @@ export class Game {
             );
             this.audio.observeMatch(view);
             if (!isMatchActive(view?.phase)) {
-              this.input.clear();
+              this.input.release();
               this.movement.stop();
-              if (
-                document.pointerLockElement ===
-                this.rendering.renderer.domElement
-              )
-                document.exitPointerLock();
             }
             this.callbacks.onRoom(view);
           }
@@ -364,8 +373,7 @@ export class Game {
       halfHeight: 0.55,
       grounded: false,
     });
-    this.input.clear();
-    if (document.pointerLockElement) document.exitPointerLock();
+    this.input.release();
     this.resetTiming();
     this.callbacks.onRoom(null);
   }
@@ -615,20 +623,13 @@ export class Game {
     this.audio.setActive(!document.hidden);
     this.input.clear();
     this.resetTiming();
-    if (
-      document.hidden &&
-      document.pointerLockElement === this.rendering.renderer.domElement
-    ) {
-      document.exitPointerLock();
-    }
+    if (document.hidden) this.input.release();
   };
 
   private readonly onContextLost = (event: Event): void => {
     event.preventDefault();
     this.rendering.renderer.setAnimationLoop(null);
-    this.input.clear();
-    if (document.pointerLockElement === this.rendering.renderer.domElement)
-      document.exitPointerLock();
+    this.input.release();
     this.callbacks.onError(
       'The graphics context was lost. Reload this page to restart training.',
     );

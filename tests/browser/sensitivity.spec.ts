@@ -42,7 +42,7 @@ test('eight independent sliders migrate legacy preferences, persist, and reset w
     page.getByRole('button', { name: 'ENTER TRAINING' }),
   ).toBeEnabled();
   await sensitivity(page);
-  await expect(page.getByRole('slider')).toHaveCount(8);
+  await expect(page.getByRole('slider')).toHaveCount(11);
   for (const label of labels)
     await expect(
       page.getByRole('slider', { name: new RegExp(label) }),
