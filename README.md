@@ -1,6 +1,6 @@
 # BREAKPOINT
 
-A desktop browser FPS built milestone by milestone. **Milestones 1–8** provide
+A browser FPS for desktop and touchscreens. **Milestones 1–8** provide
 a momentum-based, pixel-rendered FPS arena, local weapon training and eight-player
 private rooms with server-authoritative FFA and TDM matches, a retro tactical
 interface, persistent settings and procedural audio. The original project brief
@@ -11,6 +11,25 @@ a Render multiplayer Blueprint, HTTPS endpoint/origin checks, direct room invite
 GitHub CI, an eight-client smoke test and a browser profiling tool. Cloud publishing
 and real eight-human/target-device checks require the hosting accounts and live URLs.
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the exact launch steps and friends playtest.
+
+## Mobile and tablet controls (BP-13)
+
+Phones and tablets automatically receive a landscape touch HUD. Rotate sideways
+to access the lobby or play; portrait shows a blocking rotation instruction.
+Landscape locking is attempted, with manual rotation as the browser fallback.
+Desktop and touchscreen laptops keep keyboard/mouse by default; tapping a menu
+button selects touch controls, while clicking with a mouse selects mouse capture.
+
+Drag the **left joystick** to move and the **right side** to look. **Sprint** and
+**ADS** toggle; **Fire** and **Jump** are held. **Slide**, **Dive**, **R** (reload),
+**Swap**, **Scores**, and **II** (pause) use the existing actions. Independent
+touches support moving, looking, aiming and firing together. Tablets have larger,
+more widely spaced controls. Settings → Sensitivity → **Touch camera** provides
+independent general, ADS and sniper sliders. Rotation, focus loss and pause clear
+held controls. Online matches continue while paused, as on desktop.
+
+See [BP-13](docs/BP-13.md) for implementation, validation, browser limitations and
+instructions for testing from a phone on the same Wi-Fi network.
 
 ## Run locally
 
@@ -125,8 +144,9 @@ npm run dev:server
 In the browser, choose **Private rooms**, enter a callsign and **Create private
 room**. Share the six-character room code. Friends choose **Join room** from the
 menu or the room dialog's **Join room** tab, enter their callsign and code, mark
-themselves **Ready**, and the host chooses **Start session**. Close the lobby and
-click **Enter room** to capture the mouse. Choose a **Player Limit** of 2, 4, 6
+themselves **Ready**, and the host chooses **Start session**. The lobby closes
+automatically and the arena opens for the countdown. If mouse capture is denied,
+click **Click to Play**. Choose a **Player Limit** of 2, 4, 6
 or 8 when creating the room (default 8, including the host). Players can join
 until that limit, including after the session starts. Full rooms reject further
 joins, and vacated seats reopen. Rooms are hidden
@@ -544,9 +564,10 @@ between the **right-lane walls**. Recovery remains low if an overhang blocks
 standing; keep moving out, and the capsule and camera rise when space permits.
 The HUD shows movement state, speed, grounding and wall-jump usage.
 
-A desktop browser with WebGL 2 and Pointer Lock support is required. Serve through
-localhost or HTTPS; do not open `index.html` directly from disk. On a remote host,
-use a secure origin for mouse capture. Touch controls are not implemented.
+A browser with WebGL 2 is required. Desktop play also uses Pointer Lock; phone and
+tablet play uses Pointer Events and the touch HUD. Serve through localhost or
+HTTPS; do not open `index.html` directly from disk. On a remote host, use a secure
+origin. See the BP-13 report for mobile orientation fallbacks and hardware checks.
 
 ## Commands
 

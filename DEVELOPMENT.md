@@ -1,5 +1,33 @@
 # BREAKPOINT development log
 
+## BP-13 - device detection and mobile controls
+
+InputManager now combines KeyboardInput, MouseInput and TouchInput while retaining
+the existing InputController import for camera/game integrations. VirtualJoystick
+and TouchCamera track independent pointer owners. Movement, weapons, damage,
+physics and server input schemas are unchanged. Native touch handlers update
+intentions and joystick styles without React state updates on pointer movement.
+
+Phones/tablets get an ergonomic landscape HUD and independent persisted touch
+camera/ADS/sniper sensitivity. Pointer capabilities, touch points and dimensions
+drive detection; UA only supplements handheld identification. Hybrids default to
+mouse/keyboard and can choose touch by tapping a menu button. Control layout
+changes wait until click completion so input-mode changes do not move a pressed
+button. Captured control clicks are suppressed even after Pause unmounts the HUD.
+
+A native modal blocks portrait lobby/game interaction, including room dialogs.
+Input entry independently checks orientation. Startup attempts a landscape lock;
+explicit handheld entry/Enable Landscape can request fullscreen before retrying.
+Unsupported/rejected APIs retain the manual-rotation fallback. Desktop never
+requests fullscreen. Pause, blur, hidden tabs, portrait rotation, death, room exit
+and results release or clear the corresponding touch intentions and captures.
+
+Implementation, mobile playtest steps and validation limits: [BP-13](docs/BP-13.md).
+Verified with 453 tests in 53 files, 24 distinct Chrome browser scenarios across
+focused runs, production build/typecheck, lint, formatting and whitespace checks.
+The live multiplayer mobile-emulation sample was 59.86 FPS / 16.71 ms on the host
+GPU. Physical Android/iPhone/iPad and Safari validation remain device playtest work.
+
 ## Three-second match countdown and start audio
 
 Private matches now transition from lobby to a server-owned three-second

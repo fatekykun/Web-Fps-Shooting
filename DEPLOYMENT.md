@@ -14,14 +14,17 @@ passwords or access tokens into chat.
 
 ## What friends receive
 
-Share your **frontend HTTPS URL**, not localhost or the room server URL. A desktop
-browser, keyboard and mouse are required. Chrome has automated coverage.
+Share your **frontend HTTPS URL**, not localhost or the room server URL. Desktop
+uses keyboard/mouse; phones and tablets use landscape touch controls. Chrome has
+automated desktop/mobile emulation coverage; physical mobile checks are described
+in [BP-13](docs/BP-13.md).
 
 1. Open the game, choose **Create room**, enter a callsign and choose FFA or TDM.
 2. Choose **Copy invite** in the lobby and send that link to your friends yourself.
 3. The invite opens **Join room** with the code filled. Each friend enters a
    callsign, joins and selects **Ready up**.
-4. The host selects **Start session**. Close the lobby and click **Enter room**.
+4. The host selects **Start session**. The arena opens automatically for 3-2-1/GO.
+   If desktop mouse capture is denied, click **Click to Play** over the arena.
 5. Up to eight people can join. TDM supports four per side. Training works solo.
 
 Your computer does not need to stay on once both cloud services are deployed.

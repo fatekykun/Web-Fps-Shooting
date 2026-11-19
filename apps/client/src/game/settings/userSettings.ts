@@ -64,6 +64,7 @@ function defaultSensitivityGroup(): SensitivityGroup {
 }
 export interface UserSettings {
   sensitivity: SensitivitySettings;
+  touchSensitivity: { camera: number; ads: number; sniper: number };
   fov: number;
   scopeStyle: ScopeStyle;
   autoReload: boolean;
@@ -92,6 +93,7 @@ export function defaultUserSettings(): UserSettings {
       camera: defaultSensitivityGroup(),
       firing: defaultSensitivityGroup(),
     },
+    touchSensitivity: { camera: 100, ads: 100, sniper: 100 },
     fov: 85,
     scopeStyle: 'classic',
     autoReload: true,
@@ -184,6 +186,11 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     new Set(bindingActions.map((key) => b[key])).size === bindingActions.length;
   return {
     sensitivity: normalizeSensitivity(v.sensitivity),
+    touchSensitivity: {
+      camera: number(object(v.touchSensitivity).camera, 100, 1, 300),
+      ads: number(object(v.touchSensitivity).ads, 100, 1, 300),
+      sniper: number(object(v.touchSensitivity).sniper, 100, 1, 300),
+    },
     fov: number(v.fov, d.fov, 65, 110),
     scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',
     autoReload: bool('autoReload', d.autoReload),

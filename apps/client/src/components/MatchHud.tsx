@@ -12,6 +12,7 @@ interface Props {
   onLobby(): void;
   onLeave(): void;
   scoreKey?: string;
+  touchControls?: boolean;
 }
 export function MatchHud({
   room,
@@ -21,6 +22,7 @@ export function MatchHud({
   onLobby,
   onLeave,
   scoreKey = 'TAB',
+  touchControls = false,
 }: Props) {
   const match = room.match;
   const rows = rankScores(match.scores);
@@ -64,7 +66,11 @@ export function MatchHud({
           )}
           <span>
             {locked ? (
-              `HOLD ${scoreKey} FOR SCORES`
+              touchControls ? (
+                'TAP SCORES TO VIEW'
+              ) : (
+                `HOLD ${scoreKey} FOR SCORES`
+              )
             ) : (
               <button className="room-button" onClick={() => onScores(true)}>
                 SCOREBOARD

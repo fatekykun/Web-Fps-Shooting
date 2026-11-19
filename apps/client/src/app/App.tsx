@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   sniperScopeBlend,
   sniperScopeDiameter,
@@ -13,6 +13,11 @@ import { CommandMenu } from '../components/CommandMenu';
 import { WeaponPanel } from '../components/WeaponPanel';
 import { PlayPanel, CreditsPanel } from '../components/CommandPanels';
 import { SettingsPanel, crosshairStyle } from '../components/SettingsPanel';
+import { MobileHUD } from '../components/MobileHUD';
+import {
+  OrientationOverlay,
+  useDeviceCapabilities,
+} from '../components/OrientationOverlay';
 import {
   defaultUserSettings,
   keyLabel,
@@ -36,6 +41,14 @@ import {
 export function App() {
   const viewport = useRef<HTMLDivElement>(null);
   const game = useRef<Game | null>(null);
+  const attachTouchControls = useCallback(
+    (root: HTMLElement) => game.current?.attachTouchControls(root),
+    [],
+  );
+  const device = useDeviceCapabilities();
+  const [touchControls, setTouchControls] = useState(device.handheld);
+  const touchControlsRef = useRef(touchControls);
+  const portrait = device.handheld && !device.landscape;
   const [ready, setReady] = useState(false);
   const [locked, setLocked] = useState(false);
   const [entered, setEntered] = useState(false);
@@ -195,6 +208,7 @@ export function App() {
         }
         instance = created;
         game.current = created;
+        created.useTouchControls(touchControlsRef.current);
         created.setGraphicsSettings(graphicsRef.current);
         created.setUserSettings(preferencesRef.current);
         setReady(true);
@@ -217,9 +231,19 @@ export function App() {
   // Run after React has removed the native modal, so the arena is no longer inert.
   // Background tabs keep the arena prompt until the player returns and clicks.
   useEffect(() => {
-    if (matchEntry && ready && !document.hidden && document.hasFocus())
+    if (
+      matchEntry &&
+      ready &&
+      !portrait &&
+      !document.hidden &&
+      document.hasFocus()
+    )
       game.current?.enter(true);
-  }, [matchEntry, ready]);
+  }, [matchEntry, ready, portrait]);
+
+  useEffect(() => {
+    if (portrait) game.current?.pause();
+  }, [portrait]);
 
   function changeGraphics(settings: GraphicsSettings): void {
     settings = normalizeGraphicsSettings(settings);
@@ -247,6 +271,7 @@ export function App() {
     setOverlay(panel);
   }
   function enter(): void {
+    if (portrait) return;
     setOverlay(null);
     setRoomsOpen(false);
     setError(null);
@@ -254,284 +279,313 @@ export function App() {
   }
 
   return (
-    <main
-      className={`game-shell command-interface ${locked ? 'is-playing' : ''} ${preferences.reducedMotion ? 'motion-reduced' : ''} ${preferences.diagnostics ? '' : 'diagnostics-compact'}`}
-      onPointerDown={() => game.current?.unlockAudio()}
-      onClick={(event) => {
-        if ((event.target as HTMLElement).closest('button:not([data-silent])'))
-          game.current?.uiClick();
-      }}
-    >
-      <div className="viewport" ref={viewport} />
-      <div className="edge-shade" aria-hidden="true" />
-      <header className="top-bar">
-        <a
-          className="wordmark"
-          href="/"
-          aria-label="BREAKPOINT home"
-          onClick={(event) => {
-            event.preventDefault();
-            setOverlay(null);
-            setRoomsOpen(false);
-            if (document.pointerLockElement) document.exitPointerLock();
-          }}
-        >
-          <span className="brand-icon" aria-hidden="true">
-            ▰
-          </span>{' '}
-          BREAKPOINT<span className="version">/ 0.1</span>
-        </a>
-        <div className="session-label">
-          <span className={`status-dot ${locked ? 'active' : ''}`} />
-          {room
-            ? `${room.code} / ${room.players.length} OF ${room.playerLimit ?? 8}`
-            : locked
-              ? 'TRAINING ACTIVE'
-              : 'LOCAL TRAINING'}
-          <span className="session-separator">/</span>PRIVATE COMMS
-          {!locked && (
-            <button
-              className="audio-toggle"
-              aria-label={preferences.muted ? 'Unmute audio' : 'Mute audio'}
-              aria-pressed={preferences.muted}
-              onClick={() =>
-                changePreferences({ ...preferences, muted: !preferences.muted })
-              }
-            >
-              {preferences.muted ? 'AUDIO OFF' : 'AUDIO ON'}
-            </button>
-          )}
-          {!locked && (
-            <button
-              className="room-button"
-              disabled={!ready}
-              onClick={() => {
-                openRooms();
-              }}
-            >
-              {room ? 'ROOM LOBBY' : 'PRIVATE ROOMS'}
-            </button>
-          )}
-        </div>
-      </header>
-
-      <Telemetry stats={stats} />
-      {!locked &&
-        !matchEntry &&
-        room?.phase !== 'results' &&
-        !overlay &&
-        !roomsOpen && (
-          <GraphicsControls settings={graphics} onChange={changeGraphics} />
-        )}
-
-      {!locked && !matchEntry && room?.phase !== 'results' && (
-        <CommandMenu
-          ready={ready}
-          entered={entered}
-          room={room}
-          error={error}
-          settings={preferences}
-          onEnter={enter}
-          onPlay={() => openPanel('play')}
-          onCreate={() => openRooms('create')}
-          onJoin={() => openRooms('join')}
-          onSettings={() => openPanel('settings')}
-          onCredits={() => openPanel('credits')}
-          onWeapons={() => openPanel('weapons')}
-          onLobby={() => openRooms()}
-          onLeave={() => game.current?.leaveRoom()}
-        />
-      )}
-
-      {matchEntry && !locked && isMatchActive(room?.phase) && (
-        <section className="match-entry" aria-label="Match ready">
-          <div className="match-entry-card">
-            <span className="eyebrow">SESSION STARTED</span>
-            <h2>YOU'RE IN.</h2>
-            <p>The match is live. Click to capture your mouse and play.</p>
-            <button className="enter-button" onClick={enter}>
-              CLICK TO PLAY
-            </button>
-            <button
-              className="room-button"
-              onClick={() => setMatchEntry(false)}
-            >
-              BACK TO MENU
-            </button>
-            {error && (
-              <p className="error-message" role="alert">
-                {error}
-              </p>
+    <>
+      <main
+        className={`game-shell command-interface ${touchControls ? 'mobile-controls' : ''} ${device.tablet ? 'tablet-controls' : ''} ${locked ? 'is-playing' : ''} ${preferences.reducedMotion ? 'motion-reduced' : ''} ${preferences.diagnostics ? '' : 'diagnostics-compact'}`}
+        data-device={device.kind}
+        onPointerDown={(event) => {
+          game.current?.unlockAudio();
+          if (locked || !device.touch) return;
+          const touch = event.pointerType === 'touch';
+          touchControlsRef.current = touch;
+          game.current?.useTouchControls(touch);
+        }}
+        onClick={(event) => {
+          // Keep the pressed menu button in place until its click completes.
+          setTouchControls(touchControlsRef.current);
+          if (
+            (event.target as HTMLElement).closest('button:not([data-silent])')
+          )
+            game.current?.uiClick();
+        }}
+      >
+        <div className="viewport" ref={viewport} />
+        <div className="edge-shade" aria-hidden="true" />
+        <header className="top-bar">
+          <a
+            className="wordmark"
+            href="/"
+            aria-label="BREAKPOINT home"
+            onClick={(event) => {
+              event.preventDefault();
+              setOverlay(null);
+              setRoomsOpen(false);
+              game.current?.pause();
+            }}
+          >
+            <span className="brand-icon" aria-hidden="true">
+              ▰
+            </span>{' '}
+            BREAKPOINT<span className="version">/ 0.1</span>
+          </a>
+          <div className="session-label">
+            <span className={`status-dot ${locked ? 'active' : ''}`} />
+            {room
+              ? `${room.code} / ${room.players.length} OF ${room.playerLimit ?? 8}`
+              : locked
+                ? 'TRAINING ACTIVE'
+                : 'LOCAL TRAINING'}
+            <span className="session-separator">/</span>PRIVATE COMMS
+            {!locked && (
+              <button
+                className="audio-toggle"
+                aria-label={preferences.muted ? 'Unmute audio' : 'Mute audio'}
+                aria-pressed={preferences.muted}
+                onClick={() =>
+                  changePreferences({
+                    ...preferences,
+                    muted: !preferences.muted,
+                  })
+                }
+              >
+                {preferences.muted ? 'AUDIO OFF' : 'AUDIO ON'}
+              </button>
+            )}
+            {!locked && (
+              <button
+                className="room-button"
+                disabled={!ready}
+                onClick={() => {
+                  openRooms();
+                }}
+              >
+                {room ? 'ROOM LOBBY' : 'PRIVATE ROOMS'}
+              </button>
             )}
           </div>
-        </section>
-      )}
+        </header>
 
-      {roomsOpen && (
-        <RoomPanel
-          room={room}
-          error={error}
-          initialTab={roomTab}
-          initialCode={inviteCode}
-          ready={ready}
-          onCancelConnect={() => {
-            ++connectAttempt.current;
-            game.current?.cancelRoomConnection();
-          }}
-          onConnect={async (mode, name, code, settings) => {
-            const attempt = ++connectAttempt.current;
-            setError(null);
-            try {
-              await game.current?.connectRoom(mode, name, code, settings);
-            } catch (reason) {
-              if (attempt === connectAttempt.current)
-                setError(
-                  reason instanceof Error
-                    ? reason.message
-                    : 'Unable to connect to room server.',
-                );
-            }
-          }}
-          onReady={(value) => {
-            setError(null);
-            game.current?.setRoomReady(value);
-          }}
-          onStart={() => {
-            setError(null);
-            game.current?.startRoom();
-          }}
-          onLeave={() => {
-            game.current?.leaveRoom();
-            setError(null);
-          }}
-          onClose={() => setRoomsOpen(false)}
-          onConfigure={(settings) => {
-            setError(null);
-            game.current?.configureRoom(settings);
-          }}
-          onTeam={(team) => {
-            setError(null);
-            game.current?.setTeam(team);
-          }}
-          onLobby={() => game.current?.returnToLobby()}
-          onScores={() => {
-            setRoomsOpen(false);
-            setShowScores(true);
-          }}
-        />
-      )}
-      {overlay === 'play' && (
-        <PlayPanel
-          ready={ready}
-          onClose={() => setOverlay(null)}
-          onTraining={enter}
-          onCreate={() => openRooms('create')}
-          onJoin={() => openRooms('join')}
-        />
-      )}
-      {overlay === 'credits' && (
-        <CreditsPanel onClose={() => setOverlay(null)} />
-      )}
-      {overlay === 'weapons' && (
-        <WeaponPanel
-          initialWeapon={combat?.weapon}
-          allowedWeapons={room?.allowedWeapons}
-          onClose={() => setOverlay(null)}
-        />
-      )}
-      {overlay === 'settings' && (
-        <SettingsPanel
-          settings={preferences}
-          graphics={graphics}
-          antiAliasing={stats?.antiAliasing}
-          saved={saved}
-          ready={ready}
-          onChange={changePreferences}
-          onGraphics={changeGraphics}
-          onClose={() => setOverlay(null)}
-          onReset={() => {
-            changePreferences(defaultUserSettings());
-            changeGraphics({ ...defaultGraphics });
-          }}
-          onPreview={() =>
-            game.current?.previewAudio() ?? Promise.resolve(false)
-          }
-        />
-      )}
-      {room && (
-        <MatchHud
-          room={room}
-          locked={locked}
-          showScores={showScores}
-          onScores={setShowScores}
-          onLobby={() => game.current?.returnToLobby()}
-          onLeave={() => game.current?.leaveRoom()}
-          scoreKey={keyLabel(preferences.bindings.scoreboard)}
-        />
-      )}
-
-      {locked && (
-        <div
-          className={`crosshair ${preferences.crosshair.dot ? '' : 'no-dot'}`}
-          style={crosshairStyle(preferences)}
-          ref={reticle}
-          aria-hidden="true"
-        >
-          <i />
-          <i />
-          <i />
-          <i />
-        </div>
-      )}
-      {locked && (
-        <div
-          className="sniper-scope"
-          ref={scope}
-          data-testid="sniper-scope"
-          data-style={preferences.scopeStyle}
-          aria-hidden="true"
-        >
-          <div className="scope-lens">
-            <i />
-            <span>{combat?.scopeMagnification ?? 4}× / SR-04</span>
-          </div>
-        </div>
-      )}
-      {locked && combat && (
-        <CombatHud combat={combat} bindings={preferences.bindings} />
-      )}
-
-      <footer className="bottom-bar">
-        <div className="map-label">
-          <span className="map-number">01</span>
-          <div>
-            <span className="eyebrow">
-              {room
-                ? `${room.match.mode.toUpperCase()} / PRIVATE MATCH`
-                : 'TRAINING GROUND'}
-            </span>
-            <strong>THE DEPOT</strong>
-          </div>
-          <span className="map-divider" />
-          <span className="map-description">
-            INDUSTRIAL SECTOR
-            <br />
-            PRIVATE COMBAT / 001
-          </span>
-        </div>
-        <div className="footer-right">
-          {locked ? (
-            <>
-              <kbd>ESC</kbd> RELEASE MOUSE
-            </>
-          ) : (
-            <>
-              MOVE WITH INTENT. LEAVE NOTHING TO CHANCE.
-              <span className="footer-square" />
-            </>
+        <Telemetry stats={stats} />
+        {!locked &&
+          !touchControls &&
+          !matchEntry &&
+          room?.phase !== 'results' &&
+          !overlay &&
+          !roomsOpen && (
+            <GraphicsControls settings={graphics} onChange={changeGraphics} />
           )}
-        </div>
-      </footer>
-    </main>
+
+        {!locked && !matchEntry && room?.phase !== 'results' && (
+          <CommandMenu
+            touchControls={touchControls}
+            ready={ready}
+            entered={entered}
+            room={room}
+            error={error}
+            settings={preferences}
+            onEnter={enter}
+            onPlay={() => openPanel('play')}
+            onCreate={() => openRooms('create')}
+            onJoin={() => openRooms('join')}
+            onSettings={() => openPanel('settings')}
+            onCredits={() => openPanel('credits')}
+            onWeapons={() => openPanel('weapons')}
+            onLobby={() => openRooms()}
+            onLeave={() => game.current?.leaveRoom()}
+          />
+        )}
+
+        {matchEntry && !locked && isMatchActive(room?.phase) && (
+          <section className="match-entry" aria-label="Match ready">
+            <div className="match-entry-card">
+              <span className="eyebrow">SESSION STARTED</span>
+              <h2>YOU'RE IN.</h2>
+              <p>
+                {touchControls
+                  ? 'The match is ready. Tap to enter the arena.'
+                  : 'The match is live. Click to capture your mouse and play.'}
+              </p>
+              <button className="enter-button" onClick={enter}>
+                {touchControls ? 'TAP TO PLAY' : 'CLICK TO PLAY'}
+              </button>
+              <button
+                className="room-button"
+                onClick={() => setMatchEntry(false)}
+              >
+                BACK TO MENU
+              </button>
+              {error && (
+                <p className="error-message" role="alert">
+                  {error}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
+        {roomsOpen && (
+          <RoomPanel
+            room={room}
+            error={error}
+            initialTab={roomTab}
+            initialCode={inviteCode}
+            ready={ready}
+            onCancelConnect={() => {
+              ++connectAttempt.current;
+              game.current?.cancelRoomConnection();
+            }}
+            onConnect={async (mode, name, code, settings) => {
+              if (portrait) return;
+              const attempt = ++connectAttempt.current;
+              setError(null);
+              try {
+                await game.current?.connectRoom(mode, name, code, settings);
+              } catch (reason) {
+                if (attempt === connectAttempt.current)
+                  setError(
+                    reason instanceof Error
+                      ? reason.message
+                      : 'Unable to connect to room server.',
+                  );
+              }
+            }}
+            onReady={(value) => {
+              setError(null);
+              game.current?.setRoomReady(value);
+            }}
+            onStart={() => {
+              if (portrait) return;
+              setError(null);
+              game.current?.startRoom();
+            }}
+            onLeave={() => {
+              game.current?.leaveRoom();
+              setError(null);
+            }}
+            onClose={() => setRoomsOpen(false)}
+            onConfigure={(settings) => {
+              setError(null);
+              game.current?.configureRoom(settings);
+            }}
+            onTeam={(team) => {
+              setError(null);
+              game.current?.setTeam(team);
+            }}
+            onLobby={() => game.current?.returnToLobby()}
+            onScores={() => {
+              setRoomsOpen(false);
+              setShowScores(true);
+            }}
+          />
+        )}
+        {overlay === 'play' && (
+          <PlayPanel
+            ready={ready}
+            onClose={() => setOverlay(null)}
+            onTraining={enter}
+            onCreate={() => openRooms('create')}
+            onJoin={() => openRooms('join')}
+          />
+        )}
+        {overlay === 'credits' && (
+          <CreditsPanel onClose={() => setOverlay(null)} />
+        )}
+        {overlay === 'weapons' && (
+          <WeaponPanel
+            initialWeapon={combat?.weapon}
+            allowedWeapons={room?.allowedWeapons}
+            onClose={() => setOverlay(null)}
+          />
+        )}
+        {overlay === 'settings' && (
+          <SettingsPanel
+            settings={preferences}
+            graphics={graphics}
+            antiAliasing={stats?.antiAliasing}
+            saved={saved}
+            ready={ready}
+            onChange={changePreferences}
+            onGraphics={changeGraphics}
+            onClose={() => setOverlay(null)}
+            onReset={() => {
+              changePreferences(defaultUserSettings());
+              changeGraphics({ ...defaultGraphics });
+            }}
+            onPreview={() =>
+              game.current?.previewAudio() ?? Promise.resolve(false)
+            }
+          />
+        )}
+        {room && (
+          <MatchHud
+            touchControls={touchControls}
+            room={room}
+            locked={locked}
+            showScores={showScores}
+            onScores={setShowScores}
+            onLobby={() => game.current?.returnToLobby()}
+            onLeave={() => game.current?.leaveRoom()}
+            scoreKey={keyLabel(preferences.bindings.scoreboard)}
+          />
+        )}
+
+        {locked && (
+          <div
+            className={`crosshair ${preferences.crosshair.dot ? '' : 'no-dot'}`}
+            style={crosshairStyle(preferences)}
+            ref={reticle}
+            aria-hidden="true"
+          >
+            <i />
+            <i />
+            <i />
+            <i />
+          </div>
+        )}
+        {locked && (
+          <div
+            className="sniper-scope"
+            ref={scope}
+            data-testid="sniper-scope"
+            data-style={preferences.scopeStyle}
+            aria-hidden="true"
+          >
+            <div className="scope-lens">
+              <i />
+              <span>{combat?.scopeMagnification ?? 4}× / SR-04</span>
+            </div>
+          </div>
+        )}
+        {locked && combat && (
+          <CombatHud combat={combat} bindings={preferences.bindings} />
+        )}
+        {locked && touchControls && (
+          <MobileHUD attach={attachTouchControls} tablet={device.tablet} />
+        )}
+
+        <footer className="bottom-bar">
+          <div className="map-label">
+            <span className="map-number">01</span>
+            <div>
+              <span className="eyebrow">
+                {room
+                  ? `${room.match.mode.toUpperCase()} / PRIVATE MATCH`
+                  : 'TRAINING GROUND'}
+              </span>
+              <strong>THE DEPOT</strong>
+            </div>
+            <span className="map-divider" />
+            <span className="map-description">
+              INDUSTRIAL SECTOR
+              <br />
+              PRIVATE COMBAT / 001
+            </span>
+          </div>
+          <div className="footer-right">
+            {locked ? (
+              <>
+                <kbd>ESC</kbd> RELEASE MOUSE
+              </>
+            ) : (
+              <>
+                MOVE WITH INTENT. LEAVE NOTHING TO CHANCE.
+                <span className="footer-square" />
+              </>
+            )}
+          </div>
+        </footer>
+      </main>
+      <OrientationOverlay blocked={portrait} />
+    </>
   );
 }

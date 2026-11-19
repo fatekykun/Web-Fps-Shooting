@@ -310,6 +310,44 @@ export function SettingsPanel({
             >
               RESET SENSITIVITY
             </button>
+            <fieldset className="sensitivity-group">
+              <legend>TOUCH CAMERA</legend>
+              <p className="settings-note">
+                Independent touchscreen turning. ADS and sniper values blend
+                with zoom. Sprint and ADS buttons toggle; fire and jump are
+                held.
+              </p>
+              <div className="setting-grid">
+                {(['camera', 'ads', 'sniper'] as const).map((key) => (
+                  <Range
+                    key={key}
+                    label={`Touch ${key === 'camera' ? 'general camera' : key === 'ads' ? 'ADS' : 'sniper'}`}
+                    value={settings.touchSensitivity[key]}
+                    min={1}
+                    max={300}
+                    display={`${settings.touchSensitivity[key]}%`}
+                    onChange={(value) =>
+                      change({
+                        touchSensitivity: {
+                          ...settings.touchSensitivity,
+                          [key]: value,
+                        },
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </fieldset>
+            <button
+              className="text-button"
+              onClick={() =>
+                change({
+                  touchSensitivity: defaultUserSettings().touchSensitivity,
+                })
+              }
+            >
+              RESET TOUCH SENSITIVITY
+            </button>
           </>
         )}
         {tab === 'DISPLAY' && (

@@ -17,12 +17,14 @@ export function CommandMenu({
   onWeapons,
   onLobby,
   onLeave,
+  touchControls = false,
 }: {
   ready: boolean;
   entered: boolean;
   room: RoomView | null;
   error: string | null;
   settings: UserSettings;
+  touchControls?: boolean;
   onEnter(): void;
   onPlay(): void;
   onCreate(): void;
@@ -104,7 +106,7 @@ export function CommandMenu({
         </h1>
         <p className="intro">
           {room
-            ? `Frequency ${room.code}. Your match stays live while the mouse is released.`
+            ? `Frequency ${room.code}. Your match stays live while paused.`
             : entered
               ? 'Your position is saved. Pick up where you left off.'
               : 'Own the ground before you take the shot.'}
@@ -112,7 +114,9 @@ export function CommandMenu({
           {room
             ? room.phase === 'lobby'
               ? 'Ready your squad in the lobby to begin.'
-              : 'Capture your mouse and get back to the fight.'
+              : touchControls
+                ? 'Tap to return to the fight.'
+                : 'Capture your mouse and get back to the fight.'
             : 'A compact arena. A clean sightline. No wasted motion.'}
         </p>
         <button
@@ -134,7 +138,13 @@ export function CommandMenu({
           <span aria-hidden="true">↗</span>
         </button>
         <p className="capture-note">
-          CLICK TO CAPTURE MOUSE <span>·</span> ESC TO RELEASE
+          {touchControls ? (
+            'TOUCH TO PLAY · DRAG RIGHT SIDE TO LOOK · SPRINT / ADS TOGGLE'
+          ) : (
+            <>
+              CLICK TO CAPTURE MOUSE <span>·</span> ESC TO RELEASE
+            </>
+          )}
         </p>
         {error && (
           <p className="error-message" role="alert">
