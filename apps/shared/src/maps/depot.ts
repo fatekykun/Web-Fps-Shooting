@@ -4,7 +4,10 @@ export interface ArenaBox {
   position: readonly [number, number, number];
   size: readonly [number, number, number];
   color: number;
-  kind?: 'container' | 'crate' | 'barrel';
+  yaw?: number;
+  pitch?: number;
+  roll?: number;
+  kind?: 'container' | 'crate' | 'barrel' | 'stair';
 }
 
 export const spawn: Vector3Like = { x: 0, y: 0.91, z: 12 };

@@ -364,15 +364,17 @@ export class ServerCombat {
     this.onShot(event);
   }
 
-  private chooseSpawn(player: ServerPlayer): ArenaSpawn {
+  chooseSpawn(player: ServerPlayer): ArenaSpawn {
     const points = spawnCandidates(
       this.mode === 'tdm' ? player.state.team : 'none',
       player.arena,
     );
     let best = points[0]!,
-      bestDistance = -1;
+      bestDistance = -1,
+      bestExposure = Infinity;
     for (const candidate of points) {
       let distance = Infinity;
+      let exposure = 0;
       let occupied = false;
       for (const other of this.players.values()) {
         if (other === player || !other.state.alive) continue;
@@ -384,14 +386,47 @@ export class ServerCombat {
         if (this.mode === 'tdm' && other.state.team === player.state.team)
           continue;
         distance = Math.min(distance, separation);
+        if (
+          player.arena.preferCoveredSpawns &&
+          this.hasSpawnSightline(other, candidate)
+        )
+          exposure++;
       }
-      if (occupied) distance = -0.5;
-      if (distance > bestDistance) {
+      if (occupied) {
+        exposure = Infinity;
+        distance = -0.5;
+      }
+      if (
+        exposure < bestExposure ||
+        (exposure === bestExposure && distance > bestDistance)
+      ) {
         best = candidate;
         bestDistance = distance;
+        bestExposure = exposure;
       }
     }
     return best;
+  }
+
+  private hasSpawnSightline(
+    enemy: ServerPlayer,
+    candidate: ArenaSpawn,
+  ): boolean {
+    const origin = {
+      x: enemy.state.x,
+      y: enemy.state.y + enemy.movement.eyeOffset,
+      z: enemy.state.z,
+    };
+    const x = candidate.x - origin.x;
+    const y = candidate.y + 0.55 - origin.y;
+    const z = candidate.z - origin.z;
+    const distance = Math.hypot(x, y, z);
+    if (distance <= 1e-6) return true;
+    return !enemy.movement.physics.castBullet(
+      origin,
+      { x: x / distance, y: y / distance, z: z / distance },
+      distance,
+    );
   }
 
   owner(player: ServerPlayer): OwnerCombat {

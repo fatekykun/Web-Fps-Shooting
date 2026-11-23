@@ -78,6 +78,26 @@ function fixture(arena: ArenaDefinition = arenas.depot) {
   };
 }
 describe('match lifecycle and score authority', () => {
+  it('starts Killhouse teams on raised decks and prefers respawns screened from opponents', () => {
+    const house = arenas.killhouse;
+    const f = fixture(house);
+    expect(f.match.configure(matchDefaults.tdm)).toBeNull();
+    const blue = f.add('blue');
+    const orange = f.add('orange');
+    expect(f.begin()).toBeNull();
+    expect(blue.state.z).toBeCloseTo(-16.1);
+    expect(orange.state.z).toBeCloseTo(16.1);
+    expect(blue.state.y).toBeCloseTo(house.deckHeight + 0.91);
+    expect(orange.state.y).toBeCloseTo(house.deckHeight + 0.91);
+    expect(blue.state.yaw).toBeCloseTo(Math.PI);
+    expect(orange.state.yaw).toBe(0);
+    orange.respawn({ x: 0, y: 0.91, z: -8 });
+    blue.state.alive = false;
+    f.combat.step(1);
+    expect(blue.state.alive).toBe(true);
+    expect(Math.abs(blue.state.x)).toBeCloseTo(2.1);
+    expect(blue.state.yaw).toBeCloseTo(Math.PI);
+  });
   it('uses Shipment team spawns and keeps respawns away from nearby opponents', () => {
     const f = fixture(arenas.shipment);
     expect(f.match.configure(matchDefaults.tdm)).toBeNull();

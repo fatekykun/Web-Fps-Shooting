@@ -136,7 +136,7 @@ it.each([
     expect(guest.state.players.get(host.sessionId)!.weapon).toBe(allowed[0]);
     choose(guest, allowed[0]!);
     let seq = 0;
-    const packet = (switchTo: WeaponId | null, fire = false) => ({
+    const packet = (switchTo: WeaponId | null, firePressed = false) => ({
       seq: ++seq,
       life: guest.state.players.get(guest.sessionId)!.life,
       forward: 0,
@@ -149,8 +149,8 @@ it.each([
       slidePressed: false,
       divePressed: false,
       weapon: {
-        fire,
-        firePressed: fire,
+        fire: false,
+        firePressed,
         aim: false,
         reloadPressed: false,
         switchTo,

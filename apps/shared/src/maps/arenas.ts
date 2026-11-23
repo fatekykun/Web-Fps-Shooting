@@ -1,6 +1,7 @@
 import type { Vector3Like } from '../types/movement';
 import { arenaBoxes, type ArenaBox } from './depot';
 import { shipment } from './shipment';
+import { killhouse } from './killhouse';
 
 export * from './depot';
 
@@ -10,13 +11,16 @@ export interface ArenaSpawn extends Vector3Like {
 
 export interface ArenaDefinition {
   name: string;
+  venue: string;
   sector: string;
+  preferCoveredSpawns?: boolean;
   spawns: Record<'none' | 'blue' | 'orange', readonly ArenaSpawn[]>;
   colliders: readonly ArenaBox[];
 }
 
 const depot = {
   name: 'The Depot',
+  venue: 'training arena',
   sector: '01',
   colliders: arenaBoxes,
   spawns: {
@@ -36,7 +40,7 @@ const depot = {
   },
 } satisfies ArenaDefinition;
 
-export const arenas = { depot, shipment } satisfies Record<
+export const arenas = { depot, shipment, killhouse } satisfies Record<
   string,
   ArenaDefinition
 >;

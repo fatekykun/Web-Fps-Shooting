@@ -91,7 +91,9 @@ export class MatchController {
   joined(player: ServerPlayer): void {
     if (!isMatchActive(this.state.phase)) return;
     this.addScore(player.state);
-    if (this.state.mode === 'tdm') this.place(player, true);
+    if (this.state.phase === 'playing' && player.arena.preferCoveredSpawns)
+      player.respawn(this.combat.chooseSpawn(player));
+    else if (this.state.mode === 'tdm') this.place(player, true);
   }
   left(id: string): void {
     if (isMatchActive(this.state.phase)) {

@@ -116,6 +116,7 @@ const southSpawns: ArenaSpawn[] = northSpawns.map(({ x, y, z }) => ({
 
 export const shipment = {
   name: 'Shipment',
+  venue: 'container yard',
   sector: '02',
   size,
   wallHeight,

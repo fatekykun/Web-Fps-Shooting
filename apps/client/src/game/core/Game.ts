@@ -5,6 +5,7 @@ import { InputController } from '../input/InputController';
 import { readDevice, requestLandscape } from '../input/deviceCapabilities';
 import { TrainingArena } from '../maps/TrainingArena';
 import { ShipmentArena } from '../maps/ShipmentArena';
+import { KillhouseArena } from '../maps/KillhouseArena';
 import { arenas, spawn, type ArenaId } from '../maps/arenaLayout';
 import { MovementController } from '../movement/MovementController';
 import { initializePhysics, PhysicsWorld } from '../physics/PhysicsWorld';
@@ -53,7 +54,11 @@ import { AudioEngine, spatialAudio } from '../audio/AudioEngine';
 const arenaRenderers = {
   depot: TrainingArena,
   shipment: ShipmentArena,
-} satisfies Record<ArenaId, typeof TrainingArena | typeof ShipmentArena>;
+  killhouse: KillhouseArena,
+} satisfies Record<
+  ArenaId,
+  typeof TrainingArena | typeof ShipmentArena | typeof KillhouseArena
+>;
 
 export interface GameTelemetry extends PerformanceStats {
   x: number;
@@ -420,7 +425,7 @@ export class Game {
     this.arena.configure(this.graphicsSettings);
     this.rendering.renderer.domElement.setAttribute(
       'aria-label',
-      id === 'depot' ? 'The Depot training arena' : 'Shipment container yard',
+      `${arenas[id].name} ${arenas[id].venue}`,
     );
     this.arenaId = id;
   }
