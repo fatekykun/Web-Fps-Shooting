@@ -30,6 +30,7 @@ import {
   type UserSettings,
 } from '../game/settings/userSettings';
 import type { RoomView } from '@breakpoint/shared/network';
+import { arenas } from '@breakpoint/shared/maps';
 import { isMatchActive, matchCountdownSeconds } from '@breakpoint/shared/match';
 import { readInviteCode } from '../game/networking/invites';
 import type { CombatSnapshot } from '../game/combat/PracticeCombat';
@@ -165,6 +166,7 @@ export function App() {
         const signature = view
           ? JSON.stringify([
               view.code,
+              view.mapId,
               view.phase,
               view.hostId,
               view.match,
@@ -330,6 +332,7 @@ export function App() {
 
   const inArena = locked || choosingLoadout;
   const multiplayerHud = inArena && room !== null && isMatchActive(room.phase);
+  const arena = arenas[room?.mapId ?? 'depot'];
 
   return (
     <>
@@ -662,20 +665,20 @@ export function App() {
 
         <footer className="bottom-bar">
           <div className="map-label">
-            <span className="map-number">01</span>
+            <span className="map-number">{arena.sector}</span>
             <div>
               <span className="eyebrow">
                 {room
                   ? `${room.match.mode.toUpperCase()} / PRIVATE MATCH`
                   : 'TRAINING GROUND'}
               </span>
-              <strong>THE DEPOT</strong>
+              <strong>{arena.name.toUpperCase()}</strong>
             </div>
             <span className="map-divider" />
             <span className="map-description">
               INDUSTRIAL SECTOR
               <br />
-              PRIVATE COMBAT / 001
+              PRIVATE COMBAT / 0{arena.sector}
             </span>
           </div>
           <div className="footer-right">
@@ -693,9 +696,9 @@ export function App() {
         </footer>
         {multiplayerHud && room && (
           <aside className="match-map" aria-label="Map and match">
-            <span className="match-sector">01</span>
+            <span className="match-sector">{arena.sector}</span>
             <div>
-              <strong>THE DEPOT</strong>
+              <strong>{arena.name.toUpperCase()}</strong>
               <span>{room.match.mode.toUpperCase()} · INDUSTRIAL SECTOR</span>
             </div>
             {locked && !touchControls && (

@@ -1,6 +1,11 @@
-import type { Vector3Like } from '../types/movement';
 import type { WeaponId } from '../types/weapons';
 import { weaponOrder } from './weapons';
+import {
+  arenas,
+  isArenaId,
+  type ArenaDefinition,
+  type ArenaId,
+} from '../maps/arenas';
 
 export type GameMode = 'ffa' | 'tdm';
 export type Team = 'none' | 'blue' | 'orange';
@@ -16,6 +21,7 @@ export interface MatchSettings {
 }
 export const playerLimits = [2, 4, 6, 8] as const;
 export interface PrivateRoomSettings extends MatchSettings {
+  mapId?: ArenaId;
   playerLimit?: (typeof playerLimits)[number];
   /** Omitted means unrestricted; custom restrictions contain one or two categories. */
   allowedWeapons?: readonly WeaponId[];
@@ -27,6 +33,7 @@ export function parsePrivateRoomSettings(
   const match = parseMatchSettings(value);
   if (!match) return null;
   const v = value as Record<string, unknown>;
+  if (v.mapId !== undefined && !isArenaId(v.mapId)) return null;
   if (
     v.playerLimit !== undefined &&
     !playerLimits.includes(v.playerLimit as 2 | 4 | 6 | 8)
@@ -48,6 +55,7 @@ export function parsePrivateRoomSettings(
   }
   return {
     ...match,
+    ...(v.mapId ? { mapId: v.mapId } : {}),
     playerLimit: (v.playerLimit ?? 8) as 2 | 4 | 6 | 8,
     ...(allowedWeapons ? { allowedWeapons } : {}),
   };
@@ -114,16 +122,9 @@ export function rankScores(rows: readonly ScoreRow[]): ScoreRow[] {
       b.kills - a.kills || a.deaths - b.deaths || a.id.localeCompare(b.id),
   );
 }
-export function spawnCandidates(team: string): Vector3Like[] {
-  if (team === 'blue' || team === 'orange')
-    return [-14, -6, 6, 14].map((x) => ({
-      x,
-      y: 0.91,
-      z: team === 'blue' ? 12 : -13.5,
-    }));
-  return Array.from({ length: 8 }, (_, slot) => ({
-    x: -14 + slot * 4,
-    y: 0.91,
-    z: 12,
-  }));
+export function spawnCandidates(
+  team: string,
+  arena: ArenaDefinition = arenas.depot,
+) {
+  return arena.spawns[team === 'blue' || team === 'orange' ? team : 'none'];
 }

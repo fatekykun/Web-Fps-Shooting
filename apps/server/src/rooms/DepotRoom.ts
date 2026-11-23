@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import { Room, ServerError, type Client } from '@colyseus/core';
 import { initializePhysics } from '@breakpoint/shared/physics';
+import { arenas, type ArenaDefinition } from '@breakpoint/shared/maps';
 import { networkConfig, parseName } from '@breakpoint/shared/network';
 import { RoomState, PlayerState } from './RoomState';
 import { ServerPlayer } from '../players/ServerPlayer';
@@ -34,6 +35,7 @@ export class DepotRoom extends Room<{ state: RoomState }> {
   maxClients: number = networkConfig.maxPlayers;
   patchRate = networkConfig.patchRate;
   maxMessagesPerSecond = 120;
+  private arena: ArenaDefinition = arenas.depot;
   private readonly simulations = new Map<string, ServerPlayer>();
   private readonly combat = new ServerCombat(
     this.simulations,
@@ -66,9 +68,11 @@ export class DepotRoom extends Room<{ state: RoomState }> {
     if (!settings)
       throw new ServerError(
         400,
-        'Choose FFA/TDM, valid match rules, 2/4/6/8 players and one or two custom weapons.',
+        'Choose a supported arena, FFA/TDM, valid match rules, 2/4/6/8 players and one or two custom weapons.',
       );
     this.maxClients = settings.playerLimit!;
+    this.state.mapId = settings.mapId ?? 'depot';
+    this.arena = arenas[settings.mapId ?? 'depot'];
     this.state.playerLimit = this.maxClients;
     this.state.allowedWeapons.push(...(settings.allowedWeapons ?? weaponOrder));
     this.combat.setAllowedWeapons(settings.allowedWeapons ?? weaponOrder);
@@ -194,7 +198,7 @@ export class DepotRoom extends Room<{ state: RoomState }> {
       this.state.hostId = client.sessionId;
       player.ready = true;
     }
-    const simulation = new ServerPlayer(player);
+    const simulation = new ServerPlayer(player, this.arena);
     this.simulations.set(client.sessionId, simulation);
     this.combat.add(simulation);
     this.state.players.set(client.sessionId, player);

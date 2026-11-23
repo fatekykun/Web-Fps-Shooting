@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RoomView } from '@breakpoint/shared/network';
+import { arenas } from '@breakpoint/shared/maps';
 import {
   matchDefaults,
   parsePrivateRoomSettings,
@@ -145,7 +146,12 @@ export function RoomPanel({
       }}
     >
       <div className="room-heading">
-        <span className="eyebrow">THE DEPOT / PRIVATE SESSION</span>
+        <span className="eyebrow">
+          {room
+            ? arenas[room.mapId ?? 'depot'].name.toUpperCase()
+            : 'MULTIPLAYER'}{' '}
+          / PRIVATE SESSION
+        </span>
         <button
           className="room-button"
           onClick={close}

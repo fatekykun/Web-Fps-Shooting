@@ -19,6 +19,19 @@ it('preserves legacy unrestricted eight-player settings without changing the bas
     }),
   ).toEqual(matchDefaults.tdm);
 });
+
+it('validates the arena only when creating a room', () => {
+  expect(
+    parsePrivateRoomSettings({ ...matchDefaults.tdm, mapId: 'shipment' })
+      ?.mapId,
+  ).toBe('shipment');
+  expect(
+    parsePrivateRoomSettings({ ...matchDefaults.tdm, mapId: 'unknown' }),
+  ).toBeNull();
+  expect(
+    parseMatchSettings({ ...matchDefaults.tdm, mapId: 'shipment' }),
+  ).toEqual(matchDefaults.tdm);
+});
 it.each([['sniper'], ['shotgun'], ['sniper', 'shotgun'], ['rifle', 'smg']])(
   'accepts a custom loadout %j and each supported capacity',
   (...weapons) => {

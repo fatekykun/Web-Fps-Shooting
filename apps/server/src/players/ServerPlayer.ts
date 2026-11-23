@@ -1,5 +1,5 @@
-import { movementConfig } from '@breakpoint/shared';
-import { arenaBoxes } from '@breakpoint/shared/maps';
+import { movementConfig, type Vector3Like } from '@breakpoint/shared';
+import { arenas, type ArenaDefinition } from '@breakpoint/shared/maps';
 import { MovementController } from '@breakpoint/shared/movement/MovementController';
 import { PhysicsWorld } from '@breakpoint/shared/physics';
 import {
@@ -25,12 +25,13 @@ export class ServerPlayer {
   /** Server-installed weapon policy; packet fields cannot choose a speed scale. */
   movementScale: (input: PlayerInput) => number = () => 1;
 
-  constructor(readonly state: PlayerState) {
-    const physics = new PhysicsWorld(arenaBoxes, {
-      x: -14 + state.slot * 4,
-      y: 0.91,
-      z: 12,
-    });
+  constructor(
+    readonly state: PlayerState,
+    readonly arena: ArenaDefinition = arenas.depot,
+  ) {
+    const { x, y, z, yaw } = arena.spawns.none[state.slot]!;
+    const physics = new PhysicsWorld(arena.colliders, { x, y, z });
+    state.yaw = yaw;
     this.movement = new MovementController(physics);
     this.publish();
   }
@@ -136,18 +137,19 @@ export class ServerPlayer {
     this.pendingCombat = null;
   }
 
-  respawn(position: { x: number; y: number; z: number }): void {
+  respawn({ x, y, z, yaw = 0 }: Vector3Like & { yaw?: number }): void {
     this.freeze();
     this.animation.reset();
     this.state.gaitPhase = this.state.gaitAmount = 0;
     this.state.life++;
     this.state.health = playerCombatConfig.health;
     this.state.alive = true;
-    this.state.yaw = this.state.pitch = 0;
+    this.state.yaw = yaw;
+    this.state.pitch = 0;
     const fresh = new MovementController(this.movement.physics).capture();
     this.movement.restore({
       ...fresh,
-      position,
+      position: { x, y, z },
       halfHeight: movementConfig.capsuleHalfHeight,
       grounded: false,
     });

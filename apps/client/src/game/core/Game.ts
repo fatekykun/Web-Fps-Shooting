@@ -1,9 +1,11 @@
+import { Scene } from 'three';
 import { FirstPersonCamera } from '../camera/FirstPersonCamera';
 import type { MovementState } from '@breakpoint/shared';
 import { InputController } from '../input/InputController';
 import { readDevice, requestLandscape } from '../input/deviceCapabilities';
 import { TrainingArena } from '../maps/TrainingArena';
-import { arenaBoxes, spawn } from '../maps/arenaLayout';
+import { ShipmentArena } from '../maps/ShipmentArena';
+import { arenas, spawn, type ArenaId } from '../maps/arenaLayout';
 import { MovementController } from '../movement/MovementController';
 import { initializePhysics, PhysicsWorld } from '../physics/PhysicsWorld';
 import { GameRenderer } from '../rendering/GameRenderer';
@@ -47,6 +49,11 @@ import {
   type UserSettings,
 } from '../settings/userSettings';
 import { AudioEngine, spatialAudio } from '../audio/AudioEngine';
+
+const arenaRenderers = {
+  depot: TrainingArena,
+  shipment: ShipmentArena,
+} satisfies Record<ArenaId, typeof TrainingArena | typeof ShipmentArena>;
 
 export interface GameTelemetry extends PerformanceStats {
   x: number;
@@ -103,7 +110,9 @@ export class Game {
     diameter: 86,
   };
   private readonly rendering: GameRenderer;
-  private readonly arena: TrainingArena;
+  private readonly scene = new Scene();
+  private arena: InstanceType<(typeof arenaRenderers)[ArenaId]>;
+  private arenaId: ArenaId = 'depot';
   private readonly physics: PhysicsWorld;
   private readonly movement: MovementController;
   private readonly input: InputController;
@@ -145,19 +154,19 @@ export class Game {
     this.userSettings = preferences;
     this.audio.configure(preferences);
     this.rendering = new GameRenderer(host, settings);
-    this.arena = new TrainingArena();
-    this.remotes = new RemotePlayers(this.arena.scene);
-    this.trails = new ShotTrails(this.arena.scene);
-    this.physics = new PhysicsWorld(arenaBoxes, spawn);
+    this.arena = new TrainingArena(this.scene);
+    this.remotes = new RemotePlayers(this.scene);
+    this.trails = new ShotTrails(this.scene);
+    this.physics = new PhysicsWorld(arenas.depot.colliders, spawn);
     this.movement = new MovementController(this.physics);
     this.combat = new PracticeCombat(
       this.physics,
-      this.arena.scene,
+      this.scene,
       () => this.publishCombat(),
       (weapon, origin, end) => this.trails.spawn(weapon, origin, end),
     );
     this.networkCombat = new NetworkCombat(
-      this.arena.scene,
+      this.scene,
       () => {
         if (this.session) this.publishCombat();
       },
@@ -269,6 +278,10 @@ export class Game {
       this.movement,
       {
         isActive: () => !this.disposed && generation === this.networkGeneration,
+        onArena: (id) => {
+          if (!this.disposed && generation === this.networkGeneration)
+            this.switchArena(id);
+        },
         onView: (view) => {
           if (!this.disposed && generation === this.networkGeneration) {
             if (view && view.match.round !== this.round) {
@@ -369,6 +382,10 @@ export class Game {
     this.session?.leave();
     this.session = undefined;
     this.round = 0;
+    if (this.arenaId !== 'depot') {
+      this.switchArena('depot');
+      this.input.movement.yaw = this.input.pitch = 0;
+    }
     this.networkCombat.reset();
     this.combat.setOnline(false);
     this.audio.resetFeedback(this.combat.snapshot());
@@ -392,6 +409,20 @@ export class Game {
     this.viewmodel.configureTexture(settings.textureQuality);
     this.camera.camera.far = settings.viewDistance;
     this.camera.camera.updateProjectionMatrix();
+  }
+
+  private switchArena(id: ArenaId): void {
+    if (id === this.arenaId) return;
+    this.physics.setArena(arenas[id].colliders);
+    this.arena.dispose();
+    const Arena = arenaRenderers[id];
+    this.arena = new Arena(this.scene);
+    this.arena.configure(this.graphicsSettings);
+    this.rendering.renderer.domElement.setAttribute(
+      'aria-label',
+      id === 'depot' ? 'The Depot training arena' : 'Shipment container yard',
+    );
+    this.arenaId = id;
   }
 
   private readonly simulate = (dt: number): void => {
@@ -540,7 +571,7 @@ export class Game {
       this.opticView.diameter = sniperScopeDiameter(weapons.ads);
     }
     this.rendering.render(
-      this.arena.scene,
+      this.scene,
       this.camera.camera,
       delta * 1000,
       this.input.locked && armed ? this.viewmodel : null,

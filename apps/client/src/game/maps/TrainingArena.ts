@@ -5,6 +5,7 @@ import {
   Color,
   DirectionalLight,
   Fog,
+  Group,
   HemisphereLight,
   InstancedMesh,
   Matrix4,
@@ -12,7 +13,7 @@ import {
   MeshBasicMaterial,
   NearestFilter,
   NearestMipmapNearestFilter,
-  Scene,
+  type Scene,
   SRGBColorSpace,
 } from 'three';
 import { arenaBoxes } from './arenaLayout';
@@ -31,7 +32,7 @@ const surfaceColors = [
 
 /** Shared collision layout, brighter materials, batched edge trim and optional cached static shadows. */
 export class TrainingArena {
-  readonly scene = new Scene();
+  private readonly root = new Group();
   private readonly geometry = new BoxGeometry(1, 1, 1);
   private readonly solidGeometry = this.geometry.clone();
   private readonly atlas = createPixelAtlas();
@@ -74,10 +75,11 @@ export class TrainingArena {
     return (this.solidMaterial.map as DataTexture).image.width / 4;
   }
 
-  constructor() {
-    this.scene.background = new Color(fogColor);
-    this.scene.fog = new Fog(fogColor, 39, 57);
-    this.scene.add(new HemisphereLight(0xe4e9db, 0x879482, 2.0));
+  constructor(private readonly scene: Scene) {
+    scene.background = new Color(fogColor);
+    scene.fog = new Fog(fogColor, 39, 57);
+    scene.add(this.root);
+    this.root.add(new HemisphereLight(0xe4e9db, 0x879482, 2.0));
     this.keyLight.position.set(-18, 26, 16);
     this.keyLight.target.position.set(0, 0, -2);
     Object.assign(this.keyLight.shadow.camera, {
@@ -92,7 +94,7 @@ export class TrainingArena {
     this.keyLight.shadow.bias = -0.0006;
     this.keyLight.shadow.normalBias = 0.04;
     this.keyLight.shadow.autoUpdate = false;
-    this.scene.add(this.keyLight, this.keyLight.target);
+    this.root.add(this.keyLight, this.keyLight.target);
     const solids = new InstancedMesh(
       this.solidGeometry,
       this.solidMaterial,
@@ -108,7 +110,7 @@ export class TrainingArena {
     solids.computeBoundingSphere();
     solids.castShadow = true;
     solids.receiveShadow = true;
-    this.scene.add(solids);
+    this.root.add(solids);
     this.instances.push(solids);
 
     // Corrugations and silhouette trim share the structural decoration draw.
@@ -180,7 +182,7 @@ export class TrainingArena {
         batch.setColorAt(index, color.setHex(tint));
       });
       batch.computeBoundingSphere();
-      this.scene.add(batch);
+      this.root.add(batch);
       this.instances.push(batch);
     }
     this.decorations.clear();
@@ -266,6 +268,7 @@ export class TrainingArena {
     this.stripeMaterial.dispose();
     this.signMaterial.dispose();
     this.signTexture.dispose();
-    this.scene.clear();
+    this.root.removeFromParent();
+    this.root.clear();
   }
 }

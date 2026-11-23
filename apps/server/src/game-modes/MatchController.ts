@@ -106,7 +106,7 @@ export class MatchController {
     );
   }
   private place(player: ServerPlayer, avoidOccupied = false): void {
-    const points = spawnCandidates(player.state.team);
+    const points = spawnCandidates(player.state.team, player.arena);
     const teammates = [...this.state.players.values()].filter(
       (p) => p.team === player.state.team && p.slot < player.state.slot,
     ).length;
@@ -124,7 +124,6 @@ export class MatchController {
         ) ?? ordered[0]!)
       : ordered[0]!;
     player.respawn(position);
-    player.state.yaw = player.state.team === 'orange' ? Math.PI : 0;
   }
 
   start(): string | null {
@@ -199,8 +198,10 @@ export class MatchController {
       if (this.state.countdownSeconds > 0) return false;
       for (const player of this.players.values()) {
         // Start a new life so inputs from before the spawn cannot override its loadout.
-        player.respawn({ ...player.movement.physics.position });
-        player.state.yaw = player.state.team === 'orange' ? Math.PI : 0;
+        player.respawn({
+          ...player.movement.physics.position,
+          yaw: player.state.yaw,
+        });
         this.combat.add(player);
       }
       this.endsAt = this.now() + this.state.durationSeconds * 1000;
@@ -261,7 +262,10 @@ export class MatchController {
     this.state.remainingSeconds = this.state.durationSeconds;
     for (const player of this.players.values()) {
       if (this.state.mode === 'tdm') this.place(player);
-      else player.respawn(spawnCandidates('none')[player.state.slot]!);
+      else
+        player.respawn(
+          spawnCandidates('none', player.arena)[player.state.slot]!,
+        );
       this.combat.add(player);
     }
     this.invalidateReady();
