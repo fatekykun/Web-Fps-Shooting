@@ -275,13 +275,21 @@ remains predicted, while damage and ammo readouts are authoritative.
 
 At zero health, the server emits one kill-feed event and disables movement and
 firing. Choose a weapon during the **three-second** respawn countdown. Your last
-equipped weapon carries over if you skip the selection. The server chooses a
-spawn farthest from living players and restores health and ammo. Respawn grants
-**one second of damage protection**, shown by brighter avatars and a HUD label. A new
+equipped weapon carries over if you skip the selection. The server scores validated
+spawn points using cover, enemy proximity, team support, and recent combat and spawn
+history. It uses a weighted draw among safe alternatives and chooses the least
+dangerous valid point when every option is threatened. Respawn restores health and
+ammo and grants **1.5 seconds of damage protection**, or **2 seconds** on a fallback.
+The first shot ends protection immediately. A brighter avatar and HUD label show
+when protection is active. A new
 life number invalidates old queued controls; movement prediction snaps to the
 new spawn instead of interpolating across the map. Press movement/fire controls
 again after respawning. Dead remote bodies disappear. The kill feed keeps up to
 five recent server-confirmed eliminations.
+
+In a development server terminal, set `$env:SPAWN_DEBUG='1'` before running
+`npm run dev:server` to print the candidate scores, exposure, rejection reasons,
+and selected spawn after each decision.
 
 Hit validation uses **current server poses**; it does not rewind targets to the
 shooter's rendered view. Remote interpolation/network latency can therefore affect

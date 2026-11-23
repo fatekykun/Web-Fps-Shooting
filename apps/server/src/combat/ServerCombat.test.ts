@@ -468,7 +468,7 @@ describe('authoritative hitscan', () => {
 });
 
 describe('server weapon budget and life cycle', () => {
-  it('lets teammates block rays without taking friendly damage and respawns enemies on their side', () => {
+  it('lets teammates block rays without taking friendly damage and respawns enemies in the arena', () => {
     const f = fixture(),
       shooter = f.add('shooter', 0, 12),
       ally = f.add('ally', 0, 10),
@@ -491,8 +491,9 @@ describe('server weapon budget and life cycle', () => {
     enemy.state.alive = false;
     f.combat.get('enemy')!.respawnTick = f.tick() + 1;
     f.step();
-    expect(enemy.state.z).toBe(-13.5);
-    expect(enemy.state.yaw).toBe(Math.PI);
+    expect(
+      enemy.movement.physics.canSpawnAt(enemy.movement.physics.position),
+    ).toBe(true);
     expect(enemy.state.protected).toBe(true);
   });
   it('bounds firing by server ticks, ammo and ownership even when inputs are queued in a burst', () => {
@@ -591,6 +592,25 @@ describe('server weapon budget and life cycle', () => {
     f.controls(victim, trigger);
     f.step();
     expect(f.combat.owner(victim).shots).toBe(1);
+    expect(victim.state.protected).toBe(false);
+    expect(f.combat.owner(victim).protected).toBe(false);
+  });
+  it('keeps spawn protection while aiming and expires it on the server tick', () => {
+    const f = fixture();
+    const victim = f.add('victim', 0, 8);
+    victim.state.alive = false;
+    f.step();
+    expect(victim.state.protected).toBe(true);
+    f.controls(victim, {
+      ...trigger,
+      fire: false,
+      firePressed: false,
+      aim: true,
+    });
+    f.step(89);
+    expect(victim.state.protected).toBe(true);
+    f.step();
+    expect(victim.state.protected).toBe(false);
   });
   it('expires held fire when inputs stop arriving', () => {
     const f = fixture(),

@@ -16,13 +16,15 @@ import {
 import { intersectAvatar } from '@breakpoint/shared/avatar';
 import {
   playerCombatConfig,
+  spawnProtectionByMode,
   type OwnerCombat,
   type ServerShot,
   type KillEvent,
 } from '@breakpoint/shared/combat';
 import type { ServerPlayer } from '../players/ServerPlayer';
-import { spawnCandidates, type GameMode } from '@breakpoint/shared/match';
-import type { ArenaSpawn } from '@breakpoint/shared/maps';
+import type { GameMode } from '@breakpoint/shared/match';
+import { networkConfig } from '@breakpoint/shared/network';
+import { SpawnDirector, type SpawnDebug } from '../spawns/SpawnDirector';
 
 const neutral = (): WeaponInput => ({
   fire: false,
@@ -64,6 +66,7 @@ export class ServerCombat {
   private killId = 0;
   private tick = 0;
   private mode: GameMode = 'ffa';
+  private readonly spawns: SpawnDirector;
   private allowedWeapons: readonly WeaponId[] = weaponOrder;
 
   setAllowedWeapons(weapons: readonly WeaponId[]): void {
@@ -91,7 +94,39 @@ export class ServerCombat {
     private readonly onShot: (shot: ServerShot) => void,
     private readonly onKill: (kill: KillEvent) => void,
     private readonly seed = () => randomInt(0x7fffffff),
-  ) {}
+    options?: {
+      random?: () => number;
+      spawnDebug?: (message: SpawnDebug) => void;
+    },
+  ) {
+    this.spawns = new SpawnDirector(
+      options?.random ?? (() => randomInt(0x1000000) / 0x1000000),
+      options?.spawnDebug,
+    );
+  }
+
+  resetSpawnHistory(): void {
+    this.spawns.reset();
+  }
+
+  enterMatch(player: ServerPlayer): void {
+    const spawn = this.spawns.choose(
+      player,
+      this.players,
+      this.mode,
+      this.tick,
+    );
+    if (spawn) {
+      player.respawn(spawn.point);
+      this.spawns.spawned(player, spawn.point, this.tick);
+      return;
+    }
+    // A joining player waits for space when every valid position is occupied.
+    player.state.alive = false;
+    player.state.health = 0;
+    player.freeze();
+    this.loadouts.get(player.state.id)!.respawnTick = this.tick;
+  }
 
   add(player: ServerPlayer): void {
     const previous = this.loadouts.get(player.state.id);
@@ -135,6 +170,7 @@ export class ServerCombat {
   }
   remove(id: string): void {
     this.loadouts.delete(id);
+    this.spawns.remove(id);
   }
   get(id: string): Loadout | undefined {
     return this.loadouts.get(id);
@@ -143,11 +179,18 @@ export class ServerCombat {
   step(tick: number): void {
     this.tick = tick;
     this.pending.length = 0;
+    this.spawns.sample(this.players, tick);
     for (const player of this.players.values()) {
       const loadout = this.loadouts.get(player.state.id)!;
       if (!player.state.alive) {
         if (tick < loadout.respawnTick) continue;
-        player.respawn(this.chooseSpawn(player));
+        const spawn = this.spawns.choose(player, this.players, this.mode, tick);
+        if (!spawn) {
+          loadout.respawnTick = tick + 6;
+          continue;
+        }
+        player.respawn(spawn.point);
+        this.spawns.spawned(player, spawn.point, tick);
         const selected = loadout.nextWeapon ?? loadout.weapons.selected;
         loadout.nextWeapon = undefined;
         loadout.weapons = new WeaponController((shot) =>
@@ -159,8 +202,13 @@ export class ServerCombat {
         loadout.seed = this.seed();
         loadout.held = neutral();
         loadout.inputTick = -100;
+        const protection = spawnProtectionByMode[this.mode];
         loadout.shieldUntil =
-          tick + playerCombatConfig.spawnProtectionSeconds * 60;
+          tick +
+          Math.round(
+            (spawn.fallback ? protection.fallbackSeconds : protection.seconds) *
+              networkConfig.tickRate,
+          );
       }
       player.state.protected = tick < loadout.shieldUntil;
       const fresh = player.takeCombatInput();
@@ -224,6 +272,9 @@ export class ServerCombat {
     shot: ShotEvent,
   ): void {
     const position = player.movement.physics.position;
+    loadout.shieldUntil = 0;
+    player.state.protected = false;
+    this.spawns.shot(position, this.tick);
     player.animation.fire();
     this.pending.push({
       player,
@@ -310,16 +361,19 @@ export class ServerCombat {
         },
         normal,
       });
+      const damageScale = victim?.state.protected
+        ? spawnProtectionByMode[this.mode].damageScale
+        : 1;
       if (
         victim &&
-        !victim.state.protected &&
+        damageScale > 0 &&
         (this.mode !== 'tdm' ||
           (player.state.team !== 'none' &&
             victim.state.team !== 'none' &&
             victim.state.team !== player.state.team))
       ) {
         const result = damage.get(victim) ?? { amount: 0, critical: false };
-        result.amount += hitDamage;
+        result.amount += hitDamage * damageScale;
         result.critical ||= critical;
         damage.set(victim, result);
       }
@@ -338,10 +392,12 @@ export class ServerCombat {
       const victimLoadout = this.loadouts.get(victim.state.id)!;
       victimLoadout.damageSequence++;
       if (victim.state.health === 0 && victim.state.alive) {
+        this.spawns.death(victim, this.tick);
         victim.state.alive = false;
         victim.state.protected = false;
         victimLoadout.respawnTick =
-          this.tick + playerCombatConfig.respawnSeconds * 60;
+          this.tick +
+          playerCombatConfig.respawnSeconds * networkConfig.tickRate;
         victimLoadout.held = neutral();
         victim.freeze();
         this.onKill({
@@ -361,72 +417,9 @@ export class ServerCombat {
       owner.lastDamage = applied;
       owner.critical = headshot;
     }
+    const impact = event.traces[0];
+    if (impact?.normal) this.spawns.shot(impact.end, this.tick);
     this.onShot(event);
-  }
-
-  chooseSpawn(player: ServerPlayer): ArenaSpawn {
-    const points = spawnCandidates(
-      this.mode === 'tdm' ? player.state.team : 'none',
-      player.arena,
-    );
-    let best = points[0]!,
-      bestDistance = -1,
-      bestExposure = Infinity;
-    for (const candidate of points) {
-      let distance = Infinity;
-      let exposure = 0;
-      let occupied = false;
-      for (const other of this.players.values()) {
-        if (other === player || !other.state.alive) continue;
-        const separation = Math.hypot(
-          candidate.x - other.state.x,
-          candidate.z - other.state.z,
-        );
-        occupied ||= separation < 1.5;
-        if (this.mode === 'tdm' && other.state.team === player.state.team)
-          continue;
-        distance = Math.min(distance, separation);
-        if (
-          player.arena.preferCoveredSpawns &&
-          this.hasSpawnSightline(other, candidate)
-        )
-          exposure++;
-      }
-      if (occupied) {
-        exposure = Infinity;
-        distance = -0.5;
-      }
-      if (
-        exposure < bestExposure ||
-        (exposure === bestExposure && distance > bestDistance)
-      ) {
-        best = candidate;
-        bestDistance = distance;
-        bestExposure = exposure;
-      }
-    }
-    return best;
-  }
-
-  private hasSpawnSightline(
-    enemy: ServerPlayer,
-    candidate: ArenaSpawn,
-  ): boolean {
-    const origin = {
-      x: enemy.state.x,
-      y: enemy.state.y + enemy.movement.eyeOffset,
-      z: enemy.state.z,
-    };
-    const x = candidate.x - origin.x;
-    const y = candidate.y + 0.55 - origin.y;
-    const z = candidate.z - origin.z;
-    const distance = Math.hypot(x, y, z);
-    if (distance <= 1e-6) return true;
-    return !enemy.movement.physics.castBullet(
-      origin,
-      { x: x / distance, y: y / distance, z: z / distance },
-      distance,
-    );
   }
 
   owner(player: ServerPlayer): OwnerCombat {
@@ -438,7 +431,7 @@ export class ServerCombat {
       alive: player.state.alive,
       respawnIn: player.state.alive
         ? 0
-        : Math.max(0, (l.respawnTick - this.tick) / 60),
+        : Math.max(0, (l.respawnTick - this.tick) / networkConfig.tickRate),
       protected: player.state.protected,
       selected: w.selected,
       ...(l.nextWeapon === undefined ? {} : { nextWeapon: l.nextWeapon }),

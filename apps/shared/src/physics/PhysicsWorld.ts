@@ -237,7 +237,6 @@ export class PhysicsWorld {
   }
 
   canOccupy(halfHeight: number): boolean {
-    this.clearanceShape.halfHeight = halfHeight;
     this.queryPosition.x = this.position.x;
     // Shift the clearance probe slightly upward: floor contact is valid, but head contact is not.
     this.queryPosition.y =
@@ -246,9 +245,33 @@ export class PhysicsWorld {
       movementConfig.capsuleHalfHeight +
       movementConfig.collisionOffset;
     this.queryPosition.z = this.position.z;
+    return this.hasClearance(this.queryPosition, halfHeight);
+  }
+
+  /** A standing capsule needs empty space and walkable support at its feet. */
+  canSpawnAt(position: Vector3Like): boolean {
+    const { capsuleHalfHeight, capsuleRadius, collisionOffset } =
+      movementConfig;
+    if (!this.hasClearance(position, capsuleHalfHeight)) return false;
+    const standing = capsuleHalfHeight + capsuleRadius;
+    const surface = this.castBullet(
+      position,
+      { x: 0, y: -1, z: 0 },
+      standing + 0.12,
+      true,
+    );
+    return (
+      !!surface &&
+      surface.normal.y >= Math.SQRT1_2 &&
+      surface.distance >= standing + collisionOffset * 0.5
+    );
+  }
+
+  private hasClearance(position: Vector3Like, halfHeight: number): boolean {
+    this.clearanceShape.halfHeight = halfHeight;
     return (
       this.world.intersectionWithShape(
-        this.queryPosition,
+        position,
         identityRotation,
         this.clearanceShape,
         RAPIER.QueryFilterFlags.EXCLUDE_SENSORS,
@@ -334,6 +357,7 @@ export class PhysicsWorld {
     origin: Vector3Like,
     direction: Vector3Like,
     range: number,
+    solidsOnly = false,
   ): BulletHit | null {
     Object.assign(this.bulletRay.origin, origin);
     Object.assign(this.bulletRay.dir, direction);
@@ -341,7 +365,7 @@ export class PhysicsWorld {
       this.bulletRay,
       range,
       true,
-      undefined,
+      solidsOnly ? RAPIER.QueryFilterFlags.EXCLUDE_SENSORS : undefined,
       undefined,
       this.collider,
       this.character,

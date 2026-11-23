@@ -26,6 +26,10 @@ test('server-confirmed hits, ammo, kill feed, death and respawn work through the
     target.onMessage('correction', () => {});
     target.onMessage('notice', () => {});
     target.send('ready', true);
+    attacker = await client.joinById<RoomState>(code!, { name: 'Attacker' });
+    for (const type of ['shot', 'kill', 'correction', 'notice'])
+      attacker.onMessage(type, () => {});
+    attacker.send('ready', true);
     await page.getByRole('button', { name: 'START SESSION' }).click();
     await enterStartedMatch(page);
     await expect(page.getByTestId('player-health')).toHaveAttribute(
@@ -76,9 +80,6 @@ test('server-confirmed hits, ammo, kill feed, death and respawn work through the
       .toBeGreaterThan(0);
     await page.screenshot({ path: 'test-results/server-confirmed-combat.png' });
 
-    attacker = await client.joinById<RoomState>(code!, { name: 'Attacker' });
-    for (const type of ['shot', 'kill', 'correction', 'notice'])
-      attacker.onMessage(type, () => {});
     let sequence = 0,
       firing = true;
     timer = setInterval(() => {

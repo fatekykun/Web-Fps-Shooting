@@ -3,7 +3,11 @@ import { Client, type Room } from '@colyseus/sdk';
 import { matchMaker } from '@colyseus/core';
 import type { AddressInfo } from 'node:net';
 import type { Correction } from '@breakpoint/shared/network';
-import type { OwnerCombat, KillEvent } from '@breakpoint/shared/combat';
+import type {
+  OwnerCombat,
+  KillEvent,
+  ServerShot,
+} from '@breakpoint/shared/combat';
 import { createGameServer } from '../server';
 import type { RoomState } from './RoomState';
 import { matchDefaults, type MatchSettings } from '@breakpoint/shared/match';
@@ -178,6 +182,7 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
       .poll(() => target.state.players.get(target.sessionId)!.alive)
       .toBe(false);
     await expect.poll(() => targetOwner?.alive).toBe(false);
+    target.send('respawn', { x: 999, y: 999, z: 999, protected: true });
     expect(owner!.ammo.rifle.magazine).toBeLessThan(30);
     expect(owner!.ammo.rifle.magazine).toBeGreaterThanOrEqual(0);
     target.send('loadout', {
@@ -202,10 +207,15 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
     expect(targetOwner!.nextWeapon).toBeUndefined();
     expect(host.state.players.get(target.sessionId)!.weapon).toBe('smg');
     expect(targetOwner!.health).toBe(100);
+    expect(targetOwner!.protected).toBe(true);
+    const respawned = target.state.players.get(target.sessionId)!;
+    expect(Math.abs(respawned.x)).toBeLessThan(19.5);
+    expect(Math.abs(respawned.z)).toBeLessThan(15.5);
     expect(targetOwner!.shots).toBe(0);
     expect(targetOwner!.ammo.rifle.magazine).toBe(30);
     target.send('input', [packet(3, targetLife + 1, true, 0)]);
     await expect.poll(() => targetOwner?.shots).toBeGreaterThan(0);
+    await expect.poll(() => targetOwner?.protected).toBe(false);
     expect(kills).toHaveLength(1);
   } finally {
     clearInterval(stream);
@@ -232,7 +242,11 @@ it('scores an actual elimination, freezes results, then rematches as four-versus
   await expect.poll(() => host.state.phase, { timeout: 6000 }).toBe('playing');
   let seq = 0,
     firing = true,
+    shots = 0,
     owner: OwnerCombat | undefined;
+  host.onMessage('shot', (shot: ServerShot) => {
+    if (shot.shooter === host.sessionId) shots++;
+  });
   host.onMessage('correction', (message: Correction) => {
     owner = message.combat;
   });
@@ -267,6 +281,7 @@ it('scores an actual elimination, freezes results, then rematches as four-versus
     expect(host.state.scores.get(host.sessionId)!.kills).toBe(1);
     expect(host.state.scores.get(guest.sessionId)!.deaths).toBe(1);
     await expect.poll(() => owner?.hitSequence).toBeGreaterThan(0);
+    await expect.poll(() => owner?.shots).toBe(shots);
     const ammo = owner!.ammo.rifle.magazine;
     const position = host.state.players.get(host.sessionId)!.z;
     guest.send('lobby');

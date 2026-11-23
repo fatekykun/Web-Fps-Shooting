@@ -91,8 +91,7 @@ export class MatchController {
   joined(player: ServerPlayer): void {
     if (!isMatchActive(this.state.phase)) return;
     this.addScore(player.state);
-    if (this.state.phase === 'playing' && player.arena.preferCoveredSpawns)
-      player.respawn(this.combat.chooseSpawn(player));
+    if (this.state.phase === 'playing') this.combat.enterMatch(player);
     else if (this.state.mode === 'tdm') this.place(player, true);
   }
   left(id: string): void {
@@ -152,6 +151,7 @@ export class MatchController {
     this.state.winningTeam = 'none';
     this.state.round++;
     this.lastKill = 0;
+    this.combat.resetSpawnHistory();
     this.beginsAt = this.now() + matchCountdownSeconds * 1000;
     this.endsAt = 0;
     this.state.countdownSeconds = matchCountdownSeconds;
