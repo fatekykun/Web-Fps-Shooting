@@ -44,6 +44,12 @@ type Cue =
   | 'dive'
   | 'step';
 type MatchCue = 'countdown' | 'match-start';
+const shotSamples = {
+  sniper: { file: 'sr-04-sniper-shot.wav', gain: 0.72 },
+  smg: { file: 'sm-02-smg-shot.wav', gain: 0.36 },
+} as const;
+type SampledWeapon = keyof typeof shotSamples;
+
 interface Voice {
   source: AudioScheduledSourceNode;
   nodes: AudioNode[];
@@ -57,8 +63,8 @@ export class AudioEngine {
   private ui: GainNode | null = null;
   private ambience: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
-  private sniperShotBuffer: AudioBuffer | null = null;
-  private readonly sniperShotRequest = new AbortController();
+  private readonly shotBuffers = new Map<WeaponId, AudioBuffer>();
+  private readonly shotRequests = new AbortController();
   private readonly ambientSources: OscillatorNode[] = [];
   private readonly voices = new Set<Voice>();
   private settings = defaultUserSettings();
@@ -135,7 +141,8 @@ export class AudioEngine {
           this.ambientSources.push(oscillator);
         }
         this.applyVolumes();
-        void this.loadSniperShot(context);
+        void this.loadShotSample(context, 'sniper');
+        void this.loadShotSample(context, 'smg');
       }
       if (this.context.state === 'suspended') await this.context.resume();
       return this.context.state === 'running';
@@ -143,17 +150,20 @@ export class AudioEngine {
       return false;
     }
   }
-  private async loadSniperShot(context: AudioContext): Promise<void> {
+  private async loadShotSample(
+    context: AudioContext,
+    weapon: SampledWeapon,
+  ): Promise<void> {
     try {
       const response = await fetch(
-        `${import.meta.env.BASE_URL}audio/sr-04-sniper-shot.wav`,
-        { cache: 'no-cache', signal: this.sniperShotRequest.signal },
+        `${import.meta.env.BASE_URL}audio/${shotSamples[weapon].file}`,
+        { cache: 'no-cache', signal: this.shotRequests.signal },
       );
       if (!response.ok || this.disposed) return;
       const data = await response.arrayBuffer();
       if (this.disposed) return;
       const buffer = await context.decodeAudioData(data);
-      if (!this.disposed) this.sniperShotBuffer = buffer;
+      if (!this.disposed) this.shotBuffers.set(weapon, buffer);
     } catch {
       // A missing or unsupported asset leaves the procedural report available.
     }
@@ -278,26 +288,25 @@ export class AudioEngine {
   }
   /** True when the report includes the recorded bolt cycle. */
   shot(weapon: WeaponId, gain = 1, pan = 0): boolean {
-    if (weapon === 'sniper') {
-      if (this.sniperShotBuffer) {
+    if (weapon === 'sniper' || weapon === 'smg') {
+      const buffer = this.shotBuffers.get(weapon);
+      if (buffer) {
         const output = this.output();
         if (!output || gain <= 0) return false;
         const context = this.context!;
         const source = context.createBufferSource();
         const volume = context.createGain();
-        source.buffer = this.sniperShotBuffer;
-        volume.gain.value = 0.72 * gain;
+        source.buffer = buffer;
+        // Slight variation keeps consecutive SMG shots distinct without an audible pitch shift.
+        if (weapon === 'smg') source.detune.value = (Math.random() - 0.5) * 24;
+        volume.gain.value = shotSamples[weapon].gain * gain;
         source.connect(volume);
-        this.connect(
-          source,
-          volume,
-          [],
-          output,
-          pan,
-          this.sniperShotBuffer.duration,
-        );
-        return true;
+        const duration = buffer.duration / 2 ** (source.detune.value / 1200);
+        this.connect(source, volume, [], output, pan, duration);
+        return weapon === 'sniper';
       }
+    }
+    if (weapon === 'sniper') {
       this.noise(0.24, 0.28 * gain, 2300, pan);
       this.tone(95, 24, 0.24, 0.24 * gain, 'triangle', pan);
       this.tone(850, 180, 0.06, 0.07 * gain, 'square', pan);
@@ -481,8 +490,8 @@ export class AudioEngine {
   }
   dispose(): void {
     this.disposed = true;
-    this.sniperShotRequest.abort();
-    this.sniperShotBuffer = null;
+    this.shotRequests.abort();
+    this.shotBuffers.clear();
     this.stopVoices();
     for (const source of this.ambientSources) {
       source.stop();
