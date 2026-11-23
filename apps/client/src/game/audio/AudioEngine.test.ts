@@ -3,6 +3,7 @@ import { AudioEngine, spatialAudio } from './AudioEngine';
 import { defaultUserSettings } from '../settings/userSettings';
 import type { RoomView } from '@breakpoint/shared/network';
 import { matchDefaults } from '@breakpoint/shared/match';
+import type { CombatSnapshot } from '../combat/PracticeCombat';
 
 function matchView(
   phase: RoomView['phase'],
@@ -131,6 +132,9 @@ class Context {
   readonly decodedSmg = { duration: 0.064 };
   readonly decodedRifle = { duration: 0.192 };
   readonly decodedShotgun = { duration: 0.736 };
+  readonly decodedHitmarker = { duration: 0.072 };
+  readonly decodedHeadshot = { duration: 0.112 };
+  readonly decodedElimination = { duration: 0.164 };
   decodeAudioData = vi.fn(
     async (data: ArrayBuffer) =>
       [
@@ -138,6 +142,9 @@ class Context {
         this.decodedShotgun,
         this.decodedSmg,
         this.decodedShot,
+        this.decodedHitmarker,
+        this.decodedHeadshot,
+        this.decodedElimination,
       ][data.byteLength - 1]!,
   );
   resume = vi.fn(async () => {
@@ -240,13 +247,16 @@ it('keeps sniper report and confirmation cues bounded and honors effect volume',
   }
 });
 
-it('preloads each weapon sample once and plays a separate spatialized voice per shot', async () => {
+it('preloads samples once and plays spatialized shots and local hit confirmations', async () => {
   vi.stubGlobal('AudioContext', Context);
   const paths = [
     '/audio/ar-01-rifle-shot.wav',
     '/audio/sg-03-shotgun-shot.wav',
     '/audio/sm-02-smg-shot.wav',
     '/audio/sr-04-sniper-shot.wav',
+    '/audio/breakpoint-hitmarker.wav',
+    '/audio/breakpoint-headshot.wav',
+    '/audio/breakpoint-elimination.wav',
   ];
   const fetchShot = vi.fn(
     async (path: string) =>
@@ -301,6 +311,56 @@ it('preloads each weapon sample once and plays a separate spatialized voice per 
       context.nodes.find((node) => node.buffer === context.decodedShotgun)
         ?.stop,
     ).toHaveBeenCalledWith(0.736);
+    const hit: CombatSnapshot = {
+      weapon: 'rifle',
+      name: 'Rifle',
+      magazine: 29,
+      reserve: 120,
+      reloading: false,
+      equipping: false,
+      reloadProgress: 0,
+      ads: 0,
+      fov: 85,
+      spread: 0,
+      recoilPitch: 0,
+      shots: 1,
+      hitSequence: 1,
+      lastDamage: 25,
+      critical: false,
+      dummyHealth: 75,
+      dummyResetting: false,
+    };
+    audio.feedback(hit);
+    audio.feedback(hit);
+    expect(audio.voiceCount).toBe(7);
+    const confirmations = () =>
+      context.nodes.filter((node) => node.buffer === context.decodedHitmarker);
+    expect(confirmations()).toHaveLength(1);
+    expect(confirmations()[0]?.stop).toHaveBeenCalledWith(0.072);
+    audio.feedback({ ...hit, hitSequence: 2, critical: true });
+    const headshots = () =>
+      context.nodes.filter((node) => node.buffer === context.decodedHeadshot);
+    expect(confirmations()).toHaveLength(1);
+    expect(headshots()).toHaveLength(1);
+    expect(headshots()[0]?.stop).toHaveBeenCalledWith(0.112);
+    audio.feedback({
+      ...hit,
+      hitSequence: 3,
+      critical: true,
+      dummyResetting: true,
+    });
+    expect(headshots()).toHaveLength(2);
+    const downedTarget = { ...hit, hitSequence: 4, dummyResetting: true };
+    audio.feedback(downedTarget);
+    audio.feedback(downedTarget);
+    const eliminations = context.nodes.filter(
+      (node) => node.buffer === context.decodedElimination,
+    );
+    expect(eliminations).toHaveLength(1);
+    expect(eliminations[0]?.stop).toHaveBeenCalledWith(0.164);
+    audio.configure({ ...defaultUserSettings(), effectsVolume: 0 });
+    audio.feedback({ ...hit, hitSequence: 5 });
+    expect(confirmations()).toHaveLength(1);
   } finally {
     audio.dispose();
   }

@@ -111,7 +111,8 @@ mute settings.
 Server-confirmed health, ammo, hits, kill feed, timer,
 scoreboard and final standings retain the existing match authority.
 
-Web Audio starts after a user gesture and loads the four bundled weapon reports.
+Web Audio starts after a user gesture and loads the bundled weapon reports and
+separate body-hit, headshot and elimination confirmations.
 If a sample cannot load, the weapon uses a synthesized report. Equipment,
 movement, confirmed hit/damage/death/respawn cues and ambient tones use one context, a reusable
 noise buffer and at most 16 transient voices plus two ambient oscillators. Remote

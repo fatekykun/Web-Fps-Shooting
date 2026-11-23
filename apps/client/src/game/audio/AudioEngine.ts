@@ -48,6 +48,7 @@ type Cue =
   | 'dive'
   | 'step';
 type MatchCue = 'countdown' | 'match-start';
+type SampleId = WeaponId | 'hitmarker' | 'headshot' | 'elimination';
 const shotSamples: Partial<
   Record<WeaponId, { file: string; gain: number; detune: number }>
 > = {
@@ -70,8 +71,8 @@ export class AudioEngine {
   private ui: GainNode | null = null;
   private ambience: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
-  private readonly shotBuffers = new Map<WeaponId, AudioBuffer>();
-  private readonly shotRequests = new AbortController();
+  private readonly sampleBuffers = new Map<SampleId, AudioBuffer>();
+  private readonly sampleRequests = new AbortController();
   private readonly ambientSources: OscillatorNode[] = [];
   private readonly voices = new Set<Voice>();
   private settings = defaultUserSettings();
@@ -150,8 +151,15 @@ export class AudioEngine {
         this.applyVolumes();
         for (const weapon of weaponOrder) {
           const sample = shotSamples[weapon];
-          if (sample) void this.loadShotSample(context, weapon, sample.file);
+          if (sample) void this.loadSample(context, weapon, sample.file);
         }
+        void this.loadSample(context, 'hitmarker', 'breakpoint-hitmarker.wav');
+        void this.loadSample(context, 'headshot', 'breakpoint-headshot.wav');
+        void this.loadSample(
+          context,
+          'elimination',
+          'breakpoint-elimination.wav',
+        );
       }
       if (this.context.state === 'suspended') await this.context.resume();
       return this.context.state === 'running';
@@ -159,23 +167,23 @@ export class AudioEngine {
       return false;
     }
   }
-  private async loadShotSample(
+  private async loadSample(
     context: AudioContext,
-    weapon: WeaponId,
+    id: SampleId,
     file: string,
   ): Promise<void> {
     try {
       const response = await fetch(`${import.meta.env.BASE_URL}audio/${file}`, {
         cache: 'no-cache',
-        signal: this.shotRequests.signal,
+        signal: this.sampleRequests.signal,
       });
       if (!response.ok || this.disposed) return;
       const data = await response.arrayBuffer();
       if (this.disposed) return;
       const buffer = await context.decodeAudioData(data);
-      if (!this.disposed) this.shotBuffers.set(weapon, buffer);
+      if (!this.disposed) this.sampleBuffers.set(id, buffer);
     } catch {
-      // A missing or unsupported asset leaves the procedural report available.
+      // A missing or unsupported asset leaves the procedural cue available.
     }
   }
   async uiClick(): Promise<void> {
@@ -296,27 +304,38 @@ export class AudioEngine {
     filter.connect(gain);
     this.connect(source, gain, [filter], output, pan, duration);
   }
-  /** True when the report includes the recorded bolt cycle. */
+  private playSample(
+    buffer: AudioBuffer,
+    gain: number,
+    pan = 0,
+    detune = 0,
+  ): boolean {
+    const output = this.output();
+    if (!output || gain <= 0) return false;
+    const context = this.context!;
+    const source = context.createBufferSource();
+    const volume = context.createGain();
+    source.buffer = buffer;
+    if (detune) source.detune.value = detune;
+    volume.gain.value = gain;
+    source.connect(volume);
+    const duration = buffer.duration / 2 ** (detune / 1200);
+    this.connect(source, volume, [], output, pan, duration);
+    return true;
+  }
+  /** True when a recorded sniper report plays with the bolt cycle included. */
   shot(weapon: WeaponId, gain = 1, pan = 0): boolean {
     const sample = shotSamples[weapon];
-    const buffer = this.shotBuffers.get(weapon);
+    const buffer = this.sampleBuffers.get(weapon);
     if (sample && buffer) {
-      const output = this.output();
-      if (!output || gain <= 0) return false;
-      const context = this.context!;
-      const source = context.createBufferSource();
-      const volume = context.createGain();
-      source.buffer = buffer;
       // A small pitch variation keeps automatic fire from sounding like a loop.
       const detune = sample.detune
         ? (Math.random() * 2 - 1) * sample.detune
         : 0;
-      if (detune) source.detune.value = detune;
-      volume.gain.value = sample.gain * gain;
-      source.connect(volume);
-      const duration = buffer.duration / 2 ** (detune / 1200);
-      this.connect(source, volume, [], output, pan, duration);
-      return weapon === 'sniper';
+      return (
+        this.playSample(buffer, sample.gain * gain, pan, detune) &&
+        weapon === 'sniper'
+      );
     }
     if (weapon === 'sniper') {
       this.noise(0.24, 0.28 * gain, 2300, pan);
@@ -351,10 +370,26 @@ export class AudioEngine {
       this.tone(620, 400, 0.045, 0.045, 'square', 0, true);
     } else if (cue === 'enter' || cue === 'respawn')
       this.tone(340, 850, 0.18, 0.07, 'triangle', 0, cue === 'enter');
-    else if (cue === 'hit' || cue === 'critical')
-      this.tone(cue === 'critical' ? 1600 : 1050, 1900, 0.07, 0.075, 'sine');
-    else if (cue === 'kill') this.tone(750, 1500, 0.16, 0.085, 'triangle');
-    else if (cue === 'death') this.tone(130, 30, 0.45, 0.13);
+    else if (cue === 'hit' || cue === 'critical') {
+      const hitmarker = this.sampleBuffers.get('hitmarker');
+      const critical = cue === 'critical';
+      const headshot = critical
+        ? this.sampleBuffers.get('headshot')
+        : undefined;
+      if (headshot) this.playSample(headshot, 0.39);
+      else if (hitmarker)
+        this.playSample(
+          hitmarker,
+          critical ? 0.36 : 0.33,
+          0,
+          critical ? 210 : 0,
+        );
+      else this.tone(critical ? 1600 : 1050, 1900, 0.07, 0.075, 'sine');
+    } else if (cue === 'kill') {
+      const elimination = this.sampleBuffers.get('elimination');
+      if (elimination) this.playSample(elimination, 0.38);
+      else this.tone(750, 1500, 0.16, 0.085, 'triangle');
+    } else if (cue === 'death') this.tone(130, 30, 0.45, 0.13);
     else if (cue === 'hurt') this.tone(110, 45, 0.15, 0.12);
     else if (cue === 'reload' || cue === 'equip') {
       this.noise(0.08, 0.065, 2800);
@@ -440,10 +475,10 @@ export class AudioEngine {
     if (!newLife) {
       if (snapshot.hitSequence > this.hit)
         this.cue(
-          snapshot.dummyResetting
-            ? 'kill'
-            : snapshot.critical
-              ? 'critical'
+          snapshot.critical
+            ? 'critical'
+            : snapshot.dummyResetting
+              ? 'kill'
               : 'hit',
         );
       if (snapshot.player && snapshot.player.damageSequence > this.damage)
@@ -502,8 +537,8 @@ export class AudioEngine {
   }
   dispose(): void {
     this.disposed = true;
-    this.shotRequests.abort();
-    this.shotBuffers.clear();
+    this.sampleRequests.abort();
+    this.sampleBuffers.clear();
     this.stopVoices();
     for (const source of this.ambientSources) {
       source.stop();
