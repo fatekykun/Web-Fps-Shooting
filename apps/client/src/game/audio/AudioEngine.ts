@@ -1,4 +1,8 @@
-import type { Vector3Like, WeaponId } from '@breakpoint/shared';
+import {
+  weaponOrder,
+  type Vector3Like,
+  type WeaponId,
+} from '@breakpoint/shared';
 import type { WeaponController } from '../weapons/WeaponController';
 import type { MovementController } from '../movement/MovementController';
 import type { CombatSnapshot } from '../combat/PracticeCombat';
@@ -44,11 +48,13 @@ type Cue =
   | 'dive'
   | 'step';
 type MatchCue = 'countdown' | 'match-start';
-const shotSamples = {
-  sniper: { file: 'sr-04-sniper-shot.wav', gain: 0.72 },
-  smg: { file: 'sm-02-smg-shot.wav', gain: 0.36 },
-} as const;
-type SampledWeapon = keyof typeof shotSamples;
+const shotSamples: Partial<
+  Record<WeaponId, { file: string; gain: number; detune: number }>
+> = {
+  rifle: { file: 'ar-01-rifle-shot.wav', gain: 0.51, detune: 10 },
+  sniper: { file: 'sr-04-sniper-shot.wav', gain: 0.72, detune: 0 },
+  smg: { file: 'sm-02-smg-shot.wav', gain: 0.36, detune: 12 },
+};
 
 interface Voice {
   source: AudioScheduledSourceNode;
@@ -141,8 +147,10 @@ export class AudioEngine {
           this.ambientSources.push(oscillator);
         }
         this.applyVolumes();
-        void this.loadShotSample(context, 'sniper');
-        void this.loadShotSample(context, 'smg');
+        for (const weapon of weaponOrder) {
+          const sample = shotSamples[weapon];
+          if (sample) void this.loadShotSample(context, weapon, sample.file);
+        }
       }
       if (this.context.state === 'suspended') await this.context.resume();
       return this.context.state === 'running';
@@ -152,13 +160,14 @@ export class AudioEngine {
   }
   private async loadShotSample(
     context: AudioContext,
-    weapon: SampledWeapon,
+    weapon: WeaponId,
+    file: string,
   ): Promise<void> {
     try {
-      const response = await fetch(
-        `${import.meta.env.BASE_URL}audio/${shotSamples[weapon].file}`,
-        { cache: 'no-cache', signal: this.shotRequests.signal },
-      );
+      const response = await fetch(`${import.meta.env.BASE_URL}audio/${file}`, {
+        cache: 'no-cache',
+        signal: this.shotRequests.signal,
+      });
       if (!response.ok || this.disposed) return;
       const data = await response.arrayBuffer();
       if (this.disposed) return;
@@ -288,23 +297,25 @@ export class AudioEngine {
   }
   /** True when the report includes the recorded bolt cycle. */
   shot(weapon: WeaponId, gain = 1, pan = 0): boolean {
-    if (weapon === 'sniper' || weapon === 'smg') {
-      const buffer = this.shotBuffers.get(weapon);
-      if (buffer) {
-        const output = this.output();
-        if (!output || gain <= 0) return false;
-        const context = this.context!;
-        const source = context.createBufferSource();
-        const volume = context.createGain();
-        source.buffer = buffer;
-        // Slight variation keeps consecutive SMG shots distinct without an audible pitch shift.
-        if (weapon === 'smg') source.detune.value = (Math.random() - 0.5) * 24;
-        volume.gain.value = shotSamples[weapon].gain * gain;
-        source.connect(volume);
-        const duration = buffer.duration / 2 ** (source.detune.value / 1200);
-        this.connect(source, volume, [], output, pan, duration);
-        return weapon === 'sniper';
-      }
+    const sample = shotSamples[weapon];
+    const buffer = this.shotBuffers.get(weapon);
+    if (sample && buffer) {
+      const output = this.output();
+      if (!output || gain <= 0) return false;
+      const context = this.context!;
+      const source = context.createBufferSource();
+      const volume = context.createGain();
+      source.buffer = buffer;
+      // A small pitch variation keeps automatic fire from sounding like a loop.
+      const detune = sample.detune
+        ? (Math.random() * 2 - 1) * sample.detune
+        : 0;
+      if (detune) source.detune.value = detune;
+      volume.gain.value = sample.gain * gain;
+      source.connect(volume);
+      const duration = buffer.duration / 2 ** (detune / 1200);
+      this.connect(source, volume, [], output, pan, duration);
+      return weapon === 'sniper';
     }
     if (weapon === 'sniper') {
       this.noise(0.24, 0.28 * gain, 2300, pan);

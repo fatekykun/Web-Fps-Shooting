@@ -129,8 +129,13 @@ class Context {
   }
   readonly decodedShot = { duration: 1.26 };
   readonly decodedSmg = { duration: 0.064 };
+  readonly decodedRifle = { duration: 0.192 };
   decodeAudioData = vi.fn(async (data: ArrayBuffer) =>
-    data.byteLength === 16 ? this.decodedShot : this.decodedSmg,
+    data.byteLength === 16
+      ? this.decodedShot
+      : data.byteLength === 32
+        ? this.decodedSmg
+        : this.decodedRifle,
   );
   resume = vi.fn(async () => {
     this.state = 'running';
@@ -236,7 +241,11 @@ it('preloads each weapon sample once and plays a separate spatialized voice per 
   vi.stubGlobal('AudioContext', Context);
   const fetchShot = vi.fn(
     async (path: string) =>
-      new Response(new ArrayBuffer(path.includes('sniper') ? 16 : 32)),
+      new Response(
+        new ArrayBuffer(
+          path.includes('sniper') ? 16 : path.includes('smg') ? 32 : 48,
+        ),
+      ),
   );
   vi.stubGlobal('fetch', fetchShot);
   const audio = new AudioEngine();
@@ -245,9 +254,13 @@ it('preloads each weapon sample once and plays a separate spatialized voice per 
     await audio.unlock();
     const context = Context.instances[0]!;
     await vi.waitFor(() =>
-      expect(context.decodeAudioData).toHaveBeenCalledTimes(2),
+      expect(context.decodeAudioData).toHaveBeenCalledTimes(3),
     );
-    expect(fetchShot).toHaveBeenCalledTimes(2);
+    expect(fetchShot).toHaveBeenCalledTimes(3);
+    expect(fetchShot).toHaveBeenCalledWith(
+      '/audio/ar-01-rifle-shot.wav',
+      expect.objectContaining({ cache: 'no-cache' }),
+    );
     expect(fetchShot).toHaveBeenCalledWith(
       '/audio/sr-04-sniper-shot.wav',
       expect.objectContaining({ cache: 'no-cache' }),
@@ -272,6 +285,17 @@ it('preloads each weapon sample once and plays a separate spatialized voice per 
     for (const shot of smgShots) {
       expect(Math.abs(shot.detune.value)).toBeLessThanOrEqual(12);
       expect(shot.stop.mock.calls[0]?.[0]).toBeLessThan(1 / 15);
+    }
+    audio.shot('rifle');
+    audio.shot('rifle');
+    expect(audio.voiceCount).toBe(5);
+    const rifleShots = context.nodes.filter(
+      (node) => node.buffer === context.decodedRifle,
+    );
+    expect(rifleShots).toHaveLength(2);
+    for (const shot of rifleShots) {
+      expect(Math.abs(shot.detune.value)).toBeLessThanOrEqual(10);
+      expect(shot.stop.mock.calls[0]?.[0]).toBeCloseTo(0.192, 2);
     }
   } finally {
     audio.dispose();
