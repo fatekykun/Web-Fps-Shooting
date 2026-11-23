@@ -586,6 +586,7 @@ export function App() {
             tablet={device.tablet}
             layout={mobileLayout}
             multiplayer={multiplayerHud}
+            movement={stats}
           />
         )}
         {controllerSettings && !hudEditor && (

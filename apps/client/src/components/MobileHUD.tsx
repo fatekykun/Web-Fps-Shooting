@@ -6,6 +6,8 @@ import {
   type CSSProperties,
   type PointerEvent,
 } from 'react';
+import { movementConfig, type MovementState } from '@breakpoint/shared';
+import { MobileControlIcon } from './MobileControlIcon';
 import {
   resolveMobileHud,
   type HudViewport,
@@ -16,17 +18,17 @@ import {
 } from '../game/input/mobileHudSettings';
 
 const actions = [
-  ['sprint', 'SPRINT', 'Toggle sprint'],
-  ['fire', 'FIRE', 'Fire weapon'],
-  ['aim', 'ADS', 'Toggle ADS'],
-  ['jump', 'JUMP', 'Jump'],
-  ['slide', 'CROUCH', 'Crouch or slide'],
-  ['prone', 'PRONE', 'Toggle prone'],
-  ['dive', 'DIVE', 'Dive'],
-  ['reload', 'R', 'Reload weapon'],
-  ['swap', 'SWAP', 'Switch weapon'],
-  ['scores', 'SCORES', 'Show scores'],
-  ['pause', 'II', 'Pause game'],
+  ['sprint', 'Toggle sprint'],
+  ['fire', 'Fire weapon'],
+  ['aim', 'Toggle ADS'],
+  ['jump', 'Jump'],
+  ['slide', 'Crouch or slide'],
+  ['prone', 'Toggle prone'],
+  ['dive', 'Dive'],
+  ['reload', 'Reload weapon'],
+  ['swap', 'Switch weapon'],
+  ['scores', 'Show scores'],
+  ['pause', 'Pause game'],
 ] as const;
 
 interface HudEditorInteraction {
@@ -41,12 +43,18 @@ export function MobileHUD({
   layout,
   editor,
   multiplayer = false,
+  movement,
 }: {
   attach?: (root: HTMLElement) => (() => void) | undefined;
   tablet: boolean;
   layout: MobileHudLayout;
   editor?: HudEditorInteraction;
   multiplayer?: boolean;
+  movement?: {
+    movementState: MovementState;
+    speed: number;
+    grounded: boolean;
+  } | null;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<HudViewport | null>(null);
@@ -100,6 +108,21 @@ export function MobileHUD({
     () => (viewport ? resolveMobileHud(layout, viewport, tablet) : {}),
     [layout, viewport, tablet],
   );
+  const stance = movement?.movementState;
+  const showSlide =
+    stance === 'sliding' ||
+    stance === 'backsliding' ||
+    (stance === 'sprinting' &&
+      movement?.grounded &&
+      movement.speed >= movementConfig.slideMinimumSpeed);
+  const pressed: Partial<Record<MobileHudControlId, boolean>> = editor
+    ? {}
+    : {
+        aim: false,
+        sprint: false,
+        slide: stance === 'crouching',
+        prone: stance === 'prone',
+      };
 
   function startDrag(event: PointerEvent<HTMLDivElement>) {
     if (!editor || drag.current || event.button !== 0) return;
@@ -194,12 +217,10 @@ export function MobileHUD({
         style={controlStyle('joystick')}
         onClick={editor ? () => editor.select('joystick') : undefined}
       >
-        <span className="joystick-guide" aria-hidden="true">
-          +
-        </span>
+        <MobileControlIcon name="joystick" />
         <span data-joystick-knob className="joystick-knob" />
       </button>
-      {actions.map(([control, text, label]) => (
+      {actions.map(([control, label]) => (
         <button
           key={control}
           type="button"
@@ -207,17 +228,16 @@ export function MobileHUD({
           data-touch-control={control}
           data-hud-id={control}
           data-selected={editor?.selected === control}
+          data-engaged={pressed[control]}
           style={controlStyle(control)}
           data-silent
           aria-label={label}
-          aria-pressed={
-            !editor && (control === 'aim' || control === 'sprint')
-              ? false
-              : undefined
-          }
+          aria-pressed={pressed[control]}
           onClick={editor ? () => editor.select(control) : undefined}
         >
-          <span>{text}</span>
+          <MobileControlIcon
+            name={control === 'slide' && !showSlide ? 'crouch' : control}
+          />
         </button>
       ))}
     </div>
