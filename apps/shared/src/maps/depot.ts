@@ -1,4 +1,5 @@
 import type { Vector3Like } from '../types/movement';
+import type { FootstepSurface } from '../movement/Footsteps';
 
 export interface ArenaBox {
   position: readonly [number, number, number];
@@ -8,6 +9,7 @@ export interface ArenaBox {
   pitch?: number;
   roll?: number;
   kind?: 'container' | 'crate' | 'barrel' | 'stair';
+  footstepSurface?: FootstepSurface;
 }
 
 export const spawn: Vector3Like = { x: 0, y: 0.91, z: 12 };

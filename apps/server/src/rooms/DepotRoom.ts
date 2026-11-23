@@ -1,6 +1,10 @@
 import { randomInt } from 'node:crypto';
 import { Room, ServerError, type Client } from '@colyseus/core';
 import { initializePhysics } from '@breakpoint/shared/physics';
+import {
+  footstepProfiles,
+  type RemoteFootstep,
+} from '@breakpoint/shared/movement/Footsteps';
 import { arenas, type ArenaDefinition } from '@breakpoint/shared/maps';
 import { networkConfig, parseName } from '@breakpoint/shared/network';
 import { RoomState, PlayerState } from './RoomState';
@@ -38,6 +42,7 @@ export class DepotRoom extends Room<{ state: RoomState }> {
   maxMessagesPerSecond = 120;
   private arena: ArenaDefinition = arenas.depot;
   private readonly simulations = new Map<string, ServerPlayer>();
+  private readonly footsteps: RemoteFootstep[] = [];
   private readonly combat = new ServerCombat(
     this.simulations,
     (shot) => this.broadcast('shot', shot),
@@ -164,21 +169,46 @@ export class DepotRoom extends Room<{ state: RoomState }> {
     this.setFixedTimestep(() => {
       this.state.tick++;
       if (this.match.beforeTick()) {
-        for (const player of this.simulations.values()) player.step();
+        for (const player of this.simulations.values()) {
+          const footstep = player.step();
+          if (footstep) this.footsteps.push(footstep);
+        }
         this.combat.step(this.state.tick);
         this.match.afterCombat();
       }
+      if (this.state.phase !== 'playing') this.footsteps.length = 0;
       if (this.state.tick % 3 === 0) {
         for (const client of this.clients) {
           const player = this.simulations.get(client.sessionId);
-          if (player)
+          if (player) {
+            const listener = player.movement.physics.position;
+            // Send only nearby authoritative contacts inside the existing correction.
+            const footsteps = player.state.alive
+              ? this.footsteps.filter((step) => {
+                  const source = this.simulations.get(step.player)?.state;
+                  return (
+                    step.player !== client.sessionId &&
+                    source?.alive &&
+                    source.life === step.life &&
+                    Math.hypot(
+                      listener.x - step.position.x,
+                      listener.y + player.movement.eyeOffset - step.position.y,
+                      listener.z - step.position.z,
+                    ) <=
+                      footstepProfiles[step.kind].range + 1
+                  );
+                })
+              : [];
             client.send('correction', {
               ack: player.state.ack,
               snapshot: player.movement.capture(),
               combat: this.combat.owner(player),
               look: { yaw: player.state.yaw, pitch: player.state.pitch },
+              ...(footsteps.length ? { footsteps } : {}),
             });
+          }
         }
+        this.footsteps.length = 0;
       }
     }, networkConfig.tickRate);
   }

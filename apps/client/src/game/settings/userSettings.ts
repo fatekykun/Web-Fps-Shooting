@@ -77,6 +77,9 @@ export interface UserSettings {
   muted: boolean;
   masterVolume: number;
   effectsVolume: number;
+  footstepVolume: number;
+  spatialFootsteps: boolean;
+  footstepOcclusion: boolean;
   interfaceVolume: number;
   ambientVolume: number;
   bindings: Record<BindingAction, string>;
@@ -108,6 +111,9 @@ export function defaultUserSettings(): UserSettings {
     muted: false,
     masterVolume: 0.55,
     effectsVolume: 0.7,
+    footstepVolume: 0.85,
+    spatialFootsteps: true,
+    footstepOcclusion: true,
     interfaceVolume: 0.45,
     ambientVolume: 0.08,
     bindings: { ...defaultBindings },
@@ -204,6 +210,15 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     muted: bool('muted', d.muted),
     masterVolume: number(v.masterVolume, d.masterVolume, 0, 1),
     effectsVolume: number(v.effectsVolume, d.effectsVolume, 0, 1),
+    footstepVolume: number(v.footstepVolume, d.footstepVolume, 0, 1),
+    spatialFootsteps:
+      typeof v.spatialFootsteps === 'boolean'
+        ? v.spatialFootsteps
+        : d.spatialFootsteps,
+    footstepOcclusion:
+      typeof v.footstepOcclusion === 'boolean'
+        ? v.footstepOcclusion
+        : d.footstepOcclusion,
     interfaceVolume: number(v.interfaceVolume, d.interfaceVolume, 0, 1),
     ambientVolume: number(v.ambientVolume, d.ambientVolume, 0, 1),
     bindings: validBindings

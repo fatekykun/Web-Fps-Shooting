@@ -1,6 +1,6 @@
 import { Scene } from 'three';
 import { FirstPersonCamera } from '../camera/FirstPersonCamera';
-import type { MovementState } from '@breakpoint/shared';
+import type { MovementState, Vector3Like } from '@breakpoint/shared';
 import { InputController } from '../input/InputController';
 import { readDevice, requestLandscape } from '../input/deviceCapabilities';
 import { TrainingArena } from '../maps/TrainingArena';
@@ -175,7 +175,10 @@ export class Game {
       () => {
         if (this.session) this.publishCombat();
       },
-      () => this.input.clear(),
+      () => {
+        this.input.clear();
+        this.audio.resetMotion();
+      },
     );
     this.viewmodel = new WeaponViewmodel();
     this.input = new InputController(
@@ -339,6 +342,34 @@ export class Game {
             }
           }
         },
+        onFootsteps: (footsteps) => {
+          const view = this.session?.view;
+          if (
+            this.disposed ||
+            generation !== this.networkGeneration ||
+            !this.input.locked ||
+            view?.phase !== 'playing' ||
+            !this.networkCombat.owner?.alive
+          )
+            return;
+          const team = view.players.find(({ id }) => id === view.selfId)?.team;
+          for (const step of footsteps) {
+            const peer = view.players.find(({ id }) => id === step.player);
+            if (
+              !peer?.alive ||
+              peer.id === view.selfId ||
+              peer.life !== step.life
+            )
+              continue;
+            this.audio.remoteFootstep(
+              step,
+              this.camera.camera.position,
+              this.input.movement.yaw,
+              team !== 'none' && team === peer.team,
+              this.footstepOccluded,
+            );
+          }
+        },
         onKill: (kill) => {
           if (!this.disposed && generation === this.networkGeneration) {
             this.networkCombat.kill(kill);
@@ -431,6 +462,7 @@ export class Game {
   }
 
   private readonly simulate = (dt: number): void => {
+    const priorVerticalSpeed = this.movement.velocity.y;
     const weapons = (this.session ? this.networkCombat : this.combat).weapons;
     const scale = weapons.movementScale(
       this.input.weapon.aim,
@@ -490,6 +522,7 @@ export class Game {
       active.weapons,
       this.movement,
       this.input.locked && (!this.session || !!this.networkCombat.owner?.alive),
+      priorVerticalSpeed,
     );
   };
 
@@ -534,6 +567,12 @@ export class Game {
       this.camera.camera.position.z += offset.z;
     }
     this.remotes.update(this.session?.remotes, performance.now());
+    if (this.session?.view?.phase === 'playing')
+      this.audio.followFootsteps(
+        this.camera.camera.position,
+        this.input.movement.yaw,
+        this.session.view.players,
+      );
     this.viewmodel.update(
       weapons,
       Math.hypot(this.movement.velocity.x, this.movement.velocity.z),
@@ -660,6 +699,25 @@ export class Game {
       worldFov,
     );
     return true;
+  };
+
+  private readonly footstepOccluded = (
+    from: Vector3Like,
+    to: Vector3Like,
+  ): boolean => {
+    const x = to.x - from.x,
+      y = to.y + 0.18 - from.y,
+      z = to.z - from.z;
+    const distance = Math.hypot(x, y, z);
+    return (
+      distance > 0.2 &&
+      !!this.physics.castBullet(
+        from,
+        { x: x / distance, y: y / distance, z: z / distance },
+        distance - 0.12,
+        true,
+      )
+    );
   };
 
   private readonly onVisibilityChange = (): void => {

@@ -12,6 +12,7 @@ import type {
   KillEvent,
 } from '@breakpoint/shared/combat';
 import { MovementController } from '@breakpoint/shared/movement/MovementController';
+import type { RemoteFootstep } from '@breakpoint/shared/movement/Footsteps';
 import { isArenaId, type ArenaId } from '@breakpoint/shared/maps';
 import {
   codePattern,
@@ -53,6 +54,7 @@ interface Callbacks {
   onLeave(): void;
   onCombat(state: OwnerCombat): void;
   onShot(shot: ServerShot): void;
+  onFootsteps(footsteps: readonly RemoteFootstep[]): void;
   onKill(kill: KillEvent): void;
   onLookReset(look: { yaw: number; pitch: number }): void;
 }
@@ -134,6 +136,8 @@ export class NetworkSession {
       }
       if (this.initialized) this.prediction.reconcile(correction);
       if (correction.combat) callbacks.onCombat(correction.combat);
+      if (correction.footsteps?.length)
+        callbacks.onFootsteps(correction.footsteps);
     });
     room.onMessage('shot', (shot: ServerShot) => callbacks.onShot(shot));
     room.onMessage('kill', (kill: KillEvent) => callbacks.onKill(kill));

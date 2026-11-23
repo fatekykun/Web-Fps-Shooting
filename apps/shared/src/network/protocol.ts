@@ -6,6 +6,7 @@ import type { CharacterAnimationValues } from '../combat/characterAnimation';
 import type { OwnerCombat } from '../combat/networkCombat';
 import type { MatchPhase, MatchView, Team } from '../config/match';
 import type { ArenaId } from '../maps/arenas';
+import type { RemoteFootstep } from '../movement/Footsteps';
 
 export const networkConfig = Object.freeze({
   roomType: 'depot',
@@ -33,6 +34,7 @@ export interface Correction {
   snapshot: MovementSnapshot;
   combat?: OwnerCombat;
   look?: { yaw: number; pitch: number };
+  footsteps?: readonly RemoteFootstep[];
 }
 export interface PublicPlayer extends Partial<CharacterAnimationValues> {
   id: string;

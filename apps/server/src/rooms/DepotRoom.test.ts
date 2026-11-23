@@ -3,6 +3,7 @@ import { Client, type Room } from '@colyseus/sdk';
 import { matchMaker } from '@colyseus/core';
 import type { AddressInfo } from 'node:net';
 import type { Correction } from '@breakpoint/shared/network';
+import type { RemoteFootstep } from '@breakpoint/shared/movement/Footsteps';
 import type {
   OwnerCombat,
   KillEvent,
@@ -68,8 +69,11 @@ it('runs a private eight-player room through capacity, readiness, movement, host
   host.send('start');
   await expect.poll(() => host.state.phase, { timeout: 6000 }).toBe('playing');
   let correction: Correction | undefined;
+  const concurrentSources = new Set<string>();
   host.onMessage('correction', (message: Correction) => {
     correction = message;
+    for (const step of message.footsteps ?? [])
+      concurrentSources.add(step.player);
   });
   host.send(
     'input',
@@ -92,6 +96,63 @@ it('runs a private eight-player room through capacity, readiness, movement, host
     .poll(() => rooms[1]!.state.players.get(host.sessionId)?.ack)
     .toBe(2);
   expect(correction!.snapshot.position.z).toBeLessThan(12);
+  const heard: RemoteFootstep[] = [],
+    distant: RemoteFootstep[] = [];
+  rooms[1]!.onMessage('correction', (message: Correction) =>
+    heard.push(...(message.footsteps ?? [])),
+  );
+  rooms[7]!.onMessage('correction', (message: Correction) =>
+    distant.push(...(message.footsteps ?? [])),
+  );
+  host.send('footstep', {
+    player: host.sessionId,
+    kind: 'sprint',
+    surface: 'metal',
+  });
+  const sprint = (room: (typeof rooms)[number], firstSequence: number) => {
+    const life = room.state.players.get(room.sessionId)!.life;
+    for (let seq = firstSequence; seq < firstSequence + 48; seq += 6) {
+      room.send(
+        'input',
+        Array.from({ length: 6 }, (_, i) => ({
+          seq: seq + i,
+          life,
+          forward: 1,
+          right: 0,
+          yaw: 0,
+          pitch: 0,
+          sprint: true,
+          jump: false,
+          jumpPressed: false,
+          slidePressed: false,
+          divePressed: false,
+        })),
+      );
+    }
+  };
+  sprint(host, 3);
+  await expect.poll(() => correction?.ack).toBe(50);
+  await expect.poll(() => heard.length).toBeGreaterThan(2);
+  expect(
+    heard.every(
+      (step) =>
+        step.player === host.sessionId &&
+        step.kind === 'sprint' &&
+        step.surface === 'concrete',
+    ),
+  ).toBe(true);
+  expect(new Set(heard.map(({ position }) => position.z)).size).toBe(
+    heard.length,
+  );
+  expect(correction?.footsteps).toBeUndefined();
+  expect(distant).toHaveLength(0);
+
+  sprint(host, 51);
+  for (const room of rooms.slice(1)) sprint(room, 1);
+  await expect.poll(() => correction?.ack).toBe(98);
+  await expect.poll(() => concurrentSources.size).toBeGreaterThanOrEqual(4);
+  expect(concurrentSources.has(host.sessionId)).toBe(false);
+
   // Malformed inputs evict the sender, freeing a seat for a late join.
   const invalid = rooms[7]!;
   invalid.send('input', [{ seq: 1, forward: 100, x: 999 }]);

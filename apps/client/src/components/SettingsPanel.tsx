@@ -440,6 +440,7 @@ export function SettingsPanel({
                 [
                   ['masterVolume', 'Master volume'],
                   ['effectsVolume', 'Combat & movement'],
+                  ['footstepVolume', 'Footstep volume'],
                   ['interfaceVolume', 'Interface volume'],
                   ['ambientVolume', 'Ambient volume'],
                 ] as const
@@ -456,6 +457,26 @@ export function SettingsPanel({
                 />
               ))}
             </div>
+            <label className="setting-toggle">
+              <input
+                type="checkbox"
+                checked={settings.spatialFootsteps}
+                onChange={(event) =>
+                  change({ spatialFootsteps: event.target.checked })
+                }
+              />
+              Spatial footsteps
+            </label>
+            <label className="setting-toggle">
+              <input
+                type="checkbox"
+                checked={settings.footstepOcclusion}
+                onChange={(event) =>
+                  change({ footstepOcclusion: event.target.checked })
+                }
+              />
+              Muffle footsteps through cover
+            </label>
             <div className="audio-preview">
               <span className="audio-bars" aria-hidden="true">
                 <i />

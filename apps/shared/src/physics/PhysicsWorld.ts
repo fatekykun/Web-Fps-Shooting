@@ -1,6 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { movementConfig, type Vector3Like } from '../index';
 import type { ArenaBox } from '../maps/arenaLayout';
+import type { FootstepSurface } from '../movement/Footsteps';
 
 let initialization: Promise<void> | undefined;
 export function initializePhysics(): Promise<void> {
@@ -38,6 +39,7 @@ export class PhysicsWorld {
   private readonly character: RAPIER.RigidBody;
   private readonly collider: RAPIER.Collider;
   private readonly arenaColliders: RAPIER.Collider[] = [];
+  private readonly groundMaterials = new Map<number, FootstepSurface>();
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly nextPosition: Vector3Like = { x: 0, y: 0, z: 0 };
   private readonly queryPosition: Vector3Like = { x: 0, y: 0, z: 0 };
@@ -130,6 +132,7 @@ export class PhysicsWorld {
     for (const collider of this.arenaColliders)
       this.world.removeCollider(collider, false);
     this.arenaColliders.length = 0;
+    this.groundMaterials.clear();
     this.addArena(boxes);
     // Rebuild query bounds before the next controller step or hitscan.
     this.world.step();
@@ -156,10 +159,30 @@ export class PhysicsWorld {
           w: cx * cy * cz - sx * sy * sz,
         });
       }
-      this.arenaColliders.push(
-        this.world.createCollider(shape.setTranslation(...box.position)),
+      const collider = this.world.createCollider(
+        shape.setTranslation(...box.position),
       );
+      this.arenaColliders.push(collider);
+      const surface =
+        box.footstepSurface ??
+        (box.kind === 'crate' || box.kind === 'stair'
+          ? 'wood'
+          : box.kind === 'container' || box.kind === 'barrel'
+            ? 'metal'
+            : 'concrete');
+      this.groundMaterials.set(collider.handle, surface);
     }
+  }
+
+  /** Called on an audible contact, so there is no extra ray per movement tick. */
+  groundSurface(): FootstepSurface {
+    const hit = this.castBullet(
+      this.position,
+      { x: 0, y: -1, z: 0 },
+      1.13,
+      true,
+    );
+    return (hit && this.groundMaterials.get(hit.colliderHandle)) || 'concrete';
   }
 
   private arenaShape(

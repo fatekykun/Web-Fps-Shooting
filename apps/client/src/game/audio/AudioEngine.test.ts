@@ -1,7 +1,12 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { AudioEngine, spatialAudio } from './AudioEngine';
 import { defaultUserSettings } from '../settings/userSettings';
-import type { RoomView } from '@breakpoint/shared/network';
+import type { PublicPlayer, RoomView } from '@breakpoint/shared/network';
+import {
+  footstepSurfaces,
+  type RemoteFootstep,
+} from '@breakpoint/shared/movement/Footsteps';
+import { FootstepBank } from './FootstepBank';
 import { matchDefaults } from '@breakpoint/shared/match';
 import type { CombatSnapshot } from '../combat/PracticeCombat';
 
@@ -102,6 +107,8 @@ class Node {
   frequency = this.gain;
   pan = { value: 0 };
   detune = { value: 0 };
+  playbackRate = { value: 1 };
+  setPosition = vi.fn();
   onended: (() => void) | null = null;
   connect = vi.fn();
   disconnect = vi.fn();
@@ -115,6 +122,7 @@ class Context {
   sampleRate = 8000;
   destination = new Node();
   nodes: Node[] = [];
+  panners: Node[] = [];
   constructor() {
     Context.instances.push(this);
   }
@@ -127,6 +135,11 @@ class Context {
   createBufferSource = this.createGain;
   createBiquadFilter = this.createGain;
   createStereoPanner = this.createGain;
+  createPanner() {
+    const node = this.createGain();
+    this.panners.push(node);
+    return node;
+  }
   createBuffer() {
     return { getChannelData: () => new Float32Array(2000) };
   }
@@ -162,6 +175,122 @@ class Context {
 afterEach(() => {
   Context.instances = [];
   vi.unstubAllGlobals();
+});
+
+it('prebuilds distinct surface variations without repeating the previous take', () => {
+  const context = {
+    createBuffer: (_channels: number, frames: number, rate: number) => {
+      const data = new Float32Array(frames);
+      return { duration: frames / rate, getChannelData: () => data };
+    },
+  } as unknown as AudioContext;
+  const bank = new FootstepBank();
+  bank.preload(context);
+  const signatures = footstepSurfaces.map((surface) => {
+    const a = bank.sample(context, surface, 'walk');
+    const b = bank.sample(context, surface, 'walk');
+    expect(a).not.toBe(b);
+    expect(a.getChannelData(0).some((value) => Math.abs(value) > 0.02)).toBe(
+      true,
+    );
+    return a.getChannelData(0).slice(120, 140).join(',');
+  });
+  expect(new Set(signatures).size).toBe(footstepSurfaces.length);
+
+  const concrete = bank.sample(context, 'concrete', 'walk').getChannelData(0);
+  const peak = (start: number, end: number) =>
+    Math.max(...concrete.slice(start, end).map(Math.abs));
+  // A low attack peak keeps the bootstep from cracking like a weapon report.
+  expect(peak(0, 88)).toBeLessThan(peak(88, 1103) * 0.65);
+  expect(peak(0, concrete.length)).toBeLessThan(0.22);
+
+  const drag = bank.sample(context, 'concrete', 'slide');
+  const frames = drag.getChannelData(0);
+  const energy = (start: number, end: number) => {
+    const segment = frames.slice(start, end);
+    return (
+      segment.reduce((sum, value) => sum + value * value, 0) / segment.length
+    );
+  };
+  expect(drag.duration).toBeCloseTo(0.48);
+  expect(energy(440, 2800)).toBeGreaterThan(0.005);
+  expect(energy(7500, 10000)).toBeLessThan(energy(440, 2800) * 0.06);
+  expect(frames.at(-1)).toBeCloseTo(0, 5);
+});
+
+it('places remote footsteps behind and to the side, caches cover and follows moving sources', async () => {
+  vi.stubGlobal('AudioContext', Context);
+  const audio = new AudioEngine();
+  try {
+    await audio.unlock();
+    const context = Context.instances[0]!;
+    const listener = { x: 0, y: 1.6, z: 0 };
+    const step: RemoteFootstep = {
+      player: 'peer',
+      life: 2,
+      kind: 'walk',
+      position: { x: -2, y: 0, z: 3 },
+      surface: 'metal',
+      strength: 1,
+    };
+    const cover = vi.fn(() => true);
+    audio.remoteFootstep(step, listener, 0, false, cover);
+    audio.remoteFootstep(step, listener, 0, false, cover);
+    expect(cover).toHaveBeenCalledOnce();
+    expect(context.panners[0]!.setPosition).toHaveBeenCalledWith(-2, -1.6, 3);
+    expect(context.nodes.some((node) => node.frequency.value === 920)).toBe(
+      true,
+    );
+    audio.followFootsteps(listener, 0, [
+      {
+        id: 'peer',
+        life: 2,
+        alive: true,
+        x: 2,
+        y: 0.87,
+        z: -3,
+      } as PublicPlayer,
+    ]);
+    expect(context.panners[0]!.setPosition).toHaveBeenLastCalledWith(
+      2,
+      -1.6,
+      -3,
+    );
+    audio.followFootsteps(listener, 0, []);
+    expect(audio.voiceCount).toBe(0);
+
+    audio.configure({ ...defaultUserSettings(), spatialFootsteps: false });
+    const panners = context.panners.length;
+    for (let i = 0; i < 14; i++)
+      audio.remoteFootstep(
+        { ...step, player: `runner-${i % 7}` },
+        listener,
+        0,
+        false,
+        cover,
+      );
+    expect(context.panners).toHaveLength(panners);
+    expect(audio.voiceCount).toBe(8);
+    const oldestStep = context.nodes.find(
+      (node) => node.buffer && node.onended,
+    )!;
+    for (let i = 0; i < 9; i++) audio.cue('countdown');
+    expect(audio.voiceCount).toBe(16);
+    expect(oldestStep.stop).toHaveBeenCalledOnce();
+    audio.configure({ ...defaultUserSettings(), footstepVolume: 0 });
+    expect(audio.voiceCount).toBe(9);
+    audio.configure(defaultUserSettings());
+    audio.remoteFootstep(
+      { ...step, kind: 'crawl', position: { x: -5, y: 0, z: 0 } },
+      listener,
+      0,
+      false,
+      cover,
+    );
+    expect(audio.voiceCount).toBe(9);
+  } finally {
+    audio.dispose();
+  }
 });
 
 it('creates no context before unlock, bounds voices, suppresses muted allocation and releases hidden/disposed audio', async () => {

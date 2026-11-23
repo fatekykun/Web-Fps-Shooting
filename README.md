@@ -118,8 +118,15 @@ separate body-hit, headshot and elimination confirmations.
 If a sample cannot load, the weapon uses a synthesized report. Equipment,
 movement, confirmed hit/damage/death/respawn cues and ambient tones use one context, a reusable
 noise buffer and at most 16 transient voices plus two ambient oscillators. Remote
-gunshots use distance attenuation and stereo panning; walls do not occlude audio.
+gunshots use distance attenuation and stereo panning.
 Hidden tabs stop effects and suspend audio. Unavailable audio leaves play usable.
+
+Footsteps use synthesized mono samples for concrete, metal, wood, dirt, grass and
+gravel. Common samples are cached on audio unlock. Ramp, deck, container and floor
+colliders supply their surface material. Movement determines when a step, crawl,
+slide or landing plays. Nearby peers receive server-generated contacts on the
+existing correction stream. Audio settings include footstep volume, spatial
+positioning and muffling through solid cover.
 
 Menus use brief opacity/position transitions. First-person weapons blend sprint,
 slide and dive poses alongside equip/reload/recoil animation. Reduced motion
