@@ -111,8 +111,8 @@ mute settings.
 Server-confirmed health, ammo, hits, kill feed, timer,
 scoreboard and final standings retain the existing match authority.
 
-Audio is generated with Web Audio after a user gesture; no sound downloads or new
-dependencies are required. Rifle/SMG/shotgun reports, equipment, movement, confirmed
+Web Audio starts after a user gesture and loads the bundled SR-04 report. If it
+cannot load, the sniper uses a synthesized report. Rifle/SMG/shotgun reports, equipment, movement, confirmed
 hit/damage/death/respawn cues and subtle ambient tones use one context, a reusable
 noise buffer and at most 16 transient voices plus two ambient oscillators. Remote
 gunshots use distance attenuation and stereo panning; walls do not occlude audio.

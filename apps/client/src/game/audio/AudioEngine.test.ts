@@ -88,6 +88,7 @@ it('honors mute/interface volume and consumes hidden countdown events without a 
 });
 
 class Node {
+  buffer: object | null = null;
   gain = {
     value: 0,
     setTargetAtTime: vi.fn(),
@@ -125,6 +126,8 @@ class Context {
   createBuffer() {
     return { getChannelData: () => new Float32Array(2000) };
   }
+  readonly decodedShot = { duration: 1.26 };
+  decodeAudioData = vi.fn(async () => this.decodedShot);
   resume = vi.fn(async () => {
     this.state = 'running';
   });
@@ -202,6 +205,10 @@ it('attenuates distant shots and pans relative to listener yaw', () => {
 
 it('keeps sniper report and confirmation cues bounded and honors effect volume', async () => {
   vi.stubGlobal('AudioContext', Context);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(null, { status: 404 })),
+  );
   const audio = new AudioEngine();
   try {
     await audio.unlock();
@@ -216,6 +223,33 @@ it('keeps sniper report and confirmation cues bounded and honors effect volume',
     audio.configure(defaultUserSettings());
     for (let i = 0; i < 30; i++) audio.shot('sniper');
     expect(audio.voiceCount).toBe(16);
+  } finally {
+    audio.dispose();
+  }
+});
+
+it('preloads the bundled sniper WAV once and uses it as one spatialized voice', async () => {
+  vi.stubGlobal('AudioContext', Context);
+  const fetchShot = vi.fn(async () => new Response(new ArrayBuffer(16)));
+  vi.stubGlobal('fetch', fetchShot);
+  const audio = new AudioEngine();
+  try {
+    await audio.unlock();
+    await audio.unlock();
+    const context = Context.instances[0]!;
+    await vi.waitFor(() =>
+      expect(context.decodeAudioData).toHaveBeenCalledOnce(),
+    );
+    expect(fetchShot).toHaveBeenCalledExactlyOnceWith(
+      '/audio/sr-04-sniper-shot.wav',
+      expect.objectContaining({ cache: 'no-cache' }),
+    );
+    expect(audio.shot('sniper', 0.4, -0.6)).toBe(true);
+    expect(audio.voiceCount).toBe(1);
+    expect(
+      context.nodes.find((node) => node.buffer === context.decodedShot)?.stop,
+    ).toHaveBeenCalledWith(1.26);
+    expect(context.nodes.some((node) => node.pan.value === -0.6)).toBe(true);
   } finally {
     audio.dispose();
   }

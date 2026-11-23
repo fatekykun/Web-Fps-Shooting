@@ -44,13 +44,12 @@ type Cue =
   | 'dive'
   | 'step';
 type MatchCue = 'countdown' | 'match-start';
-// All weapon cues are synthesized locally; no licensed recordings or downloads.
 interface Voice {
   source: AudioScheduledSourceNode;
   nodes: AudioNode[];
 }
 
-/** Gesture-unlocked procedural audio. No downloads, one context, bounded transient voices. */
+/** Gesture-unlocked audio with one context and bounded transient voices. */
 export class AudioEngine {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -58,6 +57,8 @@ export class AudioEngine {
   private ui: GainNode | null = null;
   private ambience: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
+  private sniperShotBuffer: AudioBuffer | null = null;
+  private readonly sniperShotRequest = new AbortController();
   private readonly ambientSources: OscillatorNode[] = [];
   private readonly voices = new Set<Voice>();
   private settings = defaultUserSettings();
@@ -68,6 +69,7 @@ export class AudioEngine {
   private lastWeapon: WeaponId = 'rifle';
   private lastReload = false;
   private lastBoltPhase = 0;
+  private sampledBolt = false;
   private lastScoped = false;
   private lastState = '';
   private grounded: boolean | null = null;
@@ -133,11 +135,27 @@ export class AudioEngine {
           this.ambientSources.push(oscillator);
         }
         this.applyVolumes();
+        void this.loadSniperShot(context);
       }
       if (this.context.state === 'suspended') await this.context.resume();
       return this.context.state === 'running';
     } catch {
       return false;
+    }
+  }
+  private async loadSniperShot(context: AudioContext): Promise<void> {
+    try {
+      const response = await fetch(
+        `${import.meta.env.BASE_URL}audio/sr-04-sniper-shot.wav`,
+        { cache: 'no-cache', signal: this.sniperShotRequest.signal },
+      );
+      if (!response.ok || this.disposed) return;
+      const data = await response.arrayBuffer();
+      if (this.disposed) return;
+      const buffer = await context.decodeAudioData(data);
+      if (!this.disposed) this.sniperShotBuffer = buffer;
+    } catch {
+      // A missing or unsupported asset leaves the procedural report available.
     }
   }
   async uiClick(): Promise<void> {
@@ -258,8 +276,28 @@ export class AudioEngine {
     filter.connect(gain);
     this.connect(source, gain, [filter], output, pan, duration);
   }
-  shot(weapon: WeaponId, gain = 1, pan = 0): void {
+  /** True when the report includes the recorded bolt cycle. */
+  shot(weapon: WeaponId, gain = 1, pan = 0): boolean {
     if (weapon === 'sniper') {
+      if (this.sniperShotBuffer) {
+        const output = this.output();
+        if (!output || gain <= 0) return false;
+        const context = this.context!;
+        const source = context.createBufferSource();
+        const volume = context.createGain();
+        source.buffer = this.sniperShotBuffer;
+        volume.gain.value = 0.72 * gain;
+        source.connect(volume);
+        this.connect(
+          source,
+          volume,
+          [],
+          output,
+          pan,
+          this.sniperShotBuffer.duration,
+        );
+        return true;
+      }
       this.noise(0.24, 0.28 * gain, 2300, pan);
       this.tone(95, 24, 0.24, 0.24 * gain, 'triangle', pan);
       this.tone(850, 180, 0.06, 0.07 * gain, 'square', pan);
@@ -273,6 +311,7 @@ export class AudioEngine {
       this.noise(0.11, 0.17 * gain, 2100, pan);
       this.tone(110, 38, 0.12, 0.17 * gain, 'triangle', pan);
     }
+    return false;
   }
   cue(cue: Cue | MatchCue): void {
     if (cue === 'countdown') {
@@ -323,13 +362,18 @@ export class AudioEngine {
       : 0;
     const scoped = !!weapons.config.scopeMagnification && weapons.ads > 0.5;
     if (active) {
-      if (boltPhase !== this.lastBoltPhase && boltPhase > 0) {
+      if (weapons.shotsFired > this.lastShots)
+        this.sampledBolt = this.shot(weapons.selected);
+      if (
+        !this.sampledBolt &&
+        boltPhase !== this.lastBoltPhase &&
+        boltPhase > 0
+      ) {
         this.noise(0.09, 0.08, 3600);
         this.tone(boltPhase === 1 ? 640 : 350, 150, 0.07, 0.05, 'square');
       }
       if (scoped !== this.lastScoped)
         this.tone(scoped ? 330 : 480, scoped ? 600 : 220, 0.09, 0.025);
-      if (weapons.shotsFired > this.lastShots) this.shot(weapons.selected);
       if (weapons.selected !== this.lastWeapon) this.cue('equip');
       if (weapons.reloading && !this.lastReload) {
         this.cue('reload');
@@ -362,6 +406,7 @@ export class AudioEngine {
       } else this.distance = 0;
     }
     this.lastShots = weapons.shotsFired;
+    if (!weapons.cycling) this.sampledBolt = false;
     this.lastBoltPhase = boltPhase;
     this.lastScoped = scoped;
     this.lastWeapon = weapons.selected;
@@ -436,6 +481,8 @@ export class AudioEngine {
   }
   dispose(): void {
     this.disposed = true;
+    this.sniperShotRequest.abort();
+    this.sniperShotBuffer = null;
     this.stopVoices();
     for (const source of this.ambientSources) {
       source.stop();
