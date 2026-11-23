@@ -44,9 +44,19 @@ test('server-confirmed hits, ammo, kill feed, death and respawn work through the
     await page.mouse.down();
     await expect.poll(() => kills.length).toBe(1);
     await page.mouse.up();
-    await expect(page.getByRole('list', { name: 'Kill feed' })).toContainText(
+    const entry = page
+      .getByRole('list', { name: 'Kill feed' })
+      .getByRole('listitem')
+      .filter({ hasText: 'Target' });
+    await expect(entry.locator('.kill-feed-name')).toHaveText([
+      'Raven',
       'Target',
-    );
+    ]);
+    await expect(
+      entry.getByRole('img', { name: 'Assault rifle' }),
+    ).toBeVisible();
+    await expect(entry.getByRole('img', { name: 'Headshot' })).toHaveCount(0);
+    await expect(entry).not.toContainText(/rifle|headshot/i);
     await expect
       .poll(async () =>
         Number(
