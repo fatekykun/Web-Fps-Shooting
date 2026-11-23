@@ -52,6 +52,7 @@ const shotSamples: Partial<
   Record<WeaponId, { file: string; gain: number; detune: number }>
 > = {
   rifle: { file: 'ar-01-rifle-shot.wav', gain: 0.51, detune: 10 },
+  shotgun: { file: 'sg-03-shotgun-shot.wav', gain: 0.69, detune: 0 },
   sniper: { file: 'sr-04-sniper-shot.wav', gain: 0.72, detune: 0 },
   smg: { file: 'sm-02-smg-shot.wav', gain: 0.36, detune: 12 },
 };
