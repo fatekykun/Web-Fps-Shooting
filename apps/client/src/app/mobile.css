@@ -82,13 +82,6 @@
   display: grid;
   place-items: center;
 }
-.joystick-guide {
-  font:
-    56px/1 Consolas,
-    monospace;
-  color: #e5e9cb35;
-  pointer-events: none;
-}
 .joystick-knob {
   position: absolute;
   width: 44px;
@@ -99,81 +92,104 @@
   pointer-events: none;
 }
 .touch-button {
+  --touch-fill: #151a1ddc;
+  --touch-border: #e3e8eb65;
   position: absolute;
   width: 48px;
   height: 48px;
   padding: 0;
-  border: 1px solid #d9e4c590;
+  border: 1px solid var(--touch-border);
   border-radius: 50%;
-  background: #13261c70;
-  color: #f0f0db;
-  text-shadow: 0 1px 2px #000;
-  font:
-    10px/1 Consolas,
-    monospace;
+  background: var(--touch-fill);
+  color: #f4f7f8;
   pointer-events: auto;
   display: grid;
   place-items: center;
   -webkit-tap-highlight-color: transparent;
 }
-.touch-button[data-active='true'] {
-  background: #bdbd807d;
-  border-color: #f5c28b;
-  color: #fff6df;
+.touch-button:is(
+  :active,
+  [data-active='true'],
+  [data-engaged='true'],
+  [data-selected='true']
+) {
+  --touch-fill: #463222ef;
+  --touch-border: #ffb469;
+  color: #ffd0a4;
+}
+.touch-control-icon {
+  display: block;
+  width: 49%;
+  height: auto;
+  aspect-ratio: 1;
+  pointer-events: none;
+  transition: transform 90ms ease-out;
+}
+.touch-button:is(:active, [data-active='true']:not(.touch-aim, .touch-sprint))
+  .touch-control-icon {
+  transform: scale(0.91);
+}
+.touch-button:is(:disabled, [aria-disabled='true']) {
+  opacity: 0.42;
+}
+.touch-joystick .touch-control-icon {
+  width: 59%;
+  color: #e5e9cb72;
+}
+.motion-reduced .touch-control-icon {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .touch-control-icon {
+    transition: none;
+  }
 }
 .touch-button:focus-visible {
   outline: 2px solid #eeac76;
   outline-offset: 2px;
 }
 .touch-fire {
+  --touch-fill: #1e1915dd;
+  --touch-border: #e9c19ca4;
   border-width: 2px;
-  font-size: 13px;
-}
-.touch-reload {
-  font-size: 18px;
 }
 .touch-swap {
   border-radius: 12px;
 }
 .touch-pause {
   border-radius: 8px;
-  font-size: 18px;
 }
 .touch-scores {
   border-radius: 8px;
-  font-size: 9px;
 }
 .mobile-hud.tablet .joystick-knob {
   width: 56px;
   height: 56px;
 }
-.mobile-hud.tablet .touch-button:not(.touch-pause, .touch-scores) {
-  font-size: 12px;
-}
-.mobile-hud.tablet .touch-button.touch-fire {
-  font-size: 15px;
-}
-.touch-button,
-.touch-joystick {
+.touch-button {
   background: color-mix(
     in srgb,
-    #13261c70 var(--hud-opacity, 100%),
+    var(--touch-fill) var(--hud-opacity, 100%),
     transparent
   );
+  border-color: color-mix(
+    in srgb,
+    var(--touch-border) var(--hud-opacity, 100%),
+    transparent
+  );
+}
+.touch-joystick {
   border-color: color-mix(
     in srgb,
     #d9e4c590 var(--hud-opacity, 100%),
     transparent
   );
-}
-.touch-joystick {
   background: color-mix(
     in srgb,
     #15251e3b var(--hud-opacity, 100%),
     transparent
   );
 }
-.touch-button[data-active='true'],
 .touch-joystick[data-active='true'] {
   background: color-mix(
     in srgb,

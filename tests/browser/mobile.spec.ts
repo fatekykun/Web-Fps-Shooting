@@ -93,6 +93,7 @@ test.describe('phone touch controls', () => {
     await page.getByRole('button', { name: '30%', exact: true }).tap();
     const fire = page.getByRole('button', { name: 'Fire weapon' });
     await expect(fire).toHaveAttribute('data-selected', 'true');
+    await expect(fire.locator('svg[data-control-icon="fire"]')).toBeVisible();
     const before = await fire.boundingBox();
     const frame = await page.locator('.hud-editor-screen').boundingBox();
     const fingers = new Fingers(await context.newCDPSession(page));
@@ -139,6 +140,8 @@ test.describe('phone touch controls', () => {
     ).toBe('30%');
     const ingame = await fire.boundingBox();
     expect(ingame!.width).toBeCloseTo(144);
+    const resizedIcon = await fire.locator('svg').boundingBox();
+    expect(resizedIcon!.width).toBeGreaterThan(60);
     expect(ingame!.x + ingame!.width / 2).toBeCloseTo(saved.x * 844, 0);
     await fire.tap();
     await expect
@@ -177,6 +180,11 @@ test.describe('phone touch controls', () => {
     await page.getByRole('button', { name: 'Close rooms' }).tap();
     await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
     await expect(page.locator('.mobile-hud')).toBeVisible();
+    const controls = page.locator('.mobile-hud button[data-hud-id]');
+    await expect(controls).toHaveCount(12);
+    await expect(controls.locator('svg[data-control-icon]')).toHaveCount(12);
+    for (const control of await controls.all())
+      await expect(control).toHaveText('');
     const boxes = await page.locator('.touch-button').evaluateAll((buttons) =>
       buttons.map((button) => {
         const rect = button.getBoundingClientRect();
@@ -211,7 +219,22 @@ test.describe('phone touch controls', () => {
           `${x.name} overlaps ${y.name}`,
         ).toBe(true);
       }
-    await page.screenshot({ path: 'test-results/bp13-small-phone.png' });
+    await page.screenshot({ path: 'test-results/mobile-hud-icons-phone.png' });
+    const stance = page.getByRole('button', { name: 'Crouch or slide' });
+    await expect(stance.locator('svg')).toHaveAttribute(
+      'data-control-icon',
+      'crouch',
+    );
+    const fingers = new Fingers(await page.context().newCDPSession(page));
+    const joystick = await point(page, 'joystick');
+    await page.getByRole('button', { name: 'Toggle sprint' }).tap();
+    await fingers.down(1, joystick);
+    await fingers.move(1, { x: joystick.x, y: joystick.y - 40 });
+    await expect(stance.locator('svg')).toHaveAttribute(
+      'data-control-icon',
+      'slide',
+    );
+    await fingers.cancel();
   });
   test('portrait blocks the lobby, landscape unlocks it, and real multitouch controls movement + ADS + fire + look', async ({
     page,
@@ -324,10 +347,15 @@ test.describe('phone touch controls', () => {
       const host = () => guest.state.players.get(guest.state.hostId)!;
       const fingers = new Fingers(await context.newCDPSession(page));
       const joystick = await point(page, 'joystick');
-      await page.getByRole('button', { name: 'Crouch or slide' }).tap();
+      const crouch = page.getByRole('button', { name: 'Crouch or slide' });
+      await crouch.tap();
       await expect.poll(() => host().movement).toBe('crouching');
+      await expect(crouch).toHaveAttribute('aria-pressed', 'true');
       await page.getByRole('button', { name: 'Toggle prone' }).tap();
       await expect.poll(() => host().movement).toBe('prone');
+      await expect(
+        page.getByRole('button', { name: 'Toggle prone' }),
+      ).toHaveAttribute('aria-pressed', 'true');
       await expect.poll(() => host().proneBlend).toBeGreaterThan(0.9);
       const crawlStart = host().z;
       await fingers.down(9, joystick);
