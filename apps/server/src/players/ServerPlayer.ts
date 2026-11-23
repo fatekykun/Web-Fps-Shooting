@@ -10,11 +10,16 @@ import {
 import type { PlayerState } from '../rooms/RoomState';
 import { playerCombatConfig } from '@breakpoint/shared/combat';
 import { CharacterAnimation } from '@breakpoint/shared/animation';
+import {
+  FootstepTracker,
+  type RemoteFootstep,
+} from '@breakpoint/shared/movement/Footsteps';
 
 /** Each capsule collides with the shared static map. Player collisions belong to a later pass. */
 export class ServerPlayer {
   readonly animation = new CharacterAnimation();
   readonly movement: MovementController;
+  private readonly footsteps = new FootstepTracker();
   private readonly queue: PlayerInput[] = [];
   private received = 0;
   private idleTicks = 0;
@@ -97,8 +102,9 @@ export class ServerPlayer {
     return input;
   }
 
-  step(): void {
+  step(): RemoteFootstep | undefined {
     this.inputThisTick = null;
+    const verticalSpeed = this.movement.velocity.y;
     let simulated = false;
     const input = this.queue.shift();
     if (input) {
@@ -127,9 +133,17 @@ export class ServerPlayer {
       simulated = true;
     }
     this.publish(simulated);
+    if (!simulated) return;
+    const step = this.footsteps.step(
+      this.movement,
+      movementConfig.fixedStep,
+      verticalSpeed,
+    );
+    return step && { ...step, player: this.state.id, life: this.state.life };
   }
 
   freeze(): void {
+    this.footsteps.reset();
     this.queue.length = 0;
     this.state.ack = this.received;
     this.inputThisTick = null;

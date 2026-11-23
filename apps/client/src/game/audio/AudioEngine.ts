@@ -6,8 +6,13 @@ import {
 import type { WeaponController } from '../weapons/WeaponController';
 import type { MovementController } from '../movement/MovementController';
 import type { CombatSnapshot } from '../combat/PracticeCombat';
-import type { RoomView } from '@breakpoint/shared/network';
+import type { PublicPlayer, RoomView } from '@breakpoint/shared/network';
+import {
+  FootstepTracker,
+  type RemoteFootstep,
+} from '@breakpoint/shared/movement/Footsteps';
 import { matchCountdownSeconds } from '@breakpoint/shared/match';
+import { FootstepAudio } from './FootstepAudio';
 import {
   defaultUserSettings,
   type UserSettings,
@@ -43,11 +48,7 @@ type Cue =
   | 'respawn'
   | 'reload'
   | 'equip'
-  | 'jump'
-  | 'land'
-  | 'slide'
-  | 'dive'
-  | 'step';
+  | 'jump';
 type MatchCue = 'countdown' | 'match-start';
 type SampleId = WeaponId | 'hitmarker' | 'headshot' | 'elimination';
 const shotSamples: Partial<
@@ -76,6 +77,8 @@ export class AudioEngine {
   private readonly sampleRequests = new AbortController();
   private readonly ambientSources: OscillatorNode[] = [];
   private readonly voices = new Set<Voice>();
+  private readonly footsteps = new FootstepAudio();
+  private readonly footstepTracker = new FootstepTracker();
   private settings = defaultUserSettings();
   private active = true;
   private disposed = false;
@@ -88,7 +91,6 @@ export class AudioEngine {
   private lastScoped = false;
   private lastState = '';
   private grounded: boolean | null = null;
-  private distance = 0;
   private hit = 0;
   private damage = 0;
   private life = 0;
@@ -104,10 +106,16 @@ export class AudioEngine {
     );
   }
   get voiceCount(): number {
-    return this.voices.size;
+    return this.voices.size + this.footsteps.voiceCount;
   }
 
   configure(settings: UserSettings): void {
+    if (
+      settings.footstepVolume === 0 ||
+      settings.spatialFootsteps !== this.settings.spatialFootsteps ||
+      settings.footstepOcclusion !== this.settings.footstepOcclusion
+    )
+      this.footsteps.stop();
     this.settings = settings;
     this.applyVolumes();
   }
@@ -151,6 +159,7 @@ export class AudioEngine {
           this.ambientSources.push(oscillator);
         }
         this.applyVolumes();
+        this.footsteps.bank.preload(context);
         for (const weapon of weaponOrder) {
           const sample = shotSamples[weapon];
           if (sample) void this.loadSample(context, weapon, sample.file);
@@ -217,23 +226,60 @@ export class AudioEngine {
     this.ui?.gain.setTargetAtTime(this.settings.interfaceVolume, now, 0.02);
     this.ambience?.gain.setTargetAtTime(this.settings.ambientVolume, now, 0.05);
   }
-  private output(ui = false): GainNode | null {
+  private output(ui = false, footstep = false): GainNode | null {
     if (
       !this.active ||
       this.disposed ||
       this.context?.state !== 'running' ||
       this.settings.muted ||
       this.settings.masterVolume === 0 ||
-      this.voices.size >= 16
+      this.voices.size >= 16 ||
+      (footstep && this.voiceCount >= 16)
     )
       return null;
-    return ui
+    const output = ui
       ? this.settings.interfaceVolume > 0
         ? this.ui
         : null
       : this.settings.effectsVolume > 0
         ? this.effects
         : null;
+    if (output && this.voiceCount >= 16) this.footsteps.releaseOldest();
+    return output;
+  }
+
+  remoteFootstep(
+    step: RemoteFootstep,
+    listener: Vector3Like,
+    yaw: number,
+    ally: boolean,
+    occluded: (from: Vector3Like, to: Vector3Like) => boolean,
+  ): void {
+    const output = this.output(false, true);
+    if (!output || this.settings.footstepVolume === 0) return;
+    this.footsteps.play(
+      this.context!,
+      output,
+      step,
+      this.settings.footstepVolume,
+      {
+        step,
+        listener,
+        yaw,
+        ally,
+        enabled: this.settings.spatialFootsteps,
+        cover: this.settings.footstepOcclusion ? occluded : undefined,
+      },
+    );
+  }
+
+  followFootsteps(
+    listener: Vector3Like,
+    yaw: number,
+    players: readonly PublicPlayer[],
+  ): void {
+    if (this.context?.state === 'running')
+      this.footsteps.follow(listener, yaw, players, this.context.currentTime);
   }
   private connect(
     source: AudioScheduledSourceNode,
@@ -397,19 +443,13 @@ export class AudioEngine {
       this.noise(0.08, 0.065, 2800);
       this.tone(430, 180, 0.08, 0.04, 'square');
     } else if (cue === 'jump') this.tone(140, 240, 0.09, 0.04);
-    else if (cue === 'slide' || cue === 'dive') this.noise(0.2, 0.085, 950);
-    else
-      this.noise(
-        cue === 'land' ? 0.12 : 0.07,
-        cue === 'land' ? 0.075 : 0.045,
-        430,
-      );
   }
   observe(
     dt: number,
     weapons: WeaponController,
     movement: MovementController,
     active: boolean,
+    priorVerticalSpeed = 0,
   ): void {
     const boltPhase = weapons.cycling
       ? weapons.cycleProgress < 0.15
@@ -439,9 +479,6 @@ export class AudioEngine {
           this.tone(180, 70, 0.16, 0.055, 'triangle');
       }
       if (movement.state !== this.lastState) {
-        if (movement.state === 'sliding' || movement.state === 'backsliding')
-          this.cue('slide');
-        if (movement.state === 'diving') this.cue('dive');
         if (
           movement.state === 'airborne' &&
           this.grounded &&
@@ -449,20 +486,22 @@ export class AudioEngine {
         )
           this.cue('jump');
       }
-      if (this.grounded === false && movement.physics.grounded)
-        this.cue('land');
-      if (
-        movement.physics.grounded &&
-        (movement.state === 'walking' || movement.state === 'sprinting')
-      ) {
-        const speed = Math.hypot(movement.velocity.x, movement.velocity.z);
-        this.distance += speed * dt;
-        if (speed > 0.8 && this.distance > 1.8) {
-          this.distance %= 1.8;
-          this.cue('step');
-        }
-      } else this.distance = 0;
-    }
+      const output = this.output(false, true);
+      if (output && this.settings.footstepVolume > 0) {
+        const step = this.footstepTracker.step(
+          movement,
+          dt,
+          priorVerticalSpeed,
+        );
+        if (step)
+          this.footsteps.play(
+            this.context!,
+            output,
+            step,
+            this.settings.footstepVolume * 0.68,
+          );
+      } else this.footstepTracker.reset();
+    } else this.footstepTracker.reset();
     this.lastShots = weapons.shotsFired;
     if (!weapons.cycling) this.sampledBolt = false;
     this.lastBoltPhase = boltPhase;
@@ -523,7 +562,8 @@ export class AudioEngine {
     }
   }
   resetMotion(): void {
-    this.distance = 0;
+    this.footstepTracker.reset();
+    this.footsteps.stop();
     this.grounded = null;
     this.lastState = '';
   }
@@ -543,6 +583,8 @@ export class AudioEngine {
     this.disposed = true;
     this.sampleRequests.abort();
     this.sampleBuffers.clear();
+    this.footsteps.stop();
+    this.footsteps.bank.clear();
     this.stopVoices();
     for (const source of this.ambientSources) {
       source.stop();

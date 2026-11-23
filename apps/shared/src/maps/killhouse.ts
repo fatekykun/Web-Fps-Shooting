@@ -34,6 +34,19 @@ const colors: Record<Surface, number> = {
   vehicle: 0x626952,
   target: 0xaa9271,
 };
+const surfaces: Record<Surface, NonNullable<ArenaBox['footstepSurface']>> = {
+  concrete: 'concrete',
+  steel: 'metal',
+  timber: 'wood',
+  brick: 'concrete',
+  plywood: 'wood',
+  sandbag: 'dirt',
+  container: 'metal',
+  crate: 'wood',
+  barrel: 'metal',
+  vehicle: 'metal',
+  target: 'wood',
+};
 
 function box(
   surface: Surface,
@@ -42,7 +55,14 @@ function box(
   color = colors[surface],
   yaw?: number,
 ): KillhousePart {
-  return { surface, position, size, color, yaw };
+  return {
+    surface,
+    position,
+    size,
+    color,
+    yaw,
+    footstepSurface: surfaces[surface],
+  };
 }
 
 const floor = box('concrete', [0, -0.5, 0], [width + 1, 1, depth + 1]);
