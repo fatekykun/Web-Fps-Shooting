@@ -34,12 +34,12 @@ export function createPixelAtlas(tileSize: 16 | 32 = 32): DataTexture {
           // Warehouse wall panels.
           if (py % 16 === 0 || px % 16 === 0) value = 184;
           if (px % 16 === 2 && py % 16 === 2) value = 253;
-        } else if (tile === 2 || tile === 6) {
+        } else if (tile === 2) {
           // Corrugated steel.
           value = px % 8 < 2 ? 190 : px % 8 === 2 ? 253 : 234;
           if (py === 0 || py === 31) value = 177;
           if (patch === 5 && py > 22) value = 216;
-        } else if (tile === 3 || tile === 7) {
+        } else if (tile === 3) {
           // Crate reinforcement.
           if (px < 3 || py < 3 || px > 28 || py > 28 || Math.abs(px - py) < 2)
             value = 184;
@@ -51,6 +51,14 @@ export function createPixelAtlas(tileSize: 16 | 32 = 32): DataTexture {
           // Concrete practice wall with painted inset.
           if (px < 2 || px > 29 || py < 2 || py > 29) value = 190;
           if (px > 12 && px < 19 && py > 8 && py < 24) value = 253;
+        } else if (tile === 6) {
+          // Diamond-pattern steel screening over a solid perimeter panel.
+          value = (px + py) % 8 === 0 || (px - py + 32) % 8 === 0 ? 232 : 178;
+        } else if (tile === 7) {
+          // Expansion joints and short stepped cracks in the yard paving.
+          if (px % 16 === 0 || py % 16 === 0) value = 200;
+          if (px > 17 && px < 27 && py === 17 + Math.floor((px - 17) / 3))
+            value = 208;
         }
         const offset =
           ((Math.floor(tile / columns) * tileSize + y) * width +

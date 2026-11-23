@@ -37,6 +37,7 @@ export class PhysicsWorld {
   });
   private readonly character: RAPIER.RigidBody;
   private readonly collider: RAPIER.Collider;
+  private readonly arenaColliders: RAPIER.Collider[] = [];
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly nextPosition: Vector3Like = { x: 0, y: 0, z: 0 };
   private readonly queryPosition: Vector3Like = { x: 0, y: 0, z: 0 };
@@ -95,15 +96,7 @@ export class PhysicsWorld {
 
   constructor(boxes: readonly ArenaBox[], spawn: Vector3Like) {
     this.world.timestep = movementConfig.fixedStep;
-    for (const box of boxes) {
-      this.world.createCollider(
-        RAPIER.ColliderDesc.cuboid(
-          box.size[0] / 2,
-          box.size[1] / 2,
-          box.size[2] / 2,
-        ).setTranslation(...box.position),
-      );
-    }
+    this.addArena(boxes);
     this.character = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
         spawn.x,
@@ -130,8 +123,29 @@ export class PhysicsWorld {
     // owns traction. Max climb angle still blocks wall climbing. Revisit for ramp maps.
     this.controller.setMinSlopeSlideAngle(-0.0001);
     Object.assign(this.position, spawn);
-    // Populate the broad phase before the very first shape query.
     this.world.step();
+  }
+
+  setArena(boxes: readonly ArenaBox[]): void {
+    for (const collider of this.arenaColliders)
+      this.world.removeCollider(collider, false);
+    this.arenaColliders.length = 0;
+    this.addArena(boxes);
+    // Rebuild query bounds before the next controller step or hitscan.
+    this.world.step();
+  }
+
+  private addArena(boxes: readonly ArenaBox[]): void {
+    for (const box of boxes) {
+      const [x, y, z] = box.size;
+      const shape =
+        box.kind === 'barrel'
+          ? RAPIER.ColliderDesc.cylinder(y / 2, x / 2)
+          : RAPIER.ColliderDesc.cuboid(x / 2, y / 2, z / 2);
+      this.arenaColliders.push(
+        this.world.createCollider(shape.setTranslation(...box.position)),
+      );
+    }
   }
 
   move(displacement: Vector3Like): void {

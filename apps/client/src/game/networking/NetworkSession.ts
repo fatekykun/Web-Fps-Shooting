@@ -12,6 +12,7 @@ import type {
   KillEvent,
 } from '@breakpoint/shared/combat';
 import { MovementController } from '@breakpoint/shared/movement/MovementController';
+import { isArenaId, type ArenaId } from '@breakpoint/shared/maps';
 import {
   codePattern,
   networkConfig,
@@ -35,6 +36,7 @@ import type {
 } from '@breakpoint/shared/match';
 
 interface WireState extends Omit<MatchView, 'scores'> {
+  mapId?: string;
   playerLimit?: number;
   allowedWeapons?: Iterable<WeaponId>;
   hostId: string;
@@ -45,6 +47,7 @@ interface WireState extends Omit<MatchView, 'scores'> {
 }
 interface Callbacks {
   isActive(): boolean;
+  onArena(id: ArenaId): void;
   onView(view: RoomView | null): void;
   onError(message: string): void;
   onLeave(): void;
@@ -139,6 +142,7 @@ export class NetworkSession {
   }
 
   private receive(state: WireState): void {
+    const mapId = isArenaId(state.mapId) ? state.mapId : 'depot';
     const players: PublicPlayer[] = [];
     state.players.forEach((player) =>
       players.push({
@@ -181,6 +185,7 @@ export class NetworkSession {
     );
     const self = players.find((player) => player.id === this.room.sessionId);
     if (!this.initialized && self) {
+      this.callbacks.onArena(mapId);
       const fresh = new MovementController(this.movement.physics).capture();
       this.movement.restore({
         ...fresh,
@@ -189,6 +194,7 @@ export class NetworkSession {
         grounded: false,
       });
       this.initialized = true;
+      this.callbacks.onLookReset({ yaw: self.yaw, pitch: self.pitch });
     }
     const phase =
       state.phase === 'playing'
@@ -217,6 +223,7 @@ export class NetworkSession {
       }),
     );
     this.view = {
+      mapId,
       code: this.room.roomId,
       selfId: this.room.sessionId,
       hostId: state.hostId,

@@ -5,6 +5,7 @@ import { weaponOrder } from '../config/weapons';
 import type { CharacterAnimationValues } from '../combat/characterAnimation';
 import type { OwnerCombat } from '../combat/networkCombat';
 import type { MatchPhase, MatchView, Team } from '../config/match';
+import type { ArenaId } from '../maps/arenas';
 
 export const networkConfig = Object.freeze({
   roomType: 'depot',
@@ -56,6 +57,7 @@ export interface PublicPlayer extends Partial<CharacterAnimationValues> {
   team: Team;
 }
 export interface RoomView {
+  mapId?: ArenaId;
   playerLimit?: number;
   allowedWeapons?: readonly WeaponId[];
   code: string;

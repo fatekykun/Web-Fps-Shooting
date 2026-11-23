@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { initializePhysics } from '@breakpoint/shared/physics';
+import { arenas, type ArenaDefinition } from '@breakpoint/shared/maps';
 import { matchCountdownSeconds, matchDefaults } from '@breakpoint/shared/match';
 import { PlayerState, RoomState } from '../rooms/RoomState';
 import { ServerPlayer } from '../players/ServerPlayer';
@@ -12,7 +13,7 @@ afterEach(() => {
   for (const player of worlds) player.dispose();
   worlds.length = 0;
 });
-function fixture() {
+function fixture(arena: ArenaDefinition = arenas.depot) {
   const state = new RoomState(),
     players = new Map<string, ServerPlayer>();
   const combat = new ServerCombat(
@@ -32,7 +33,7 @@ function fixture() {
       ready: true,
     });
     match.assignTeam(s);
-    const player = new ServerPlayer(s);
+    const player = new ServerPlayer(s, arena);
     if (!state.hostId) state.hostId = id;
     players.set(id, player);
     state.players.set(id, s);
@@ -77,6 +78,24 @@ function fixture() {
   };
 }
 describe('match lifecycle and score authority', () => {
+  it('uses Shipment team spawns and keeps respawns away from nearby opponents', () => {
+    const f = fixture(arenas.shipment);
+    expect(f.match.configure(matchDefaults.tdm)).toBeNull();
+    const blue = f.add('blue');
+    const orange = f.add('orange');
+    expect(f.begin()).toBeNull();
+    expect(blue.state.z).toBeCloseTo(-15.7);
+    expect(blue.state.yaw).toBeCloseTo(Math.PI);
+    expect(orange.state.z).toBeCloseTo(15.7);
+    expect(orange.state.yaw).toBe(0);
+    orange.respawn({ x: -8, y: 0.91, z: -12.8 });
+    blue.state.alive = false;
+    f.combat.step(1);
+    expect(blue.state.alive).toBe(true);
+    expect(blue.state.x).toBeCloseTo(7.5);
+    expect(blue.state.z).toBeCloseTo(-15.7);
+    expect(blue.state.yaw).toBeCloseTo(Math.PI);
+  });
   it('counts down exactly five seconds, blocks premature scores and starts the full match clock at MATCH START', () => {
     const f = fixture();
     f.add('a');

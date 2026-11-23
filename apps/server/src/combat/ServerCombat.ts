@@ -22,6 +22,7 @@ import {
 } from '@breakpoint/shared/combat';
 import type { ServerPlayer } from '../players/ServerPlayer';
 import { spawnCandidates, type GameMode } from '@breakpoint/shared/match';
+import type { ArenaSpawn } from '@breakpoint/shared/maps';
 
 const neutral = (): WeaponInput => ({
   fire: false,
@@ -147,8 +148,6 @@ export class ServerCombat {
       if (!player.state.alive) {
         if (tick < loadout.respawnTick) continue;
         player.respawn(this.chooseSpawn(player));
-        if (this.mode === 'tdm' && player.state.team === 'orange')
-          player.state.yaw = Math.PI;
         const selected = loadout.nextWeapon ?? loadout.weapons.selected;
         loadout.nextWeapon = undefined;
         loadout.weapons = new WeaponController((shot) =>
@@ -365,9 +364,10 @@ export class ServerCombat {
     this.onShot(event);
   }
 
-  private chooseSpawn(player: ServerPlayer): Vector3Like {
+  private chooseSpawn(player: ServerPlayer): ArenaSpawn {
     const points = spawnCandidates(
       this.mode === 'tdm' ? player.state.team : 'none',
+      player.arena,
     );
     let best = points[0]!,
       bestDistance = -1;
