@@ -1,13 +1,20 @@
 import type { Vector3Like } from '../types/movement';
 import type { WeaponId } from '../types/weapons';
+import type { GameMode } from '../config/match';
 
 export const playerCombatConfig = Object.freeze({
   health: 100,
   respawnSeconds: 3,
-  spawnProtectionSeconds: 1,
   heldInputTicks: 6,
   killFeedSeconds: 6,
 });
+const defaultProtection = { seconds: 1.5, fallbackSeconds: 2, damageScale: 0 };
+export const spawnProtectionByMode: Readonly<
+  Record<GameMode, Readonly<typeof defaultProtection>>
+> = {
+  ffa: { ...defaultProtection },
+  tdm: { ...defaultProtection },
+};
 export interface AmmoState {
   magazine: number;
   reserve: number;

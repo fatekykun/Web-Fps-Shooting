@@ -8,6 +8,7 @@ import { ServerPlayer } from '../players/ServerPlayer';
 import { ServerCombat } from '../combat/ServerCombat';
 import { MatchController } from '../game-modes/MatchController';
 import { RoomCapacity } from './RoomCapacity';
+import { validateSpawnLayout } from '../spawns/SpawnDirector';
 import { weaponOrder } from '@breakpoint/shared';
 import {
   matchDefaults,
@@ -44,6 +45,20 @@ export class DepotRoom extends Room<{ state: RoomState }> {
       this.match.recordKill(kill);
       this.broadcast('kill', kill);
     },
+    undefined,
+    process.env.NODE_ENV !== 'production' && process.env.SPAWN_DEBUG === '1'
+      ? {
+          spawnDebug: ({ player, selected, fallback, candidates }) => {
+            console.info('Spawn safety', {
+              room: this.roomId,
+              player,
+              selected,
+              fallback,
+            });
+            console.table(candidates);
+          },
+        }
+      : undefined,
   );
   private readonly match = new MatchController(
     this.state,
@@ -77,6 +92,7 @@ export class DepotRoom extends Room<{ state: RoomState }> {
     this.state.allowedWeapons.push(...(settings.allowedWeapons ?? weaponOrder));
     this.combat.setAllowedWeapons(settings.allowedWeapons ?? weaponOrder);
     await initializePhysics();
+    validateSpawnLayout(this.arena);
     if (options?.settings !== undefined) {
       const error = this.match.configure(settings);
       if (error) throw new ServerError(400, error);

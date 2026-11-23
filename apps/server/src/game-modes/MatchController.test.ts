@@ -78,7 +78,7 @@ function fixture(arena: ArenaDefinition = arenas.depot) {
   };
 }
 describe('match lifecycle and score authority', () => {
-  it('starts Killhouse teams on raised decks and prefers respawns screened from opponents', () => {
+  it('starts Killhouse teams on raised decks and respawns into validated map positions', () => {
     const house = arenas.killhouse;
     const f = fixture(house);
     expect(f.match.configure(matchDefaults.tdm)).toBeNull();
@@ -95,8 +95,10 @@ describe('match lifecycle and score authority', () => {
     blue.state.alive = false;
     f.combat.step(1);
     expect(blue.state.alive).toBe(true);
-    expect(Math.abs(blue.state.x)).toBeCloseTo(2.1);
-    expect(blue.state.yaw).toBeCloseTo(Math.PI);
+    expect(
+      blue.movement.physics.canSpawnAt(blue.movement.physics.position),
+    ).toBe(true);
+    expect(Math.hypot(blue.state.x, blue.state.z + 8)).toBeGreaterThan(8);
   });
   it('uses Shipment team spawns and keeps respawns away from nearby opponents', () => {
     const f = fixture(arenas.shipment);
@@ -112,9 +114,12 @@ describe('match lifecycle and score authority', () => {
     blue.state.alive = false;
     f.combat.step(1);
     expect(blue.state.alive).toBe(true);
-    expect(blue.state.x).toBeCloseTo(7.5);
-    expect(blue.state.z).toBeCloseTo(-15.7);
-    expect(blue.state.yaw).toBeCloseTo(Math.PI);
+    expect(
+      blue.movement.physics.canSpawnAt(blue.movement.physics.position),
+    ).toBe(true);
+    expect(Math.hypot(blue.state.x + 8, blue.state.z + 12.8)).toBeGreaterThan(
+      8,
+    );
   });
   it('counts down exactly five seconds, blocks premature scores and starts the full match clock at MATCH START', () => {
     const f = fixture();

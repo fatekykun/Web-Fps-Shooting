@@ -2,8 +2,10 @@ import type { Vector3Like } from '../types/movement';
 import { arenaBoxes, type ArenaBox } from './depot';
 import { shipment } from './shipment';
 import { killhouse } from './killhouse';
+import { respawnLayouts, type RespawnLayout } from './respawns';
 
 export * from './depot';
+export type { RespawnCandidate } from './respawns';
 
 export interface ArenaSpawn extends Vector3Like {
   yaw: number;
@@ -13,7 +15,7 @@ export interface ArenaDefinition {
   name: string;
   venue: string;
   sector: string;
-  preferCoveredSpawns?: boolean;
+  respawns?: RespawnLayout;
   spawns: Record<'none' | 'blue' | 'orange', readonly ArenaSpawn[]>;
   colliders: readonly ArenaBox[];
 }
@@ -40,10 +42,11 @@ const depot = {
   },
 } satisfies ArenaDefinition;
 
-export const arenas = { depot, shipment, killhouse } satisfies Record<
-  string,
-  ArenaDefinition
->;
+export const arenas = {
+  depot: { ...depot, respawns: respawnLayouts.depot },
+  shipment: { ...shipment, respawns: respawnLayouts.shipment },
+  killhouse: { ...killhouse, respawns: respawnLayouts.killhouse },
+} satisfies Record<string, ArenaDefinition>;
 export type ArenaId = keyof typeof arenas;
 
 export function isArenaId(value: unknown): value is ArenaId {

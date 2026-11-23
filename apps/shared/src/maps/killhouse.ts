@@ -326,7 +326,6 @@ export const killhouse = {
   height,
   deckHeight,
   towerHeight,
-  preferCoveredSpawns: true,
   floor,
   roof,
   walls,
