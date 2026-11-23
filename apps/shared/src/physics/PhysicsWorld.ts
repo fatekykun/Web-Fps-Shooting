@@ -138,14 +138,63 @@ export class PhysicsWorld {
   private addArena(boxes: readonly ArenaBox[]): void {
     for (const box of boxes) {
       const [x, y, z] = box.size;
-      const shape =
-        box.kind === 'barrel'
-          ? RAPIER.ColliderDesc.cylinder(y / 2, x / 2)
-          : RAPIER.ColliderDesc.cuboid(x / 2, y / 2, z / 2);
+      const shape = this.arenaShape(box, x / 2, y / 2, z / 2);
+      if (box.yaw || box.pitch || box.roll) {
+        const yaw = (box.yaw ?? 0) / 2;
+        const pitch = (box.pitch ?? 0) / 2;
+        const roll = (box.roll ?? 0) / 2;
+        const sx = Math.sin(pitch),
+          cx = Math.cos(pitch);
+        const sy = Math.sin(yaw),
+          cy = Math.cos(yaw);
+        const sz = Math.sin(roll),
+          cz = Math.cos(roll);
+        shape.setRotation({
+          x: sx * cy * cz + cx * sy * sz,
+          y: cx * sy * cz - sx * cy * sz,
+          z: cx * cy * sz + sx * sy * cz,
+          w: cx * cy * cz - sx * sy * sz,
+        });
+      }
       this.arenaColliders.push(
         this.world.createCollider(shape.setTranslation(...box.position)),
       );
     }
+  }
+
+  private arenaShape(
+    box: ArenaBox,
+    x: number,
+    y: number,
+    z: number,
+  ): RAPIER.ColliderDesc {
+    if (box.kind === 'barrel') return RAPIER.ColliderDesc.cylinder(y, x);
+    if (box.kind !== 'stair') return RAPIER.ColliderDesc.cuboid(x, y, z);
+    // Meet each tread at its nosing with a continuous walkable slope.
+    const ramp = RAPIER.ColliderDesc.convexHull(
+      new Float32Array([
+        -x,
+        -y,
+        z,
+        x,
+        -y,
+        z,
+        -x,
+        -y,
+        -z,
+        x,
+        -y,
+        -z,
+        -x,
+        y,
+        -z,
+        x,
+        y,
+        -z,
+      ]),
+    );
+    if (!ramp) throw new Error('Invalid arena staircase dimensions.');
+    return ramp;
   }
 
   move(displacement: Vector3Like): void {

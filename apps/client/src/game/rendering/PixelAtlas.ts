@@ -13,7 +13,10 @@ const columns = 4;
 const rows = 2;
 
 /** Deterministic 32px industrial tiles; one 32 KiB RGBA atlas, no downloads or mip seams. */
-export function createPixelAtlas(tileSize: 16 | 32 = 32): DataTexture {
+export function createPixelAtlas(
+  tileSize: 16 | 32 = 32,
+  theme?: 'warehouse',
+): DataTexture {
   const width = tileSize * columns,
     height = tileSize * rows;
   const pixels = new Uint8Array(width * height * 4);
@@ -48,12 +51,23 @@ export function createPixelAtlas(tileSize: 16 | 32 = 32): DataTexture {
           // Low-clearance caution paint.
           value = (px + py) % 16 < 8 ? 130 : 247;
         } else if (tile === 5) {
-          // Concrete practice wall with painted inset.
-          if (px < 2 || px > 29 || py < 2 || py > 29) value = 190;
-          if (px > 12 && px < 19 && py > 8 && py < 24) value = 253;
+          if (theme === 'warehouse') {
+            // Broad boards with sparse broken grain.
+            if (py % 8 === 0) value = 193;
+            else if (py % 4 === 1 && patch < 9) value = 228;
+          } else {
+            // Concrete practice wall with painted inset.
+            if (px < 2 || px > 29 || py < 2 || py > 29) value = 190;
+            if (px > 12 && px < 19 && py > 8 && py < 24) value = 253;
+          }
         } else if (tile === 6) {
-          // Diamond-pattern steel screening over a solid perimeter panel.
-          value = (px + py) % 8 === 0 || (px - py + 32) % 8 === 0 ? 232 : 178;
+          if (theme === 'warehouse') {
+            const joint = (px + (Math.floor(py / 4) % 2) * 4) % 8;
+            value = py % 4 === 0 || joint === 0 ? 183 : 220 + (patch % 4) * 7;
+          } else {
+            // Diamond-pattern steel screening over a solid perimeter panel.
+            value = (px + py) % 8 === 0 || (px - py + 32) % 8 === 0 ? 232 : 178;
+          }
         } else if (tile === 7) {
           // Expansion joints and short stepped cracks in the yard paving.
           if (px % 16 === 0 || py % 16 === 0) value = 200;
