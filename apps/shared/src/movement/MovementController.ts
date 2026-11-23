@@ -62,7 +62,9 @@ export class MovementController {
       state === 'airborne' ||
       state === 'diving' ||
       state === 'sliding' ||
-      state === 'backsliding'
+      state === 'backsliding' ||
+      state === 'crouching' ||
+      state === 'prone'
     )
       this.clearSlideJump();
     if (this.state === 'diving')
@@ -102,20 +104,23 @@ export class MovementController {
       : Math.max(0, this.jumpBuffer - dt);
     // Buffer eligible taps across contact/cooldown boundaries, not a boost
     // pressed at rest that becomes eligible only during the faster sprint ramp.
-    const actionEligible =
-      !(input.slidePressed || input.divePressed) ||
-      this.state === 'sliding' ||
-      this.state === 'backsliding' ||
-      Math.hypot(this.velocity.x, this.velocity.z) >=
-        movementConfig.slideMinimumSpeed ||
-      (input.sprint && input.forward < 0 && this.sprintGrace > 0);
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    const isSlide = this.state === 'sliding' || this.state === 'backsliding';
+    const backslide =
+      !!input.sprint && input.forward < 0 && this.sprintGrace > 0;
+    const sprintSpeed = speed >= movementConfig.slideMinimumSpeed;
+    const canStartSlide =
+      (wantsSprint(input) &&
+        sprintSpeed &&
+        (this.state === 'sprinting' || this.sprintGrace > 0)) ||
+      backslide;
     this.slideBuffer = input.slidePressed
-      ? actionEligible
+      ? isSlide || canStartSlide
         ? movementConfig.actionBuffer
         : 0
       : Math.max(0, this.slideBuffer - dt);
     this.diveBuffer = input.divePressed
-      ? actionEligible
+      ? isSlide || sprintSpeed || backslide
         ? movementConfig.actionBuffer
         : 0
       : Math.max(0, this.diveBuffer - dt);
@@ -128,15 +133,9 @@ export class MovementController {
       this.wallJumps = 0;
       this.lastWall = null;
     }
-    if (
-      grounded &&
-      wantsSprint(input) &&
-      Math.hypot(this.velocity.x, this.velocity.z) >=
-        movementConfig.slideMinimumSpeed
-    ) {
+    if (grounded && wantsSprint(input) && sprintSpeed) {
       this.sprintGrace = movementConfig.backslideGrace;
     }
-    const isSlide = this.state === 'sliding' || this.state === 'backsliding';
     if (
       isSlide &&
       (this.stateTime >= movementConfig.slideDuration ||
@@ -211,15 +210,36 @@ export class MovementController {
       }
     }
 
-    const speed = Math.hypot(this.velocity.x, this.velocity.z);
     const normalState = this.state === 'walking' || this.state === 'sprinting';
+    if (!launched && grounded) {
+      if (input.pronePressed) {
+        if (normalState || this.state === 'crouching') {
+          this.slideBuffer = this.diveBuffer = 0;
+          this.transition('prone');
+        } else if (this.state === 'prone' && this.physics.canStand()) {
+          this.transition('walking');
+        }
+      } else if (input.slidePressed && !isSlide) {
+        if (
+          this.state === 'prone' &&
+          this.physics.canOccupy(movementConfig.crouchHalfHeight)
+        ) {
+          this.transition('crouching');
+        } else if (this.state === 'crouching' && this.physics.canStand()) {
+          this.transition('walking');
+        } else if (normalState && !wantsSprint(input) && !canStartSlide) {
+          this.slideBuffer = 0;
+          this.transition('crouching');
+        }
+      }
+    }
     if (
       !launched &&
       grounded &&
       normalState &&
+      (this.state === 'walking' || this.state === 'sprinting') &&
       input.sprint &&
-      (speed >= movementConfig.slideMinimumSpeed ||
-        (input.forward < 0 && this.sprintGrace > 0))
+      (sprintSpeed || backslide)
     ) {
       if (this.diveBuffer > 0 && this.diveCooldown === 0 && input.forward > 0) {
         this.slideBuffer = 0;
@@ -228,7 +248,11 @@ export class MovementController {
         this.transition('diving');
         this.coyote = 0;
         launched = true;
-      } else if (this.slideBuffer > 0 && this.slideCooldown === 0) {
+      } else if (
+        canStartSlide &&
+        this.slideBuffer > 0 &&
+        this.slideCooldown === 0
+      ) {
         this.slideBuffer = 0;
         this.diveBuffer = 0;
         if (input.forward < 0) {
@@ -278,6 +302,19 @@ export class MovementController {
       case 'sprinting':
         sprint(this.velocity, input, dt);
         break;
+      case 'crouching':
+      case 'prone':
+        if (grounded)
+          updateGroundVelocity(
+            this.velocity,
+            input,
+            dt,
+            (this.state === 'prone'
+              ? movementConfig.proneSpeed
+              : movementConfig.crouchSpeed) * Math.max(0.2, groundSpeedScale),
+          );
+        else airMove(this.velocity, input, dt, this.wish);
+        break;
       case 'sliding':
       case 'backsliding':
         slide(this.velocity, input, dt, this.wish);
@@ -310,6 +347,10 @@ export class MovementController {
       targetHalfHeight = movementConfig.slideHalfHeight;
     if (this.state === 'diving')
       targetHalfHeight = movementConfig.diveHalfHeight;
+    if (this.state === 'crouching')
+      targetHalfHeight = movementConfig.crouchHalfHeight;
+    if (this.state === 'prone')
+      targetHalfHeight = movementConfig.proneHalfHeight;
     if (this.state === 'recovering' && this.stateTime < this.recoveryDuration)
       targetHalfHeight = this.recoveryHalfHeight;
     const heightDelta = Math.max(

@@ -48,6 +48,57 @@ describe('movement transitions with real Rapier collision', () => {
     steps(player, 60, running);
   }
 
+  it('uses the slide button to toggle crouch at rest and while walking', () => {
+    const player = make();
+    steps(player, 12);
+    player.step({ ...idle, slidePressed: true }, dt);
+    steps(player, 20);
+    expect(player.state).toBe('crouching');
+    expect(player.physics.halfHeight).toBeCloseTo(config.crouchHalfHeight);
+    expect(player.eyeOffset).toBeLessThan(config.eyeOffset);
+    player.step({ ...idle, slidePressed: true }, dt);
+    expect(player.state).toBe('walking');
+    const walking = { ...idle, forward: 1 };
+    steps(player, 30, walking);
+    player.step({ ...walking, slidePressed: true }, dt);
+    steps(player, 20, walking);
+    expect(player.state).toBe('crouching');
+    expect(speed(player)).toBeCloseTo(config.crouchSpeed, 2);
+  });
+
+  it('crawls prone through low cover and only rises when there is room', () => {
+    const roof: ArenaBox = {
+      position: [0, 1.55, -2],
+      size: [4, 1.2, 2],
+      color: 0,
+    };
+    const player = make([floor, roof]);
+    steps(player, 12);
+    player.step({ ...idle, pronePressed: true }, dt);
+    steps(player, 105, { ...idle, forward: 1 });
+    expect(player.state).toBe('prone');
+    expect(player.physics.halfHeight).toBeCloseTo(config.proneHalfHeight);
+    expect(speed(player)).toBeCloseTo(config.proneSpeed, 2);
+    expect(player.physics.position.z).toBeLessThan(-1.5);
+    expect(player.physics.canStand()).toBe(false);
+    for (const input of [
+      { pronePressed: true },
+      { slidePressed: true },
+      { jumpPressed: true },
+    ]) {
+      player.step({ ...idle, ...input }, dt);
+      expect(player.state).toBe('prone');
+    }
+    steps(player, 128, { ...idle, right: 1 });
+    expect(player.physics.canStand()).toBe(true);
+    player.step({ ...idle, slidePressed: true }, dt);
+    steps(player, 20);
+    expect(player.state).toBe('crouching');
+    expect(player.physics.halfHeight).toBeCloseTo(config.crouchHalfHeight);
+    player.step({ ...idle, jumpPressed: true }, dt);
+    expect(player.state).toBe('airborne');
+  });
+
   it('accelerates to sprint speed and promptly returns to walk speed on Shift release', () => {
     const player = make();
     run(player);

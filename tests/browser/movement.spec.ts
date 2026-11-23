@@ -28,6 +28,29 @@ async function sprint(page: Page) {
   );
 }
 
+test('C crouches while walking and Z toggles prone with a lower collision capsule', async ({
+  page,
+}) => {
+  await enter(page);
+  const pose = page.getByTestId('position');
+  await page.keyboard.down('w');
+  await page.clock.runFor(320);
+  await page.keyboard.press('c');
+  await page.clock.runFor(320);
+  await expect(pose).toHaveAttribute('data-state', 'crouching');
+  expect(Number(await pose.getAttribute('data-half-height'))).toBeCloseTo(0.35);
+  await page.keyboard.press('z');
+  // Allow the resize to settle before the next 4 Hz telemetry sample.
+  await page.clock.runFor(480);
+  await expect(pose).toHaveAttribute('data-state', 'prone');
+  expect(Number(await pose.getAttribute('data-half-height'))).toBeCloseTo(0.04);
+  await page.keyboard.press('z');
+  await page.clock.runFor(320);
+  await expect(pose).toHaveAttribute('data-state', 'walking');
+  await page.keyboard.up('w');
+  await page.keyboard.press('Escape');
+});
+
 for (const [direction, yaw, completed] of [
   ['backward', Math.PI, false],
   ['left', Math.PI / 2, false],

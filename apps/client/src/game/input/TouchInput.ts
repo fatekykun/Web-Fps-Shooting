@@ -64,6 +64,7 @@ export class TouchInput {
     if (control === 'aim') this.aim = !this.aim;
     if (control === 'jump') this.input.movement.jumpPressed = true;
     if (control === 'slide') this.input.movement.slidePressed = true;
+    if (control === 'prone') this.input.movement.pronePressed = true;
     if (control === 'dive') this.input.movement.divePressed = true;
     if (control === 'reload') this.input.weapon.reloadPressed = true;
     if (control === 'swap') this.input.cycleWeapon();

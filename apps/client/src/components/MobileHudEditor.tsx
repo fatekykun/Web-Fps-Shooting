@@ -13,6 +13,7 @@ const labels: Record<MobileHudControlId, string> = {
   aim: 'ADS',
   jump: 'Jump',
   slide: 'Crouch / slide',
+  prone: 'Prone',
   dive: 'Dive',
   reload: 'Reload',
   swap: 'Weapon switch',

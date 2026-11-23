@@ -12,12 +12,15 @@ export interface MovementInput {
   jump?: boolean;
   jumpPressed?: boolean;
   slidePressed?: boolean;
+  pronePressed?: boolean;
   divePressed?: boolean;
 }
 
 export type MovementState =
   | 'walking'
   | 'sprinting'
+  | 'crouching'
+  | 'prone'
   | 'sliding'
   | 'backsliding'
   | 'airborne'

@@ -5,6 +5,7 @@ export const mobileHudControlIds = [
   'aim',
   'jump',
   'slide',
+  'prone',
   'dive',
   'reload',
   'swap',

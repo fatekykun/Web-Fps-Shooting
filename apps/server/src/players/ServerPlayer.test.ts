@@ -18,6 +18,45 @@ const input = (seq: number) => ({
 });
 
 describe('server movement ownership', () => {
+  it('publishes crouch and prone with the matching server capsule and animation', () => {
+    const player = new ServerPlayer(new PlayerState());
+    let seq = 0;
+    function move(
+      ticks: number,
+      action: { slidePressed?: boolean; pronePressed?: boolean } = {},
+    ) {
+      for (let i = 0; i < ticks; i++) {
+        expect(
+          player.enqueue([
+            {
+              ...input(++seq),
+              forward: 0.4,
+              sprint: false,
+              ...(i === 0 ? action : {}),
+            },
+          ]),
+        ).toBe(true);
+        player.step();
+      }
+    }
+    try {
+      move(20);
+      move(20, { slidePressed: true });
+      expect(player.state.movement).toBe('crouching');
+      expect(player.state.halfHeight).toBeCloseTo(0.35);
+      expect(player.state.crouchBlend).toBeGreaterThan(0.9);
+      move(24, { pronePressed: true });
+      expect(player.state.movement).toBe('prone');
+      expect(player.state.halfHeight).toBeCloseTo(0.04);
+      expect(player.state.proneBlend).toBeGreaterThan(0.9);
+      player.respawn({ x: 0, y: 0.91, z: 12 });
+      expect(player.state.movement).toBe('walking');
+      expect(player.state.crouchBlend).toBe(0);
+      expect(player.state.proneBlend).toBe(0);
+    } finally {
+      player.dispose();
+    }
+  });
   it('owns gait animation on the server and resets it on respawn', () => {
     const player = new ServerPlayer(new PlayerState());
     try {

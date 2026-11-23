@@ -32,6 +32,7 @@ export class KeyboardInput {
     if (!this.keys.has(event.code) && !event.repeat) {
       if (event.code === b.jump) input.movement.jumpPressed = true;
       if (event.code === b.slide) input.movement.slidePressed = true;
+      if (event.code === b.prone) input.movement.pronePressed = true;
       if (event.code === b.dive) input.movement.divePressed = true;
       if (event.code === b.reload) input.weapon.reloadPressed = true;
       for (const id of ['rifle', 'smg', 'shotgun', 'sniper'] as const)

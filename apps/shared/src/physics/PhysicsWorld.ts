@@ -173,7 +173,7 @@ export class PhysicsWorld {
     return this.canOccupy(movementConfig.capsuleHalfHeight);
   }
 
-  private canOccupy(halfHeight: number): boolean {
+  canOccupy(halfHeight: number): boolean {
     this.clearanceShape.halfHeight = halfHeight;
     this.queryPosition.x = this.position.x;
     // Shift the clearance probe slightly upward: floor contact is valid, but head contact is not.
