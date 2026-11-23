@@ -1,4 +1,5 @@
 import { enterStartedMatch } from './helpers/matchEntry';
+import { expectMatchHudLayout } from './helpers/matchHudLayout';
 import { expect, test, type Page } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
@@ -42,6 +43,9 @@ test('FFA shows server scores, a winner, frozen results and a clean rematch lobb
     peer = await create(page, 'ffa', 1, 30);
     await enter(page);
     await expect(page.getByTestId('ffa-score')).toHaveText('0 / 1 KILLS');
+    await expectMatchHudLayout(page);
+    await expect(page.getByText('CONNECTED', { exact: true })).toBeVisible();
+    await page.screenshot({ path: 'test-results/bp15-ffa-hud.png' });
     await expect(page.getByTestId('player-health')).toHaveAttribute(
       'data-health',
       '100',
@@ -112,6 +116,8 @@ test('TDM displays balanced teams, opposite spawns, team scores, timer and drawn
     await enter(page);
     await expect(page.getByTestId('team-score')).toContainText('BLUE 0');
     await expect(page.getByTestId('team-score')).toContainText('0 ORANGE');
+    await expectMatchHudLayout(page);
+    await page.screenshot({ path: 'test-results/bp15-tdm-hud.png' });
     await expect(page.getByTestId('match-timer')).toHaveText(/^0:[0-3][0-9]$/);
     await expect
       .poll(() => peer!.state.players.get(peer!.sessionId)?.z)

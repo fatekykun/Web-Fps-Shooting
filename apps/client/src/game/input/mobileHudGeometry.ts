@@ -14,6 +14,7 @@ export interface HudViewport {
   width: number;
   height: number;
   safe: Box;
+  hudClearance?: { top: number; bottom: number; feedHeight: number };
 }
 interface ControlBox {
   x: number;
@@ -116,18 +117,22 @@ export function resolveMobileHud(
   isTablet: boolean,
 ) {
   const { width, height, safe } = viewport;
+  const { top: headerHeight, bottom: footerHeight } = viewport.hudClearance ?? {
+    top: 0,
+    bottom: 0,
+  };
   const small = width <= 700;
   const metrics = isTablet ? tablet : small ? compact : phone;
   const margin = small ? 10 : 16;
   const left = Math.max(safe.left, small ? 10 : 20);
   const right = width - Math.max(safe.right, margin);
-  const top = Math.max(safe.top, 6);
-  const bottom = height - Math.max(safe.bottom, margin);
+  const top = Math.max(safe.top, 6) + headerHeight;
+  const bottom = height - Math.max(safe.bottom, margin) - footerHeight;
   const bounds = {
     left: safe.left + 4,
     right: width - safe.right - 4,
-    top: safe.top + 4,
-    bottom: height - safe.bottom - 4,
+    top: safe.top + 4 + headerHeight,
+    bottom: height - safe.bottom - 4 - footerHeight,
   };
   const safeWidth = width - safe.left - safe.right;
   const safeHeight = height - safe.top - safe.bottom;
@@ -138,13 +143,25 @@ export function resolveMobileHud(
       top: height / 2 - 20,
       bottom: height / 2 + 20,
     },
-    {
+  ];
+  // Training ammo is centered. Multiplayer uses a separate footer below the controls.
+  if (!viewport.hudClearance)
+    occupied.push({
       left: width / 2 - (small ? 56 : 71),
       right: width / 2 + (small ? 56 : 71),
       top: height - Math.max(safe.bottom, 8) - 86,
       bottom: height,
-    },
-  ];
+    });
+  else {
+    // Reserve the feed from the start so touch controls never jump when a kill appears.
+    const feedLeft = Math.max(8, safe.left);
+    occupied.push({
+      left: feedLeft,
+      right: feedLeft + Math.min(width * 0.28, 240),
+      top: bounds.top,
+      bottom: bounds.top + viewport.hudClearance.feedHeight,
+    });
+  }
   const result: Partial<Record<MobileHudControlId, ControlBox>> = {};
   // Keep Pause reachable, then give the larger controls first pick of open space.
   const priority = [...mobileHudControlIds]

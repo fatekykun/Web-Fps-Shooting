@@ -1,7 +1,13 @@
 import type { GameTelemetry } from '../game/core/Game';
 import { movementConfig } from '@breakpoint/shared';
 
-export function Telemetry({ stats }: { stats: GameTelemetry | null }) {
+export function Telemetry({
+  stats,
+  multiplayer = false,
+}: {
+  stats: GameTelemetry | null;
+  multiplayer?: boolean;
+}) {
   return (
     <aside
       className="telemetry"
@@ -24,6 +30,15 @@ export function Telemetry({ stats }: { stats: GameTelemetry | null }) {
         <strong data-testid="fps">{stats ? Math.round(stats.fps) : '—'}</strong>
         <span>FPS</span>
         <span className="perf-badge">LIVE</span>
+        {multiplayer && (
+          <span
+            className="match-connection"
+            data-connected={Boolean(stats?.network)}
+          >
+            <i aria-hidden="true" />
+            {stats?.network ? 'CONNECTED' : 'CONNECTING'}
+          </span>
+        )}
       </div>
       <dl>
         <div>

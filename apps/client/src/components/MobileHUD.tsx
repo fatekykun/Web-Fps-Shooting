@@ -39,11 +39,13 @@ export function MobileHUD({
   tablet,
   layout,
   editor,
+  multiplayer = false,
 }: {
   attach?: (root: HTMLElement) => (() => void) | undefined;
   tablet: boolean;
   layout: MobileHudLayout;
   editor?: HudEditorInteraction;
+  multiplayer?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<HudViewport | null>(null);
@@ -71,6 +73,15 @@ export function MobileHUD({
           top: parseFloat(style.paddingTop),
           bottom: parseFloat(style.paddingBottom),
         },
+        hudClearance: multiplayer
+          ? {
+              top: parseFloat(style.getPropertyValue('--match-touch-top')) || 0,
+              bottom:
+                parseFloat(style.getPropertyValue('--match-touch-bottom')) || 0,
+              feedHeight:
+                parseFloat(style.getPropertyValue('--match-feed-height')) || 0,
+            }
+          : undefined,
       });
     };
     measure();
@@ -81,7 +92,7 @@ export function MobileHUD({
       observer.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [multiplayer]);
 
   useLayoutEffect(() => attach?.(root.current!), [attach]);
   const boxes = useMemo(
