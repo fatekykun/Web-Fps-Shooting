@@ -88,6 +88,7 @@ it('honors mute/interface volume and consumes hidden countdown events without a 
 });
 
 class Node {
+  buffer: object | null = null;
   gain = {
     value: 0,
     setTargetAtTime: vi.fn(),
@@ -97,6 +98,7 @@ class Node {
   };
   frequency = this.gain;
   pan = { value: 0 };
+  detune = { value: 0 };
   onended: (() => void) | null = null;
   connect = vi.fn();
   disconnect = vi.fn();
@@ -125,6 +127,19 @@ class Context {
   createBuffer() {
     return { getChannelData: () => new Float32Array(2000) };
   }
+  readonly decodedShot = { duration: 1.26 };
+  readonly decodedSmg = { duration: 0.064 };
+  readonly decodedRifle = { duration: 0.192 };
+  readonly decodedShotgun = { duration: 0.736 };
+  decodeAudioData = vi.fn(
+    async (data: ArrayBuffer) =>
+      [
+        this.decodedRifle,
+        this.decodedShotgun,
+        this.decodedSmg,
+        this.decodedShot,
+      ][data.byteLength - 1]!,
+  );
   resume = vi.fn(async () => {
     this.state = 'running';
   });
@@ -202,6 +217,10 @@ it('attenuates distant shots and pans relative to listener yaw', () => {
 
 it('keeps sniper report and confirmation cues bounded and honors effect volume', async () => {
   vi.stubGlobal('AudioContext', Context);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(null, { status: 404 })),
+  );
   const audio = new AudioEngine();
   try {
     await audio.unlock();
@@ -216,6 +235,72 @@ it('keeps sniper report and confirmation cues bounded and honors effect volume',
     audio.configure(defaultUserSettings());
     for (let i = 0; i < 30; i++) audio.shot('sniper');
     expect(audio.voiceCount).toBe(16);
+  } finally {
+    audio.dispose();
+  }
+});
+
+it('preloads each weapon sample once and plays a separate spatialized voice per shot', async () => {
+  vi.stubGlobal('AudioContext', Context);
+  const paths = [
+    '/audio/ar-01-rifle-shot.wav',
+    '/audio/sg-03-shotgun-shot.wav',
+    '/audio/sm-02-smg-shot.wav',
+    '/audio/sr-04-sniper-shot.wav',
+  ];
+  const fetchShot = vi.fn(
+    async (path: string) =>
+      new Response(new ArrayBuffer(paths.indexOf(path) + 1)),
+  );
+  vi.stubGlobal('fetch', fetchShot);
+  const audio = new AudioEngine();
+  try {
+    await audio.unlock();
+    await audio.unlock();
+    const context = Context.instances[0]!;
+    await vi.waitFor(() =>
+      expect(context.decodeAudioData).toHaveBeenCalledTimes(paths.length),
+    );
+    expect(fetchShot).toHaveBeenCalledTimes(paths.length);
+    for (const path of paths)
+      expect(fetchShot).toHaveBeenCalledWith(
+        path,
+        expect.objectContaining({ cache: 'no-cache' }),
+      );
+    expect(audio.shot('sniper', 0.4, -0.6)).toBe(true);
+    expect(audio.voiceCount).toBe(1);
+    expect(
+      context.nodes.find((node) => node.buffer === context.decodedShot)?.stop,
+    ).toHaveBeenCalledWith(1.26);
+    expect(context.nodes.some((node) => node.pan.value === -0.6)).toBe(true);
+    audio.shot('smg');
+    audio.shot('smg');
+    expect(audio.voiceCount).toBe(3);
+    const smgShots = context.nodes.filter(
+      (node) => node.buffer === context.decodedSmg,
+    );
+    expect(smgShots).toHaveLength(2);
+    for (const shot of smgShots) {
+      expect(Math.abs(shot.detune.value)).toBeLessThanOrEqual(12);
+      expect(shot.stop.mock.calls[0]?.[0]).toBeLessThan(1 / 15);
+    }
+    audio.shot('rifle');
+    audio.shot('rifle');
+    expect(audio.voiceCount).toBe(5);
+    const rifleShots = context.nodes.filter(
+      (node) => node.buffer === context.decodedRifle,
+    );
+    expect(rifleShots).toHaveLength(2);
+    for (const shot of rifleShots) {
+      expect(Math.abs(shot.detune.value)).toBeLessThanOrEqual(10);
+      expect(shot.stop.mock.calls[0]?.[0]).toBeCloseTo(0.192, 2);
+    }
+    audio.shot('shotgun');
+    expect(audio.voiceCount).toBe(6);
+    expect(
+      context.nodes.find((node) => node.buffer === context.decodedShotgun)
+        ?.stop,
+    ).toHaveBeenCalledWith(0.736);
   } finally {
     audio.dispose();
   }

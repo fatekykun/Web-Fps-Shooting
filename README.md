@@ -111,9 +111,9 @@ mute settings.
 Server-confirmed health, ammo, hits, kill feed, timer,
 scoreboard and final standings retain the existing match authority.
 
-Audio is generated with Web Audio after a user gesture; no sound downloads or new
-dependencies are required. Rifle/SMG/shotgun reports, equipment, movement, confirmed
-hit/damage/death/respawn cues and subtle ambient tones use one context, a reusable
+Web Audio starts after a user gesture and loads the four bundled weapon reports.
+If a sample cannot load, the weapon uses a synthesized report. Equipment,
+movement, confirmed hit/damage/death/respawn cues and ambient tones use one context, a reusable
 noise buffer and at most 16 transient voices plus two ambient oscillators. Remote
 gunshots use distance attenuation and stereo panning; walls do not occlude audio.
 Hidden tabs stop effects and suspend audio. Unavailable audio leaves play usable.

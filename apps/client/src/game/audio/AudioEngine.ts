@@ -1,4 +1,8 @@
-import type { Vector3Like, WeaponId } from '@breakpoint/shared';
+import {
+  weaponOrder,
+  type Vector3Like,
+  type WeaponId,
+} from '@breakpoint/shared';
 import type { WeaponController } from '../weapons/WeaponController';
 import type { MovementController } from '../movement/MovementController';
 import type { CombatSnapshot } from '../combat/PracticeCombat';
@@ -44,13 +48,21 @@ type Cue =
   | 'dive'
   | 'step';
 type MatchCue = 'countdown' | 'match-start';
-// All weapon cues are synthesized locally; no licensed recordings or downloads.
+const shotSamples: Partial<
+  Record<WeaponId, { file: string; gain: number; detune: number }>
+> = {
+  rifle: { file: 'ar-01-rifle-shot.wav', gain: 0.51, detune: 10 },
+  shotgun: { file: 'sg-03-shotgun-shot.wav', gain: 0.69, detune: 0 },
+  sniper: { file: 'sr-04-sniper-shot.wav', gain: 0.72, detune: 0 },
+  smg: { file: 'sm-02-smg-shot.wav', gain: 0.36, detune: 12 },
+};
+
 interface Voice {
   source: AudioScheduledSourceNode;
   nodes: AudioNode[];
 }
 
-/** Gesture-unlocked procedural audio. No downloads, one context, bounded transient voices. */
+/** Gesture-unlocked audio with one context and bounded transient voices. */
 export class AudioEngine {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -58,6 +70,8 @@ export class AudioEngine {
   private ui: GainNode | null = null;
   private ambience: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
+  private readonly shotBuffers = new Map<WeaponId, AudioBuffer>();
+  private readonly shotRequests = new AbortController();
   private readonly ambientSources: OscillatorNode[] = [];
   private readonly voices = new Set<Voice>();
   private settings = defaultUserSettings();
@@ -68,6 +82,7 @@ export class AudioEngine {
   private lastWeapon: WeaponId = 'rifle';
   private lastReload = false;
   private lastBoltPhase = 0;
+  private sampledBolt = false;
   private lastScoped = false;
   private lastState = '';
   private grounded: boolean | null = null;
@@ -133,11 +148,34 @@ export class AudioEngine {
           this.ambientSources.push(oscillator);
         }
         this.applyVolumes();
+        for (const weapon of weaponOrder) {
+          const sample = shotSamples[weapon];
+          if (sample) void this.loadShotSample(context, weapon, sample.file);
+        }
       }
       if (this.context.state === 'suspended') await this.context.resume();
       return this.context.state === 'running';
     } catch {
       return false;
+    }
+  }
+  private async loadShotSample(
+    context: AudioContext,
+    weapon: WeaponId,
+    file: string,
+  ): Promise<void> {
+    try {
+      const response = await fetch(`${import.meta.env.BASE_URL}audio/${file}`, {
+        cache: 'no-cache',
+        signal: this.shotRequests.signal,
+      });
+      if (!response.ok || this.disposed) return;
+      const data = await response.arrayBuffer();
+      if (this.disposed) return;
+      const buffer = await context.decodeAudioData(data);
+      if (!this.disposed) this.shotBuffers.set(weapon, buffer);
+    } catch {
+      // A missing or unsupported asset leaves the procedural report available.
     }
   }
   async uiClick(): Promise<void> {
@@ -258,7 +296,28 @@ export class AudioEngine {
     filter.connect(gain);
     this.connect(source, gain, [filter], output, pan, duration);
   }
-  shot(weapon: WeaponId, gain = 1, pan = 0): void {
+  /** True when the report includes the recorded bolt cycle. */
+  shot(weapon: WeaponId, gain = 1, pan = 0): boolean {
+    const sample = shotSamples[weapon];
+    const buffer = this.shotBuffers.get(weapon);
+    if (sample && buffer) {
+      const output = this.output();
+      if (!output || gain <= 0) return false;
+      const context = this.context!;
+      const source = context.createBufferSource();
+      const volume = context.createGain();
+      source.buffer = buffer;
+      // A small pitch variation keeps automatic fire from sounding like a loop.
+      const detune = sample.detune
+        ? (Math.random() * 2 - 1) * sample.detune
+        : 0;
+      if (detune) source.detune.value = detune;
+      volume.gain.value = sample.gain * gain;
+      source.connect(volume);
+      const duration = buffer.duration / 2 ** (detune / 1200);
+      this.connect(source, volume, [], output, pan, duration);
+      return weapon === 'sniper';
+    }
     if (weapon === 'sniper') {
       this.noise(0.24, 0.28 * gain, 2300, pan);
       this.tone(95, 24, 0.24, 0.24 * gain, 'triangle', pan);
@@ -273,6 +332,7 @@ export class AudioEngine {
       this.noise(0.11, 0.17 * gain, 2100, pan);
       this.tone(110, 38, 0.12, 0.17 * gain, 'triangle', pan);
     }
+    return false;
   }
   cue(cue: Cue | MatchCue): void {
     if (cue === 'countdown') {
@@ -323,13 +383,18 @@ export class AudioEngine {
       : 0;
     const scoped = !!weapons.config.scopeMagnification && weapons.ads > 0.5;
     if (active) {
-      if (boltPhase !== this.lastBoltPhase && boltPhase > 0) {
+      if (weapons.shotsFired > this.lastShots)
+        this.sampledBolt = this.shot(weapons.selected);
+      if (
+        !this.sampledBolt &&
+        boltPhase !== this.lastBoltPhase &&
+        boltPhase > 0
+      ) {
         this.noise(0.09, 0.08, 3600);
         this.tone(boltPhase === 1 ? 640 : 350, 150, 0.07, 0.05, 'square');
       }
       if (scoped !== this.lastScoped)
         this.tone(scoped ? 330 : 480, scoped ? 600 : 220, 0.09, 0.025);
-      if (weapons.shotsFired > this.lastShots) this.shot(weapons.selected);
       if (weapons.selected !== this.lastWeapon) this.cue('equip');
       if (weapons.reloading && !this.lastReload) {
         this.cue('reload');
@@ -362,6 +427,7 @@ export class AudioEngine {
       } else this.distance = 0;
     }
     this.lastShots = weapons.shotsFired;
+    if (!weapons.cycling) this.sampledBolt = false;
     this.lastBoltPhase = boltPhase;
     this.lastScoped = scoped;
     this.lastWeapon = weapons.selected;
@@ -436,6 +502,8 @@ export class AudioEngine {
   }
   dispose(): void {
     this.disposed = true;
+    this.shotRequests.abort();
+    this.shotBuffers.clear();
     this.stopVoices();
     for (const source of this.ambientSources) {
       source.stop();
