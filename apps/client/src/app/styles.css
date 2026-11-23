@@ -200,26 +200,6 @@
   height: 100%;
   background: #c1ce8c;
 }
-.death-notice {
-  position: absolute;
-  inset: 35% 0 auto;
-  display: grid;
-  gap: 14px;
-  text-align: center;
-  pointer-events: none;
-  font:
-    14px Consolas,
-    monospace;
-  color: #e9e8da;
-  text-shadow: 0 2px 6px #000;
-}
-.death-notice strong {
-  font:
-    700 46px 'Segoe UI',
-    sans-serif;
-  letter-spacing: 4px;
-  color: #df997e;
-}
 .kill-feed {
   position: absolute;
   top: 92px;
@@ -1232,6 +1212,9 @@ kbd {
   pointer-events: none;
   opacity: 0;
 }
+.sniper-scope[hidden] {
+  display: none;
+}
 .scope-lens {
   position: relative;
   overflow: hidden;
@@ -1285,7 +1268,6 @@ kbd {
 .player-health,
 .dummy-status,
 .hit-marker,
-.kill-feed,
-.death-notice {
+.kill-feed {
   z-index: 1;
 }

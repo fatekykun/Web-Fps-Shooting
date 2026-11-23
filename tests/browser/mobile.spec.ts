@@ -328,6 +328,21 @@ test.describe('phone touch controls', () => {
       await page.getByRole('button', { name: 'START SESSION' }).tap();
       await expect(page.locator('.mobile-hud.phone')).toBeVisible();
       await expect(page.getByTestId('match-countdown')).toBeVisible();
+      const smg = page.getByRole('button', { name: 'Equip SM-02 / SMG' });
+      await smg.tap();
+      await expect(smg).toHaveAttribute('aria-pressed', 'true');
+      await page.screenshot({ path: 'test-results/mobile-loadout.png' });
+      await page.setViewportSize({ width: 1180, height: 820 });
+      await expect(page.locator('.mobile-hud.tablet')).toBeVisible();
+      const picker = page.getByRole('region', { name: 'CHOOSE YOUR WEAPON' });
+      await expect(picker.getByRole('button')).toHaveCount(4);
+      expect(
+        await picker.evaluate(
+          (panel) => panel.scrollHeight === panel.clientHeight,
+        ),
+      ).toBe(true);
+      await page.screenshot({ path: 'test-results/tablet-loadout.png' });
+      await page.setViewportSize(phone.viewport);
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await expect(page.getByTestId('match-status')).toHaveAttribute(
         'data-phase',
@@ -345,6 +360,7 @@ test.describe('phone touch controls', () => {
       await page.setViewportSize(phone.viewport);
       await expect(page.locator('.mobile-hud.phone')).toBeVisible();
       const host = () => guest.state.players.get(guest.state.hostId)!;
+      await expect.poll(() => host().weapon).toBe('smg');
       const fingers = new Fingers(await context.newCDPSession(page));
       const joystick = await point(page, 'joystick');
       const crouch = page.getByRole('button', { name: 'Crouch or slide' });
@@ -375,7 +391,7 @@ test.describe('phone touch controls', () => {
             await page.getByTestId('weapon-status').getAttribute('data-ammo'),
           ),
         )
-        .toBeLessThan(30);
+        .toBeLessThan(35);
       await page.waitForTimeout(1000);
       const metrics = await page.locator('.telemetry').evaluate((element) => ({
         fps: Number((element as HTMLElement).dataset.fps),

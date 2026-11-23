@@ -9,6 +9,7 @@ import { GraphicsControls } from '../components/GraphicsControls';
 import { CombatHud } from '../components/CombatHud';
 import { RoomPanel } from '../components/RoomPanel';
 import { MatchHud } from '../components/MatchHud';
+import { LoadoutPanel } from '../components/LoadoutPanel';
 import { CommandMenu } from '../components/CommandMenu';
 import { WeaponPanel } from '../components/WeaponPanel';
 import { PlayPanel, CreditsPanel } from '../components/CommandPanels';
@@ -29,7 +30,7 @@ import {
   type UserSettings,
 } from '../game/settings/userSettings';
 import type { RoomView } from '@breakpoint/shared/network';
-import { isMatchActive } from '@breakpoint/shared/match';
+import { isMatchActive, matchCountdownSeconds } from '@breakpoint/shared/match';
 import { readInviteCode } from '../game/networking/invites';
 import type { CombatSnapshot } from '../game/combat/PracticeCombat';
 import {
@@ -64,6 +65,7 @@ export function App() {
   const [graphics, setGraphics] = useState(loadGraphicsSettings);
   const graphicsRef = useRef(graphics);
   const [combat, setCombat] = useState<CombatSnapshot | null>(null);
+  const owner = combat?.player;
   const reticle = useRef<HTMLDivElement>(null);
   const scope = useRef<HTMLDivElement>(null);
   const reticleValues = useRef({ gap: -1, ads: -1 });
@@ -91,14 +93,22 @@ export function App() {
     inviteCode ? 'join' : 'create',
   );
   const connectAttempt = useRef(0);
+  const preMatch = room?.phase === 'countdown';
+  const respawning = room?.phase === 'playing' && owner?.alive === false;
+  const choosingLoadout = preMatch || respawning;
+  const loadoutLife = preMatch
+    ? room.players.find((player) => player.id === room.selfId)?.life
+    : owner?.life;
 
   useEffect(() => {
     let cancelled = false;
     let instance: Game | null = null;
+    let captured = false;
     const host = viewport.current!;
     const callbacks = {
       onLockChange: (value: boolean) => {
         if (cancelled) return;
+        captured = value;
         setLocked(value);
         reticleValues.current.gap = -1;
         reticleValues.current.ads = -1;
@@ -118,7 +128,17 @@ export function App() {
         if (!cancelled) setError(message);
       },
       onCombat: (value: CombatSnapshot) => {
-        if (!cancelled) setCombat(value);
+        if (cancelled) return;
+        setCombat(value);
+        if (
+          captured &&
+          !touchControlsRef.current &&
+          previousRoom.current?.phase === 'playing' &&
+          value.player?.alive === false
+        ) {
+          setMatchEntry(true);
+          instance?.pause();
+        }
       },
       onScoreboard: (open: boolean) => {
         if (!cancelled) setShowScores(open);
@@ -247,6 +267,7 @@ export function App() {
   useEffect(() => {
     if (
       matchEntry &&
+      (!choosingLoadout || touchControls) &&
       ready &&
       !portrait &&
       !hudEditor &&
@@ -255,7 +276,15 @@ export function App() {
       document.hasFocus()
     )
       game.current?.enter(true);
-  }, [matchEntry, ready, portrait, hudEditor, controllerSettings]);
+  }, [
+    matchEntry,
+    choosingLoadout,
+    touchControls,
+    ready,
+    portrait,
+    hudEditor,
+    controllerSettings,
+  ]);
 
   useEffect(() => {
     if (portrait) game.current?.pause();
@@ -299,12 +328,13 @@ export function App() {
     setHudEditor(null);
   }
 
-  const multiplayerHud = locked && room !== null && isMatchActive(room.phase);
+  const inArena = locked || choosingLoadout;
+  const multiplayerHud = inArena && room !== null && isMatchActive(room.phase);
 
   return (
     <>
       <main
-        className={`game-shell command-interface ${touchControls ? 'mobile-controls' : ''} ${device.tablet ? 'tablet-controls' : ''} ${locked ? 'is-playing' : ''} ${multiplayerHud ? 'multiplayer-hud' : ''} ${preferences.reducedMotion ? 'motion-reduced' : ''} ${preferences.diagnostics ? '' : 'diagnostics-compact'}`}
+        className={`game-shell command-interface ${touchControls ? 'mobile-controls' : ''} ${device.tablet ? 'tablet-controls' : ''} ${inArena ? 'is-playing' : ''} ${multiplayerHud ? 'multiplayer-hud' : ''} ${preferences.reducedMotion ? 'motion-reduced' : ''} ${preferences.diagnostics ? '' : 'diagnostics-compact'}`}
         data-device={device.kind}
         onPointerDown={(event) => {
           game.current?.unlockAudio();
@@ -350,7 +380,7 @@ export function App() {
                 : 'LOCAL TRAINING'}
             <span className="session-separator">/</span>
             <span className="match-comms">PRIVATE COMMS</span>
-            {!locked && (
+            {!inArena && (
               <button
                 className="audio-toggle"
                 aria-label={preferences.muted ? 'Unmute audio' : 'Mute audio'}
@@ -365,7 +395,7 @@ export function App() {
                 {preferences.muted ? 'AUDIO OFF' : 'AUDIO ON'}
               </button>
             )}
-            {!locked && (
+            {!inArena && (
               <button
                 className="room-button"
                 disabled={!ready}
@@ -380,7 +410,7 @@ export function App() {
         </header>
 
         <Telemetry stats={stats} multiplayer={multiplayerHud} />
-        {!locked &&
+        {!inArena &&
           !touchControls &&
           !matchEntry &&
           room?.phase !== 'results' &&
@@ -389,7 +419,7 @@ export function App() {
             <GraphicsControls settings={graphics} onChange={changeGraphics} />
           )}
 
-        {!locked && !matchEntry && room?.phase !== 'results' && (
+        {!inArena && !matchEntry && room?.phase !== 'results' && (
           <CommandMenu
             touchControls={touchControls}
             ready={ready}
@@ -409,7 +439,7 @@ export function App() {
           />
         )}
 
-        {matchEntry && !locked && isMatchActive(room?.phase) && (
+        {matchEntry && !inArena && isMatchActive(room?.phase) && (
           <section className="match-entry" aria-label="Match ready">
             <div className="match-entry-card">
               <span className="eyebrow">SESSION STARTED</span>
@@ -437,7 +467,7 @@ export function App() {
           </section>
         )}
 
-        {roomsOpen && (
+        {!choosingLoadout && roomsOpen && (
           <RoomPanel
             room={room}
             error={error}
@@ -492,7 +522,7 @@ export function App() {
             }}
           />
         )}
-        {overlay === 'play' && (
+        {!choosingLoadout && overlay === 'play' && (
           <PlayPanel
             ready={ready}
             onClose={() => setOverlay(null)}
@@ -501,17 +531,17 @@ export function App() {
             onJoin={() => openRooms('join')}
           />
         )}
-        {overlay === 'credits' && (
+        {!choosingLoadout && overlay === 'credits' && (
           <CreditsPanel onClose={() => setOverlay(null)} />
         )}
-        {overlay === 'weapons' && (
+        {!choosingLoadout && overlay === 'weapons' && (
           <WeaponPanel
             initialWeapon={combat?.weapon}
             allowedWeapons={room?.allowedWeapons}
             onClose={() => setOverlay(null)}
           />
         )}
-        {overlay === 'settings' && !controllerSettings && (
+        {!choosingLoadout && overlay === 'settings' && !controllerSettings && (
           <SettingsPanel
             settings={preferences}
             graphics={graphics}
@@ -538,7 +568,8 @@ export function App() {
             touchControls={touchControls}
             room={room}
             locked={locked}
-            showScores={showScores}
+            choosingLoadout={choosingLoadout}
+            showScores={showScores && !choosingLoadout}
             onScores={setShowScores}
             onLobby={() => game.current?.returnToLobby()}
             onLeave={() => game.current?.leaveRoom()}
@@ -551,6 +582,7 @@ export function App() {
             className={`crosshair ${preferences.crosshair.dot ? '' : 'no-dot'}`}
             style={crosshairStyle(preferences)}
             ref={reticle}
+            hidden={choosingLoadout}
             aria-hidden="true"
           >
             <i />
@@ -565,6 +597,7 @@ export function App() {
             ref={scope}
             data-testid="sniper-scope"
             data-style={preferences.scopeStyle}
+            hidden={choosingLoadout}
             aria-hidden="true"
           >
             <div className="scope-lens">
@@ -573,7 +606,7 @@ export function App() {
             </div>
           </div>
         )}
-        {locked && combat && (
+        {inArena && combat && (
           <CombatHud
             combat={combat}
             bindings={preferences.bindings}
@@ -589,7 +622,27 @@ export function App() {
             movement={stats}
           />
         )}
-        {controllerSettings && !hudEditor && (
+        {choosingLoadout && room && (
+          <LoadoutPanel
+            respawning={respawning}
+            seconds={
+              respawning
+                ? Math.max(1, Math.ceil(owner?.respawnIn ?? 0))
+                : room.match.countdownSeconds || matchCountdownSeconds
+            }
+            allowedWeapons={room.allowedWeapons}
+            selected={owner?.nextWeapon ?? owner?.selected}
+            onEquip={(weapon) => {
+              if (loadoutLife !== undefined)
+                game.current?.selectLoadout({
+                  weapon,
+                  life: loadoutLife,
+                  round: room.match.round,
+                });
+            }}
+          />
+        )}
+        {!choosingLoadout && controllerSettings && !hudEditor && (
           <ControllerSettings
             layout={mobileLayout}
             storageUnavailable={hudStorageUnavailable}
@@ -597,7 +650,7 @@ export function App() {
             onEdit={(imported) => setHudEditor({ imported })}
           />
         )}
-        {hudEditor && (
+        {!choosingLoadout && hudEditor && (
           <MobileHudEditor
             tablet={device.tablet}
             initial={mobileLayout}
@@ -645,7 +698,7 @@ export function App() {
               <strong>THE DEPOT</strong>
               <span>{room.match.mode.toUpperCase()} · INDUSTRIAL SECTOR</span>
             </div>
-            {!touchControls && (
+            {locked && !touchControls && (
               <span className="match-mouse-hint">
                 <kbd>ESC</kbd> RELEASE MOUSE
               </span>

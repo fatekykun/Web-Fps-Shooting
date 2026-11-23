@@ -71,6 +71,7 @@ it('runs a private eight-player room through capacity, readiness, movement, host
     'input',
     [1, 2].map((seq) => ({
       seq,
+      life: host.state.players.get(host.sessionId)!.life,
       forward: 1,
       right: 0,
       yaw: 0,
@@ -131,6 +132,8 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
   });
   await expect.poll(() => owner?.ammo.rifle.magazine).toBe(30);
   expect(target.state.players.get(target.sessionId)!.health).toBe(100);
+  const hostLife = host.state.players.get(host.sessionId)!.life;
+  const targetLife = target.state.players.get(target.sessionId)!.life;
   let sequence = 0,
     firing = true;
   const packet = (seq: number, life: number, fire: boolean, yaw: number) => ({
@@ -159,8 +162,8 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
   });
   const stream = setInterval(() => {
     host.send('input', [
-      packet(++sequence, 1, firing, -Math.PI / 2),
-      packet(++sequence, 1, firing, -Math.PI / 2),
+      packet(++sequence, hostLife, firing, -Math.PI / 2),
+      packet(++sequence, hostLife, firing, -Math.PI / 2),
     ]);
   }, 1000 / 30);
   try {
@@ -177,22 +180,31 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
     await expect.poll(() => targetOwner?.alive).toBe(false);
     expect(owner!.ammo.rifle.magazine).toBeLessThan(30);
     expect(owner!.ammo.rifle.magazine).toBeGreaterThanOrEqual(0);
-    target.send('input', [packet(1, 1, true, 0)]);
+    target.send('loadout', {
+      round: target.state.round,
+      life: targetLife,
+      weapon: 'smg',
+    });
+    await expect.poll(() => targetOwner?.nextWeapon).toBe('smg');
+    target.send('input', [packet(1, targetLife, true, 0)]);
     await expect.poll(() => targetOwner?.shots).toBe(0);
     await expect
       .poll(() => target.state.players.get(target.sessionId)?.life, {
         timeout: 8000,
       })
-      .toBe(2);
-    target.send('input', [packet(2, 1, true, 0)]);
+      .toBe(targetLife + 1);
+    target.send('input', [packet(2, targetLife, true, 0)]);
     await expect
       .poll(() => target.state.players.get(target.sessionId)?.ack)
       .toBe(2);
-    await expect.poll(() => targetOwner?.life).toBe(2);
+    await expect.poll(() => targetOwner?.life).toBe(targetLife + 1);
+    expect(targetOwner!.selected).toBe('smg');
+    expect(targetOwner!.nextWeapon).toBeUndefined();
+    expect(host.state.players.get(target.sessionId)!.weapon).toBe('smg');
     expect(targetOwner!.health).toBe(100);
     expect(targetOwner!.shots).toBe(0);
     expect(targetOwner!.ammo.rifle.magazine).toBe(30);
-    target.send('input', [packet(3, 2, true, 0)]);
+    target.send('input', [packet(3, targetLife + 1, true, 0)]);
     await expect.poll(() => targetOwner?.shots).toBeGreaterThan(0);
     expect(kills).toHaveLength(1);
   } finally {

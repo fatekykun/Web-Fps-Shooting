@@ -2,8 +2,9 @@ import { expect, test } from '@playwright/test';
 import { Client } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
 import type { OwnerCombat } from '@breakpoint/shared/combat';
+import { enterStartedMatch } from './helpers/matchEntry';
 
-test('server countdown shows 3-2-1, plays one sound per beat and GO, freezes early inputs and preserves the full match timer', async ({
+test('five-second countdown accepts separate player loadouts, freezes early input and plays the start cue', async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -51,11 +52,18 @@ test('server countdown shows 3-2-1, plays one sound per beat and GO, freezes ear
     guest.send('ready', true);
     await page.getByRole('button', { name: 'START SESSION' }).click();
     const countdown = page.getByTestId('match-countdown');
-    await expect(countdown.locator('strong')).toHaveText('3');
+    await expect(countdown.locator('strong')).toHaveText('5');
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect
-      .poll(() => page.evaluate(() => document.pointerLockElement?.tagName))
-      .toBe('CANVAS');
+    expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
+    const smg = page.getByRole('button', { name: 'Equip SM-02 / SMG' });
+    await smg.click();
+    await expect(smg).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => guest.state.phase).toBe('countdown');
+    guest.send('loadout', {
+      round: guest.state.round,
+      life: guest.state.players.get(guest.sessionId)!.life,
+      weapon: 'shotgun',
+    });
     const host = () => guest.state.players.get(guest.state.hostId)!;
     const hostZ = host().z,
       guestZ = guest.state.players.get(guest.sessionId)!.z;
@@ -86,10 +94,9 @@ test('server countdown shows 3-2-1, plays one sound per beat and GO, freezes ear
         })),
       );
     }, 1000 / 30);
-    await page.keyboard.down('w');
-    await page.mouse.down();
-    await page.screenshot({ path: 'test-results/countdown-3.png' });
-    await expect(countdown.locator('strong')).toHaveText('2');
+    await page.screenshot({ path: 'test-results/countdown-loadout.png' });
+    for (const seconds of ['4', '3', '2'])
+      await expect(countdown.locator('strong')).toHaveText(seconds);
     expect(host().z).toBeCloseTo(hostZ, 4);
     expect(guest.state.players.get(guest.sessionId)!.z).toBeCloseTo(guestZ, 4);
     expect(owner?.ammo.rifle.magazine).toBe(30);
@@ -100,29 +107,32 @@ test('server countdown shows 3-2-1, plays one sound per beat and GO, freezes ear
     );
     await expect(page.getByTestId('match-timer')).toHaveText('5:00');
     await expect(countdown.locator('strong')).toHaveText('1');
-    await page.screenshot({ path: 'test-results/countdown-1.png' });
     clearInterval(timer);
     timer = undefined;
-    await page.mouse.up();
-    await page.keyboard.up('w');
-    await page.keyboard.press('Escape');
     await expect(page.getByTestId('match-status')).toHaveAttribute(
       'data-phase',
       'playing',
     );
-    await expect(page.getByTestId('match-start-signal')).toContainText('GO');
+    await expect(page.getByTestId('match-start-signal')).toHaveText(
+      'MATCH START',
+    );
     await expect(page.getByTestId('match-timer')).toHaveText('5:00');
-    expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
+    await expect(countdown).toHaveCount(0);
     expect(shots).toHaveLength(0);
     expect(owner?.ammo.rifle.magazine).toBe(30);
+    await expect.poll(() => owner?.selected).toBe('shotgun');
+    await expect.poll(() => host().weapon).toBe('smg');
     const frequencies = await page.evaluate(
       () => (window as unknown as { countdownAudio: number[] }).countdownAudio,
     );
-    expect(frequencies.filter((value) => value === 880)).toHaveLength(3);
+    expect(frequencies.filter((value) => value === 880)).toHaveLength(5);
     expect(frequencies.filter((value) => value === 440)).toHaveLength(1);
     expect(frequencies.filter((value) => value === 660)).toHaveLength(1);
-    await page.getByRole('button', { name: 'ENTER ROOM' }).click();
-    await page.screenshot({ path: 'test-results/countdown-go.png' });
+    await enterStartedMatch(page);
+    await expect(page.getByTestId('weapon-status')).toHaveAttribute(
+      'data-weapon',
+      'smg',
+    );
     await page.keyboard.down('w');
     await expect.poll(() => host().z).toBeLessThan(hostZ - 0.5);
     await page.keyboard.up('w');

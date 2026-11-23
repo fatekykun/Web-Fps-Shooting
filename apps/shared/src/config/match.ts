@@ -5,7 +5,7 @@ import { weaponOrder } from './weapons';
 export type GameMode = 'ffa' | 'tdm';
 export type Team = 'none' | 'blue' | 'orange';
 export type MatchPhase = 'lobby' | 'countdown' | 'playing' | 'results';
-export const matchCountdownSeconds = 3;
+export const matchCountdownSeconds = 5;
 export function isMatchActive(phase: MatchPhase | string | undefined): boolean {
   return phase === 'countdown' || phase === 'playing';
 }

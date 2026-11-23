@@ -32,6 +32,7 @@ const neutral = (): WeaponInput => ({
 });
 interface Loadout {
   weapons: WeaponController;
+  nextWeapon?: WeaponId;
   owned: Set<WeaponId>;
   seed: number;
   held: WeaponInput;
@@ -92,6 +93,8 @@ export class ServerCombat {
   ) {}
 
   add(player: ServerPlayer): void {
+    const previous = this.loadouts.get(player.state.id);
+    const selected = previous?.nextWeapon ?? previous?.weapons.selected;
     player.state.protected = false;
     const loadout: Loadout = {
       weapons: new WeaponController((shot) =>
@@ -110,7 +113,10 @@ export class ServerCombat {
       yaw: player.state.yaw,
       pitch: player.state.pitch,
     };
-    loadout.weapons.selected = this.allowedWeapons[0]!;
+    loadout.weapons.selected =
+      selected && loadout.owned.has(selected)
+        ? selected
+        : this.allowedWeapons[0]!;
     player.state.weapon = loadout.weapons.selected;
     this.loadouts.set(player.state.id, loadout);
     player.movementScale = (input) =>
@@ -119,6 +125,12 @@ export class ServerCombat {
         input,
         player.movement.state,
       );
+  }
+
+  selectLoadout(player: ServerPlayer, weapon: unknown): void {
+    const loadout = this.loadouts.get(player.state.id);
+    if (loadout && loadout.owned.has(weapon as WeaponId))
+      loadout.nextWeapon = weapon as WeaponId;
   }
   remove(id: string): void {
     this.loadouts.delete(id);
@@ -137,11 +149,14 @@ export class ServerCombat {
         player.respawn(this.chooseSpawn(player));
         if (this.mode === 'tdm' && player.state.team === 'orange')
           player.state.yaw = Math.PI;
+        const selected = loadout.nextWeapon ?? loadout.weapons.selected;
+        loadout.nextWeapon = undefined;
         loadout.weapons = new WeaponController((shot) =>
           this.queueShot(player, loadout, shot),
         );
-        loadout.weapons.selected = this.allowedWeapons[0]!;
-        loadout.owned = new Set(this.allowedWeapons);
+        loadout.weapons.selected = loadout.owned.has(selected)
+          ? selected
+          : this.allowedWeapons[0]!;
         loadout.seed = this.seed();
         loadout.held = neutral();
         loadout.inputTick = -100;
@@ -391,6 +406,7 @@ export class ServerCombat {
         : Math.max(0, (l.respawnTick - this.tick) / 60),
       protected: player.state.protected,
       selected: w.selected,
+      ...(l.nextWeapon === undefined ? {} : { nextWeapon: l.nextWeapon }),
       ammo: {
         rifle: {
           magazine: w.ammo.rifle.magazine,

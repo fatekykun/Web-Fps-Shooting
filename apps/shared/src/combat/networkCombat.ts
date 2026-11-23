@@ -19,6 +19,7 @@ export interface OwnerCombat {
   respawnIn: number;
   protected: boolean;
   selected: WeaponId;
+  nextWeapon?: WeaponId;
   ammo: Record<WeaponId, AmmoState>;
   reloading: boolean;
   equipping: boolean;

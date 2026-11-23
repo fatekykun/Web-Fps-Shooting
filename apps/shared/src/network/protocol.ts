@@ -67,6 +67,12 @@ export interface RoomView {
   match: MatchView;
 }
 
+export interface LoadoutSelection {
+  weapon: WeaponId;
+  round: number;
+  life: number;
+}
+
 /** Treat websocket payloads as unknown; copy only accepted input fields. */
 export function parseInput(value: unknown): PlayerInput | null {
   if (!value || typeof value !== 'object') return null;

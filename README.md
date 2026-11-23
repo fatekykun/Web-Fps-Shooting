@@ -105,10 +105,11 @@ host is checked for readiness before matchmaking. Starting a session automatical
 closes the lobby and enters the arena for the host and joined players. If a browser
 requires a fresh mouse-capture gesture, use the single **Click to Play** button
 over the arena. Esc still releases the mouse without leaving the room.
-Before each round, a synchronized **3-2-1** countdown plays three beeps followed
-by a **GO** start chime. Movement and firing stay locked until GO; the match timer
-then starts at its full duration. Countdown audio uses the interface-volume and
-mute settings.
+Before each round, choose from the room's allowed weapons during the synchronized
+**5-4-3-2-1** countdown. Each beat plays a beep, followed by the **MATCH START**
+chime. Movement and firing unlock when the countdown ends and the match timer
+starts at its full duration. Countdown audio uses the interface-volume and mute
+settings.
 Server-confirmed health, ammo, hits, kill feed, timer,
 scoreboard and final standings retain the existing match authority.
 
@@ -273,8 +274,9 @@ instance pools, with no extra dynamic lights. Local muzzle/recoil/ADS presentati
 remains predicted, while damage and ammo readouts are authoritative.
 
 At zero health, the server emits one kill-feed event and disables movement and
-firing. After **three seconds**, it chooses a spawn farthest from living players
-among the eight spawn slots and restores health and the loadout. Respawn grants
+firing. Choose a weapon during the **three-second** respawn countdown. Your last
+equipped weapon carries over if you skip the selection. The server chooses a
+spawn farthest from living players and restores health and ammo. Respawn grants
 **one second of damage protection**, shown by brighter avatars and a HUD label. A new
 life number invalidates old queued controls; movement prediction snaps to the
 new spawn instead of interpolating across the map. Press movement/fire controls

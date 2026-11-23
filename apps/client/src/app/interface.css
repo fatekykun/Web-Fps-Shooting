@@ -1143,58 +1143,27 @@
   width: 100%;
   margin-top: 20px;
 }
-.match-countdown {
+.match-start-signal {
   position: absolute;
   z-index: 21;
-  top: 43%;
+  top: clamp(86px, 30%, 240px);
   left: 50%;
   transform: translate(-50%, -50%);
-  display: grid;
-  gap: 10px;
   text-align: center;
-  color: var(--cream, #eef0d9);
   pointer-events: none;
   text-shadow: 0 2px 4px #07120d;
-}
-.match-countdown > span,
-.match-countdown > small {
-  font: 12px var(--mono);
-  letter-spacing: 3px;
-}
-.match-countdown > strong {
-  font: 900 96px/1 var(--display, sans-serif);
   color: var(--amber);
-  animation: countdown-beat 240ms ease-out;
+  white-space: nowrap;
+  animation: match-start 1s ease-out forwards;
 }
-.match-countdown.go {
-  top: max(245px, 36%);
-  animation: countdown-go 1s ease-out forwards;
+.match-start-signal > strong {
+  font: 900 clamp(26px, 8vmin, 68px)/1 var(--display, sans-serif);
 }
-.match-countdown.go > strong {
-  font-size: 68px;
-}
-.match-countdown.uncaptured {
+.match-start-signal.uncaptured {
   top: 104px;
   transform: translateX(-50%);
-  gap: 4px;
 }
-.match-countdown.uncaptured > strong {
-  font-size: 48px;
-}
-.match-countdown.uncaptured > small {
-  display: none;
-}
-@keyframes countdown-beat {
-  from {
-    opacity: 0.5;
-    transform: scale(1.15);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-@keyframes countdown-go {
+@keyframes match-start {
   0%,
   55% {
     opacity: 1;
@@ -1203,7 +1172,6 @@
     opacity: 0;
   }
 }
-.motion-reduced .match-countdown,
-.motion-reduced .match-countdown > strong {
+.motion-reduced .match-start-signal {
   animation: none;
 }
