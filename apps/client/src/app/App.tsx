@@ -193,6 +193,7 @@ export function App() {
         ads: number,
         scoped: number,
         opticReticle: boolean,
+        shotgunRadius?: number,
       ) => {
         if (cancelled || !reticle.current) return;
         const opacity = sniperScopeBlend(scoped);
@@ -211,6 +212,17 @@ export function App() {
         }
         reticle.current.style.visibility =
           opacity > 0.95 || (opticReticle && ads > 0.95) ? 'hidden' : 'visible';
+        const shape = shotgunRadius === undefined ? 'cross' : 'shotgun';
+        if (reticle.current.dataset.shape !== shape)
+          reticle.current.dataset.shape = shape;
+        if (shotgunRadius !== undefined) {
+          const diameter = `${shotgunRadius * 2}px`;
+          if (
+            reticle.current.style.getPropertyValue('--shotgun-diameter') !==
+            diameter
+          )
+            reticle.current.style.setProperty('--shotgun-diameter', diameter);
+        }
         const crosshair = preferencesRef.current.crosshair;
         gap = crosshair.dynamic
           ? crosshair.gap + Math.max(0, gap - 5)

@@ -64,9 +64,11 @@ export class PracticeCombat {
     scene: Scene,
     private readonly onChange: () => void,
     private readonly onTrace?: (
-      weapon: WeaponId,
+      shot: ShotEvent,
       origin: Vector3Like,
       end: Vector3Like,
+      aimYaw: number,
+      aimPitch: number,
     ) => void,
   ) {
     this.dummy = new TrainingDummy(physics, scene);
@@ -99,11 +101,16 @@ export class PracticeCombat {
   private readonly fire = (shot: ShotEvent): void => {
     let damage = 0;
     let critical = false;
+    const yaw = this.yaw + this.weapons.recoil.yaw;
+    const pitch = Math.max(
+      -1.55,
+      Math.min(1.55, this.pitch + this.weapons.recoil.pitch),
+    );
     for (let pellet = 0; pellet < shot.config.pellets; pellet++) {
       const seed = shot.sequence * 131 + pellet * 11;
       spreadDirection(
-        this.yaw + this.weapons.recoil.yaw,
-        Math.max(-1.55, Math.min(1.55, this.pitch + this.weapons.recoil.pitch)),
+        yaw,
+        pitch,
         shot.spread,
         shotRandom(seed),
         shotRandom(seed + 1),
@@ -120,7 +127,7 @@ export class PracticeCombat {
           y: this.origin.y + this.direction.y * shot.config.range,
           z: this.origin.z + this.direction.z * shot.config.range,
         };
-        this.onTrace(shot.config.id, this.origin, end);
+        this.onTrace(shot, this.origin, end, yaw, pitch);
       }
       if (!hit) continue;
       this.impacts.spawn(hit.point, hit.normal);

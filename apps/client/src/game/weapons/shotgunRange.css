@@ -1,0 +1,14 @@
+.shotgun-range {
+  position: absolute;
+  top: 24%;
+  left: 16px;
+  z-index: 3;
+  max-width: min(360px, 46vw);
+  padding: 8px 12px;
+  color: #edf0e3;
+  background: #101914e8;
+  border-left: 2px solid #ffb75e;
+  font: 11px/1.45 var(--mono);
+  white-space: pre-line;
+  pointer-events: none;
+}

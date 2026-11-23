@@ -166,6 +166,10 @@ export class WeaponController {
     this.fireBuffer = 0;
   }
 
+  spreadFor(context: AccuracyContext): number {
+    return calculateSpread(this.config, this.ads, this.current.bloom, context);
+  }
+
   step(dt: number, input: WeaponInput, context: AccuracyContext): void {
     this.time += dt;
     if (input.autoReload !== undefined) this.autoReload = input.autoReload;
@@ -202,12 +206,7 @@ export class WeaponController {
     }
     if (this.autoReload && this.current.magazine === 0 && !this.reloading)
       this.reload();
-    this.spread = calculateSpread(
-      this.config,
-      this.ads,
-      this.current.bloom,
-      context,
-    );
+    this.spread = this.spreadFor(context);
     this.fireBuffer = input.firePressed
       ? combatConfig.fireBuffer
       : Math.max(0, this.fireBuffer - dt);
