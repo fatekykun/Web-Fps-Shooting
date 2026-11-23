@@ -48,7 +48,7 @@ export function MatchHud({
           data-testid="match-status"
           data-phase={room.phase}
         >
-          <span>
+          <span className="match-round">
             {match.mode.toUpperCase()} · ROUND {match.round}
           </span>
           <strong data-testid="match-timer">
@@ -64,7 +64,7 @@ export function MatchHud({
               {self?.kills ?? 0} / {match.scoreLimit} KILLS
             </div>
           )}
-          <span>
+          <span className="match-score-hint">
             {locked ? (
               touchControls ? (
                 'TAP SCORES TO VIEW'

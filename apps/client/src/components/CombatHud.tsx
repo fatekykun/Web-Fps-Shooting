@@ -1,5 +1,6 @@
 import type { CombatSnapshot } from '../game/combat/PracticeCombat';
-import { weaponOrder } from '@breakpoint/shared';
+import { weaponConfigs, weaponOrder } from '@breakpoint/shared';
+import { playerCombatConfig } from '@breakpoint/shared/combat';
 import {
   defaultBindings,
   keyLabel,
@@ -12,10 +13,15 @@ const healthLabel = (health: number) => Math.ceil(Math.max(0, health - 1e-9));
 export function CombatHud({
   combat,
   bindings = defaultBindings,
+  multiplayer = false,
 }: {
   combat: CombatSnapshot;
   bindings?: UserSettings['bindings'];
+  multiplayer?: boolean;
 }) {
+  const weapon = weaponConfigs[combat.weapon];
+  const healthPercent =
+    ((combat.player?.health ?? 0) / playerCombatConfig.health) * 100;
   return (
     <>
       <aside
@@ -35,7 +41,14 @@ export function CombatHud({
         data-cycle-progress={combat.cycleProgress ?? 0}
         data-hits={combat.hitSequence}
       >
-        <div className="weapon-name">{combat.name}</div>
+        {multiplayer ? (
+          <div className="match-weapon-identity">
+            <span className="match-weapon-icon" aria-hidden="true" />
+            <div className="weapon-name">{combat.name}</div>
+          </div>
+        ) : (
+          <div className="weapon-name">{combat.name}</div>
+        )}
         <div className="ammo-line">
           <strong>{String(combat.magazine).padStart(2, '0')}</strong>
           <span>/ {combat.reserve}</span>
@@ -57,6 +70,11 @@ export function CombatHud({
                       ? 'AIM DOWN SIGHTS'
                       : 'HIP FIRE'}
         </div>
+        {multiplayer && (
+          <span className="match-fire-mode">
+            {weapon.automatic ? 'AUTO' : 'SINGLE'}
+          </span>
+        )}
         <div className="reload-track">
           <span
             style={{
@@ -79,14 +97,19 @@ export function CombatHud({
             data-alive={String(combat.player.alive)}
             data-life={combat.player.life}
           >
-            <span>
-              {combat.player.protected ? 'SPAWN PROTECTED' : 'VITALS'}
+            <span className="vitals-label">
+              {combat.player.protected
+                ? 'SPAWN PROTECTED'
+                : multiplayer
+                  ? 'HP'
+                  : 'VITALS'}
             </span>
             <strong>
-              {healthLabel(combat.player.health)} <small>/ 100</small>
+              {healthLabel(combat.player.health)}{' '}
+              <small>/ {playerCombatConfig.health}</small>
             </strong>
             <span className="health-track">
-              <i style={{ width: `${combat.player.health}%` }} />
+              <i style={{ width: `${healthPercent}%` }} />
             </span>
             {combat.lastDamage > 0 && (
               <span>

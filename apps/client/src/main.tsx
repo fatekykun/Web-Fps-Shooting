@@ -4,6 +4,7 @@ import { App } from './app/App';
 import './app/styles.css';
 import './app/interface.css';
 import './app/mobile.css';
+import './app/multiplayerHud.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -299,10 +299,12 @@ export function App() {
     setHudEditor(null);
   }
 
+  const multiplayerHud = locked && room !== null && isMatchActive(room.phase);
+
   return (
     <>
       <main
-        className={`game-shell command-interface ${touchControls ? 'mobile-controls' : ''} ${device.tablet ? 'tablet-controls' : ''} ${locked ? 'is-playing' : ''} ${preferences.reducedMotion ? 'motion-reduced' : ''} ${preferences.diagnostics ? '' : 'diagnostics-compact'}`}
+        className={`game-shell command-interface ${touchControls ? 'mobile-controls' : ''} ${device.tablet ? 'tablet-controls' : ''} ${locked ? 'is-playing' : ''} ${multiplayerHud ? 'multiplayer-hud' : ''} ${preferences.reducedMotion ? 'motion-reduced' : ''} ${preferences.diagnostics ? '' : 'diagnostics-compact'}`}
         data-device={device.kind}
         onPointerDown={(event) => {
           game.current?.unlockAudio();
@@ -346,7 +348,8 @@ export function App() {
               : locked
                 ? 'TRAINING ACTIVE'
                 : 'LOCAL TRAINING'}
-            <span className="session-separator">/</span>PRIVATE COMMS
+            <span className="session-separator">/</span>
+            <span className="match-comms">PRIVATE COMMS</span>
             {!locked && (
               <button
                 className="audio-toggle"
@@ -376,7 +379,7 @@ export function App() {
           </div>
         </header>
 
-        <Telemetry stats={stats} />
+        <Telemetry stats={stats} multiplayer={multiplayerHud} />
         {!locked &&
           !touchControls &&
           !matchEntry &&
@@ -571,13 +574,18 @@ export function App() {
           </div>
         )}
         {locked && combat && (
-          <CombatHud combat={combat} bindings={preferences.bindings} />
+          <CombatHud
+            combat={combat}
+            bindings={preferences.bindings}
+            multiplayer={multiplayerHud}
+          />
         )}
         {locked && touchControls && (
           <MobileHUD
             attach={attachTouchControls}
             tablet={device.tablet}
             layout={mobileLayout}
+            multiplayer={multiplayerHud}
           />
         )}
         {controllerSettings && !hudEditor && (
@@ -629,6 +637,20 @@ export function App() {
             )}
           </div>
         </footer>
+        {multiplayerHud && room && (
+          <aside className="match-map" aria-label="Map and match">
+            <span className="match-sector">01</span>
+            <div>
+              <strong>THE DEPOT</strong>
+              <span>{room.match.mode.toUpperCase()} · INDUSTRIAL SECTOR</span>
+            </div>
+            {!touchControls && (
+              <span className="match-mouse-hint">
+                <kbd>ESC</kbd> RELEASE MOUSE
+              </span>
+            )}
+          </aside>
+        )}
       </main>
       <OrientationOverlay blocked={portrait} />
     </>

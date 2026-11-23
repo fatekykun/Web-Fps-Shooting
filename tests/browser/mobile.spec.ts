@@ -1,6 +1,7 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { Client } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
+import { expectMatchHudLayout } from './helpers/matchHudLayout';
 
 const phone = {
   hasTouch: true,
@@ -107,8 +108,14 @@ test.describe('phone touch controls', () => {
       page.getByRole('dialog', { name: 'ROTATE YOUR DEVICE' }),
     ).toBeVisible();
     await page.setViewportSize(phone.viewport);
+    await expect(
+      page.getByRole('dialog', { name: 'ROTATE YOUR DEVICE' }),
+    ).toBeHidden();
     await expect(slider).toHaveValue('200');
     await page.getByRole('button', { name: 'SAVE', exact: true }).tap();
+    await expect(
+      controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }),
+    ).toBeVisible();
     const saved = await page.evaluate(
       () => JSON.parse(localStorage.getItem('breakpoint.mobile-hud.v1')!).fire,
     );
@@ -303,6 +310,17 @@ test.describe('phone touch controls', () => {
         'data-phase',
         'playing',
       );
+      await expect(page.getByTestId('match-start-signal')).toBeHidden();
+      await page.setViewportSize({ width: 640, height: 360 });
+      await expect(page.getByText('TAP SCORES TO VIEW')).toBeVisible();
+      await expectMatchHudLayout(page, true);
+      await page.screenshot({ path: 'test-results/bp15-phone-match-hud.png' });
+      await page.setViewportSize({ width: 1180, height: 820 });
+      await expect(page.locator('.mobile-hud.tablet')).toBeVisible();
+      await expectMatchHudLayout(page, true);
+      await page.screenshot({ path: 'test-results/bp15-tablet-match-hud.png' });
+      await page.setViewportSize(phone.viewport);
+      await expect(page.locator('.mobile-hud.phone')).toBeVisible();
       const host = () => guest.state.players.get(guest.state.hostId)!;
       const start = host().z;
       const fingers = new Fingers(await context.newCDPSession(page));
