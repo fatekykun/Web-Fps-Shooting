@@ -39,7 +39,7 @@ it('plays one beep per server countdown number and one start cue per round witho
     cue = vi.spyOn(audio, 'cue');
   try {
     await audio.unlock();
-    for (const seconds of [3, 3, 2, 2, 1, 1])
+    for (const seconds of [5, 5, 4, 4, 3, 3, 2, 2, 1, 1])
       audio.observeMatch(matchView('countdown', seconds));
     audio.observeMatch(matchView('playing'));
     audio.observeMatch(matchView('playing'));
@@ -47,15 +47,17 @@ it('plays one beep per server countdown number and one start cue per round witho
       'countdown',
       'countdown',
       'countdown',
+      'countdown',
+      'countdown',
       'match-start',
     ]);
-    expect(audio.voiceCount).toBe(5); // Three short beats and a two-tone start chord.
+    expect(audio.voiceCount).toBe(7); // Five short beats and a two-tone start chord.
     audio.observeMatch(null);
     audio.observeMatch(matchView('playing'));
-    expect(cue).toHaveBeenCalledTimes(4);
+    expect(cue).toHaveBeenCalledTimes(6);
     audio.observeMatch(matchView('countdown', 2, 2));
     audio.observeMatch(matchView('playing', 0, 2));
-    expect(cue).toHaveBeenCalledTimes(6);
+    expect(cue).toHaveBeenCalledTimes(8);
   } finally {
     audio.dispose();
   }

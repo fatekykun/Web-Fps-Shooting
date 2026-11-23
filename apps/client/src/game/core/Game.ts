@@ -26,7 +26,11 @@ import {
   sniperScopeDiameter,
 } from '../weapons/SniperScope';
 import type { OpticView } from '../rendering/OpticScope';
-import { networkConfig, type RoomView } from '@breakpoint/shared/network';
+import {
+  networkConfig,
+  type LoadoutSelection,
+  type RoomView,
+} from '@breakpoint/shared/network';
 import { ShotTrails, type MuzzleResolver } from '../effects/ShotTrails';
 import type { NetworkSession } from '../networking/NetworkSession';
 import { RemotePlayers } from '../networking/RemotePlayers';
@@ -346,6 +350,9 @@ export class Game {
   }
   startRoom(): void {
     this.session?.start();
+  }
+  selectLoadout(selection: LoadoutSelection): void {
+    this.session?.selectLoadout(selection);
   }
   configureRoom(settings: MatchSettings): void {
     this.session?.configure(settings);

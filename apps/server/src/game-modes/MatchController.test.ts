@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { initializePhysics } from '@breakpoint/shared/physics';
-import { matchDefaults } from '@breakpoint/shared/match';
+import { matchCountdownSeconds, matchDefaults } from '@breakpoint/shared/match';
 import { PlayerState, RoomState } from '../rooms/RoomState';
 import { ServerPlayer } from '../players/ServerPlayer';
 import { ServerCombat } from '../combat/ServerCombat';
@@ -65,7 +65,7 @@ function fixture() {
     begin: () => {
       const error = match.start();
       if (error === null) {
-        time += 3000;
+        time += matchCountdownSeconds * 1000;
         match.beforeTick();
       }
       return error;
@@ -77,17 +77,17 @@ function fixture() {
   };
 }
 describe('match lifecycle and score authority', () => {
-  it('counts down exactly three seconds on the server, blocks premature scores and starts the full match clock at GO', () => {
+  it('counts down exactly five seconds, blocks premature scores and starts the full match clock at MATCH START', () => {
     const f = fixture();
     f.add('a');
     f.add('b');
     expect(f.match.start()).toBeNull();
     expect(f.state.phase).toBe('countdown');
-    expect(f.state.countdownSeconds).toBe(3);
+    expect(f.state.countdownSeconds).toBe(5);
     expect(f.match.beforeTick()).toBe(false);
     f.kill('a', 'b');
     expect(f.state.scores.get('a')!.kills).toBe(0);
-    for (const expected of [3, 2, 1]) {
+    for (const expected of [5, 4, 3, 2, 1]) {
       f.advance(999);
       expect(f.match.beforeTick()).toBe(false);
       expect(f.state.countdownSeconds).toBe(expected);
@@ -112,13 +112,13 @@ describe('match lifecycle and score authority', () => {
     f.advance(1500);
     f.match.beforeTick();
     f.add('b');
-    expect(f.state.countdownSeconds).toBe(2);
+    expect(f.state.countdownSeconds).toBe(4);
     expect(f.state.scores.get('b')!.connected).toBe(true);
     f.match.left('b');
     expect(f.state.scores.get('b')!.connected).toBe(false);
     expect(f.match.configure(matchDefaults.tdm)).not.toBeNull();
     expect(f.match.start()).not.toBeNull();
-    f.advance(1500);
+    f.advance(3500);
     expect(f.match.beforeTick()).toBe(true);
   });
   it('finishes FFA at the kill limit, counts deaths once and freezes results', () => {

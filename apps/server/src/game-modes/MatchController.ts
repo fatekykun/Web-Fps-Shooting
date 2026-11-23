@@ -158,7 +158,6 @@ export class MatchController {
     for (const player of this.players.values()) {
       player.freeze();
       if (this.state.mode === 'tdm') this.place(player);
-      this.combat.add(player);
       this.addScore(player.state);
     }
     this.state.phase = 'countdown';
@@ -198,7 +197,12 @@ export class MatchController {
         Math.ceil((this.beginsAt - this.now()) / 1000),
       );
       if (this.state.countdownSeconds > 0) return false;
-      for (const player of this.players.values()) player.freeze();
+      for (const player of this.players.values()) {
+        // Start a new life so inputs from before the spawn cannot override its loadout.
+        player.respawn({ ...player.movement.physics.position });
+        player.state.yaw = player.state.team === 'orange' ? Math.PI : 0;
+        this.combat.add(player);
+      }
       this.endsAt = this.now() + this.state.durationSeconds * 1000;
       this.state.phase = 'playing';
     }

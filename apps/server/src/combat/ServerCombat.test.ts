@@ -565,6 +565,7 @@ describe('server weapon budget and life cycle', () => {
     const f = fixture(),
       shooter = f.add('shooter', 0, 12),
       victim = f.add('victim', 0, 8);
+    f.combat.get('victim')!.weapons.switchWeapon('smg');
     for (let i = 0; i < 3; i++) {
       f.controls(shooter);
       f.step(6);
@@ -580,6 +581,7 @@ describe('server weapon budget and life cycle', () => {
     expect(victim.state.alive).toBe(true);
     expect(victim.state.health).toBe(100);
     expect(victim.state.protected).toBe(true);
+    expect(victim.state.weapon).toBe('smg');
     expect(f.combat.owner(victim).ammo.rifle.magazine).toBe(30);
     const position = { ...victim.movement.physics.position };
     f.controls(victim, trigger, 0, 0, life);
@@ -980,10 +982,11 @@ it.each([
     ).toBe(true);
     if (!weapons.includes('rifle' as never))
       expect(player.state.weapon).toBe(before);
+    const equipped = player.state.weapon;
     player.state.alive = false;
     f.step();
     expect(player.state.alive).toBe(true);
-    expect(player.state.weapon).toBe(weapons[0]);
+    expect(player.state.weapon).toBe(equipped);
     expect([...f.combat.get('Restricted')!.owned]).toEqual(weapons);
   },
 );

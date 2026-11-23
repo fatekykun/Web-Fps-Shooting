@@ -7,6 +7,7 @@ import type { WeaponController } from '../weapons/WeaponController';
 import type { MovementController } from '../movement/MovementController';
 import type { CombatSnapshot } from '../combat/PracticeCombat';
 import type { RoomView } from '@breakpoint/shared/network';
+import { matchCountdownSeconds } from '@breakpoint/shared/match';
 import {
   defaultUserSettings,
   type UserSettings,
@@ -91,8 +92,9 @@ export class AudioEngine {
   private hit = 0;
   private damage = 0;
   private life = 0;
+  private wasDead = false;
   private countdownMatch = '';
-  private lastCountdown = 4;
+  private lastCountdown = matchCountdownSeconds + 1;
   private sawCountdown = false;
   private matchStarted = false;
   get status(): string {
@@ -483,15 +485,17 @@ export class AudioEngine {
         );
       if (snapshot.player && snapshot.player.damageSequence > this.damage)
         this.cue(snapshot.player.alive ? 'hurt' : 'death');
-    } else if (this.life > 0) this.cue('respawn');
+    } else if (this.wasDead) this.cue('respawn');
     this.hit = snapshot.hitSequence;
     this.damage = snapshot.player?.damageSequence ?? 0;
     this.life = snapshot.player?.life ?? 0;
+    this.wasDead = snapshot.player?.alive === false;
   }
   resetFeedback(snapshot: CombatSnapshot): void {
     this.hit = snapshot.hitSequence;
     this.damage = snapshot.player?.damageSequence ?? 0;
     this.life = snapshot.player?.life ?? 0;
+    this.wasDead = snapshot.player?.alive === false;
   }
 
   /** State patches trigger each beat once; late joiners and hidden tabs never replay missed cues. */
@@ -503,13 +507,13 @@ export class AudioEngine {
     const key = `${view.code}:${view.match.round}`;
     if (key !== this.countdownMatch) {
       this.countdownMatch = key;
-      this.lastCountdown = 4;
+      this.lastCountdown = matchCountdownSeconds + 1;
       this.sawCountdown = this.matchStarted = false;
     }
     if (view.phase === 'countdown') {
       this.sawCountdown = true;
-      const remaining = view.match.countdownSeconds ?? 3;
-      if (remaining >= 1 && remaining <= 3 && remaining < this.lastCountdown) {
+      const remaining = view.match.countdownSeconds ?? matchCountdownSeconds;
+      if (remaining >= 1 && remaining < this.lastCountdown) {
         this.lastCountdown = remaining;
         this.cue('countdown');
       }

@@ -33,6 +33,9 @@ test('server-confirmed hits, ammo, kill feed, death and respawn work through the
       '100',
     );
     await expect(page.getByTestId('dummy-status')).toHaveCount(0);
+    const matchLife = Number(
+      await page.getByTestId('player-health').getAttribute('data-life'),
+    );
     await page.evaluate(() =>
       document.dispatchEvent(
         new MouseEvent('mousemove', {
@@ -81,7 +84,7 @@ test('server-confirmed hits, ammo, kill feed, death and respawn work through the
     timer = setInterval(() => {
       const packet = () => ({
         seq: ++sequence,
-        life: 1,
+        life: attacker!.state.players.get(attacker!.sessionId)!.life,
         forward: 0,
         right: 0,
         yaw: Math.PI / 2,
@@ -105,10 +108,15 @@ test('server-confirmed hits, ammo, kill feed, death and respawn work through the
       timeout: 20000,
     });
     firing = false;
+    const sniper = page.getByRole('button', { name: 'Equip SR-04 / SNIPER' });
+    await sniper.click();
+    await expect(sniper).toHaveAttribute('aria-pressed', 'true');
     await page.screenshot({ path: 'test-results/server-death.png' });
+    await expect(page.getByTestId('death-notice')).toHaveCount(0);
+    await enterStartedMatch(page);
     await expect(page.getByTestId('player-health')).toHaveAttribute(
       'data-life',
-      '2',
+      String(matchLife + 1),
       { timeout: 10000 },
     );
     await expect(page.getByTestId('player-health')).toHaveAttribute(
@@ -119,11 +127,13 @@ test('server-confirmed hits, ammo, kill feed, death and respawn work through the
       'data-health',
       '100',
     );
-    await expect(page.getByTestId('death-notice')).toHaveCount(0);
     await expect(page.getByTestId('weapon-status')).toHaveAttribute(
-      'data-ammo',
-      '30',
+      'data-weapon',
+      'sniper',
     );
+    await expect
+      .poll(() => target!.state.players.get(target!.state.hostId)?.weapon)
+      .toBe('sniper');
     expect(errors).toEqual([]);
   } finally {
     if (timer) clearInterval(timer);

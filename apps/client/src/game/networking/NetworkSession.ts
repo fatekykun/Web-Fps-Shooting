@@ -17,6 +17,7 @@ import {
   networkConfig,
   parseName,
   type Correction,
+  type LoadoutSelection,
   type PlayerInput,
   type PublicPlayer,
   type RoomView,
@@ -272,6 +273,9 @@ export class NetworkSession {
   }
   start(): void {
     this.room.send('start');
+  }
+  selectLoadout(selection: LoadoutSelection): void {
+    if (!this.leaving) this.room.send('loadout', selection);
   }
   configure(settings: MatchSettings): void {
     this.room.send('configure', settings);

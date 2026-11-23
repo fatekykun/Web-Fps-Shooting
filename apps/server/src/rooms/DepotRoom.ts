@@ -98,6 +98,23 @@ export class DepotRoom extends Room<{ state: RoomState }> {
       const player = this.state.players.get(client.sessionId);
       if (player) player.ready = ready;
     });
+    this.onMessage('loadout', (client, payload: unknown) => {
+      const player = this.simulations.get(client.sessionId);
+      if (
+        !player ||
+        !payload ||
+        typeof payload !== 'object' ||
+        !('round' in payload) ||
+        payload.round !== this.state.round ||
+        !('life' in payload) ||
+        payload.life !== player.state.life ||
+        !('weapon' in payload) ||
+        (this.state.phase !== 'countdown' &&
+          (this.state.phase !== 'playing' || player.state.alive))
+      )
+        return;
+      this.combat.selectLoadout(player, payload.weapon);
+    });
     this.onMessage('*', () => {
       /* Unrecognized hit/damage/ammo claims have no authority. */
     });

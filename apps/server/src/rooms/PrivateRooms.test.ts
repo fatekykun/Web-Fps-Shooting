@@ -108,6 +108,22 @@ it.each([
       .poll(() => [...host.state.players.values()].every((p) => p.ready))
       .toBe(true);
     host.send('start');
+    await expect.poll(() => host.state.phase).toBe('countdown');
+    const choose = (peer: typeof host, weapon: string, lifeOffset = 0) =>
+      peer.send('loadout', {
+        weapon,
+        round: peer.state.round,
+        life: peer.state.players.get(peer.sessionId)!.life + lifeOffset,
+      });
+    await expect.poll(() => guest.state.phase).toBe('countdown');
+    const choice = allowed.at(-1)!;
+    choose(host, allowed[0]!);
+    choose(guest, choice);
+    choose(
+      guest,
+      weaponOrder.find((id) => !allowed.includes(id))!,
+    );
+    choose(guest, allowed[0]!, 1);
     await expect
       .poll(() => host.state.phase, { timeout: 6000 })
       .toBe('playing');
@@ -115,7 +131,10 @@ it.each([
     guest.onMessage('correction', (message: Correction) => {
       owner = message.combat;
     });
-    await expect.poll(() => owner?.selected).toBe(allowed[0]);
+    await expect.poll(() => owner?.selected).toBe(choice);
+    expect(host.state.players.get(guest.sessionId)!.weapon).toBe(choice);
+    expect(guest.state.players.get(host.sessionId)!.weapon).toBe(allowed[0]);
+    choose(guest, allowed[0]!);
     let seq = 0;
     const packet = (switchTo: WeaponId | null, fire = false) => ({
       seq: ++seq,
@@ -139,8 +158,9 @@ it.each([
     });
     guest.send('input', [packet(null, true)]);
     await expect.poll(() => owner?.shots).toBe(1);
-    expect(owner!.ammo[allowed[0]!].magazine).toBe(
-      weaponConfigs[allowed[0]!].magazine - 1,
+    expect(owner!.nextWeapon).toBeUndefined();
+    expect(owner!.ammo[choice].magazine).toBe(
+      weaponConfigs[choice].magazine - 1,
     );
     for (const id of weaponOrder) {
       guest.send('input', [packet(id)]);

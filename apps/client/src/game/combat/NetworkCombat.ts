@@ -60,6 +60,7 @@ export class NetworkCombat {
       owner.health !== previous.health ||
       owner.protected !== previous.protected ||
       owner.selected !== previous.selected ||
+      owner.nextWeapon !== previous.nextWeapon ||
       owner.reloading !== previous.reloading ||
       owner.equipping !== previous.equipping ||
       owner.cycling !== previous.cycling ||

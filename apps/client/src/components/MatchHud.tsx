@@ -7,6 +7,7 @@ function clock(seconds: number): string {
 interface Props {
   room: RoomView;
   locked: boolean;
+  choosingLoadout: boolean;
   showScores: boolean;
   onScores(open: boolean): void;
   onLobby(): void;
@@ -17,6 +18,7 @@ interface Props {
 export function MatchHud({
   room,
   locked,
+  choosingLoadout,
   showScores,
   onScores,
   onLobby,
@@ -27,7 +29,6 @@ export function MatchHud({
   const match = room.match;
   const rows = rankScores(match.scores);
   const results = room.phase === 'results';
-  const counting = room.phase === 'countdown';
   const startSignal =
     room.phase === 'playing' &&
     match.round > 0 &&
@@ -64,34 +65,32 @@ export function MatchHud({
               {self?.kills ?? 0} / {match.scoreLimit} KILLS
             </div>
           )}
-          <span className="match-score-hint">
-            {locked ? (
-              touchControls ? (
-                'TAP SCORES TO VIEW'
+          {!choosingLoadout && (
+            <span className="match-score-hint">
+              {locked ? (
+                touchControls ? (
+                  'TAP SCORES TO VIEW'
+                ) : (
+                  `HOLD ${scoreKey} FOR SCORES`
+                )
               ) : (
-                `HOLD ${scoreKey} FOR SCORES`
-              )
-            ) : (
-              <button className="room-button" onClick={() => onScores(true)}>
-                SCOREBOARD
-              </button>
-            )}
-          </span>
+                <button className="room-button" onClick={() => onScores(true)}>
+                  SCOREBOARD
+                </button>
+              )}
+            </span>
+          )}
         </aside>
       )}
-      {(counting || startSignal) && (
+      {startSignal && (
         <div
-          className={`match-countdown ${locked ? '' : 'uncaptured'} ${counting ? '' : 'go'}`}
+          className={`match-start-signal ${locked ? '' : 'uncaptured'}`}
           role="status"
           aria-live="polite"
           aria-atomic="true"
-          data-testid={counting ? 'match-countdown' : 'match-start-signal'}
+          data-testid="match-start-signal"
         >
-          <span>{counting ? 'GET READY' : 'MATCH STARTED'}</span>
-          <strong key={counting ? match.countdownSeconds : 'go'}>
-            {counting ? Math.max(1, match.countdownSeconds ?? 3) : 'GO'}
-          </strong>
-          {counting && <small>THE DEPOT / {match.mode.toUpperCase()}</small>}
+          <strong>MATCH START</strong>
         </div>
       )}
       {(results || showScores) && room.phase !== 'lobby' && (

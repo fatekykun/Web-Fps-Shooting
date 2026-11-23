@@ -119,16 +119,6 @@ export function CombatHud({
               </span>
             )}
           </div>
-          {!combat.player.alive && (
-            <div
-              className="death-notice"
-              role="status"
-              data-testid="death-notice"
-            >
-              <strong>ELIMINATED</strong>
-              <span>RESPAWNING IN {Math.ceil(combat.player.respawnIn)}</span>
-            </div>
-          )}
           {combat.player.damageSequence > 0 && (
             <div
               key={combat.player.damageSequence}
