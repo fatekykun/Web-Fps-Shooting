@@ -70,6 +70,78 @@ class Fingers {
 
 test.describe('phone touch controls', () => {
   test.use(phone);
+  test('HUD editor previews touch drag and opacity, discards a draft, and applies the saved layout after reload', async ({
+    page,
+    context,
+  }) => {
+    await prepare(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'SETTINGS', exact: true }).tap();
+    await page
+      .getByRole('button', { name: /CONTROLLER SETTINGS \/ CUSTOMIZE/ })
+      .tap();
+    const controller = page.getByRole('dialog', {
+      name: 'Controller Settings',
+      exact: true,
+    });
+    await controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
+    const slider = page.getByRole('slider', { name: 'Button size' });
+    await slider.focus();
+    await page.keyboard.press('End');
+    await expect(slider).toHaveValue('200');
+    await page.getByRole('button', { name: '30%', exact: true }).tap();
+    const fire = page.getByRole('button', { name: 'Fire weapon' });
+    await expect(fire).toHaveAttribute('data-selected', 'true');
+    const before = await fire.boundingBox();
+    const frame = await page.locator('.hud-editor-screen').boundingBox();
+    const fingers = new Fingers(await context.newCDPSession(page));
+    await fingers.down(1, await point(page, 'fire'));
+    await fingers.move(1, {
+      x: frame!.x + frame!.width * 0.3,
+      y: frame!.y + frame!.height * 0.2,
+    });
+    await fingers.up(1);
+    expect((await fire.boundingBox())!.x).toBeLessThan(before!.x - 40);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(
+      page.getByRole('dialog', { name: 'ROTATE YOUR DEVICE' }),
+    ).toBeVisible();
+    await page.setViewportSize(phone.viewport);
+    await expect(slider).toHaveValue('200');
+    await page.getByRole('button', { name: 'SAVE', exact: true }).tap();
+    const saved = await page.evaluate(
+      () => JSON.parse(localStorage.getItem('breakpoint.mobile-hud.v1')!).fire,
+    );
+    expect(saved).toMatchObject({ scale: 200, opacity: 30 });
+    expect(saved.x).toBeCloseTo(0.3, 1);
+    await controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
+    await page.getByRole('button', { name: 'RESET DEFAULT LAYOUT' }).tap();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('alertdialog')).toBeVisible();
+    await page.getByRole('button', { name: 'DISCARD CHANGES' }).tap();
+    await controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
+    await expect(slider).toHaveValue('200');
+    await page.getByRole('button', { name: 'DISCARD', exact: true }).tap();
+    await page.reload();
+    await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
+    await expect(fire).toBeVisible();
+    expect(
+      await fire.evaluate((element) =>
+        element.style.getPropertyValue('--hud-opacity'),
+      ),
+    ).toBe('30%');
+    const ingame = await fire.boundingBox();
+    expect(ingame!.width).toBeCloseTo(144);
+    expect(ingame!.x + ingame!.width / 2).toBeCloseTo(saved.x * 844, 0);
+    await fire.tap();
+    await expect
+      .poll(async () =>
+        Number(
+          await page.getByTestId('weapon-status').getAttribute('data-ammo'),
+        ),
+      )
+      .toBeLessThan(30);
+  });
   test('small phone landscape keeps every action reachable and portrait stays above an open room dialog', async ({
     page,
   }) => {

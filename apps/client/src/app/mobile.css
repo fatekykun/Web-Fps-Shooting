@@ -61,9 +61,8 @@
   inset: 0;
   z-index: 35;
   pointer-events: none;
-  --touch-left: max(20px, env(safe-area-inset-left));
-  --touch-right: max(16px, env(safe-area-inset-right));
-  --touch-bottom: max(16px, env(safe-area-inset-bottom));
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 .touch-look {
   position: absolute;
@@ -75,10 +74,7 @@
 }
 .touch-joystick {
   position: absolute;
-  left: var(--touch-left);
-  bottom: var(--touch-bottom);
-  width: 120px;
-  height: 120px;
+  padding: 0;
   border-radius: 50%;
   border: 1px solid #e5e9cb70;
   background: #15251e3b;
@@ -129,110 +125,68 @@
   outline: 2px solid #eeac76;
   outline-offset: 2px;
 }
-.touch-sprint {
-  left: calc(var(--touch-left) + 36px);
-  bottom: calc(var(--touch-bottom) + 140px);
-}
 .touch-fire {
-  right: calc(var(--touch-right) + 72px);
-  bottom: calc(var(--touch-bottom) + 83px);
-  width: 72px;
-  height: 72px;
   border-width: 2px;
   font-size: 13px;
 }
-.touch-aim {
-  right: var(--touch-right);
-  bottom: calc(var(--touch-bottom) + 144px);
-}
-.touch-jump {
-  right: var(--touch-right);
-  bottom: calc(var(--touch-bottom) + 62px);
-}
-.touch-slide {
-  right: calc(var(--touch-right) + 55px);
-  bottom: var(--touch-bottom);
-}
 .touch-reload {
-  right: calc(var(--touch-right) + 112px);
-  bottom: var(--touch-bottom);
   font-size: 18px;
 }
-.touch-dive {
-  right: calc(var(--touch-right) + 169px);
-  bottom: var(--touch-bottom);
-}
 .touch-swap {
-  right: calc(var(--touch-right) + 170px);
-  bottom: calc(var(--touch-bottom) + 70px);
-  width: 62px;
   border-radius: 12px;
 }
 .touch-pause {
-  top: max(6px, env(safe-area-inset-top));
-  right: var(--touch-right);
-  width: 44px;
-  height: 44px;
   border-radius: 8px;
   font-size: 18px;
 }
 .touch-scores {
-  top: max(6px, env(safe-area-inset-top));
-  right: calc(var(--touch-right) + 52px);
-  width: 52px;
-  height: 44px;
   border-radius: 8px;
   font-size: 9px;
-}
-.mobile-hud.tablet .touch-joystick {
-  width: 164px;
-  height: 164px;
-  left: calc(var(--touch-left) + 16px);
-  bottom: calc(var(--touch-bottom) + 24px);
 }
 .mobile-hud.tablet .joystick-knob {
   width: 56px;
   height: 56px;
 }
-.mobile-hud.tablet .touch-sprint {
-  left: calc(var(--touch-left) + 70px);
-  bottom: calc(var(--touch-bottom) + 212px);
-}
 .mobile-hud.tablet .touch-button:not(.touch-pause, .touch-scores) {
-  width: 60px;
-  height: 60px;
   font-size: 12px;
 }
 .mobile-hud.tablet .touch-button.touch-fire {
-  width: 88px;
-  height: 88px;
-  right: calc(var(--touch-right) + 112px);
-  bottom: calc(var(--touch-bottom) + 158px);
   font-size: 15px;
 }
-.mobile-hud.tablet .touch-aim {
-  right: calc(var(--touch-right) + 20px);
-  bottom: calc(var(--touch-bottom) + 230px);
+.touch-button,
+.touch-joystick {
+  background: color-mix(
+    in srgb,
+    #13261c70 var(--hud-opacity, 100%),
+    transparent
+  );
+  border-color: color-mix(
+    in srgb,
+    #d9e4c590 var(--hud-opacity, 100%),
+    transparent
+  );
 }
-.mobile-hud.tablet .touch-jump {
-  right: calc(var(--touch-right) + 20px);
-  bottom: calc(var(--touch-bottom) + 124px);
+.touch-joystick {
+  background: color-mix(
+    in srgb,
+    #15251e3b var(--hud-opacity, 100%),
+    transparent
+  );
 }
-.mobile-hud.tablet .touch-slide {
-  right: calc(var(--touch-right) + 42px);
-  bottom: calc(var(--touch-bottom) + 30px);
+.touch-button[data-active='true'],
+.touch-joystick[data-active='true'] {
+  background: color-mix(
+    in srgb,
+    #bdbd807d var(--hud-opacity, 100%),
+    transparent
+  );
 }
-.mobile-hud.tablet .touch-reload {
-  right: calc(var(--touch-right) + 126px);
-  bottom: calc(var(--touch-bottom) + 30px);
-}
-.mobile-hud.tablet .touch-dive {
-  right: calc(var(--touch-right) + 210px);
-  bottom: calc(var(--touch-bottom) + 30px);
-}
-.mobile-hud.tablet .touch-swap {
-  right: calc(var(--touch-right) + 240px);
-  bottom: calc(var(--touch-bottom) + 138px);
+.touch-joystick .joystick-knob {
+  background: color-mix(
+    in srgb,
+    #cbd2b747 var(--hud-opacity, 100%),
+    transparent
+  );
 }
 .mobile-controls.is-playing .bottom-bar {
   display: none;
@@ -415,25 +369,176 @@
   }
 }
 @media (max-width: 700px) and (orientation: landscape) {
-  .mobile-hud {
-    --touch-left: max(10px, env(safe-area-inset-left));
-    --touch-right: max(10px, env(safe-area-inset-right));
-    --touch-bottom: max(10px, env(safe-area-inset-bottom));
-  }
-  .touch-joystick {
-    width: 104px;
-    height: 104px;
-  }
-  .touch-sprint {
-    left: calc(var(--touch-left) + 28px);
-    bottom: calc(var(--touch-bottom) + 120px);
-  }
-  .touch-swap {
-    right: calc(var(--touch-right) + 146px);
-    bottom: calc(var(--touch-bottom) + 74px);
-  }
   .mobile-controls .combat-hud {
     width: 112px;
     padding: 5px;
+  }
+}
+.hud-editor {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-height: none;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  padding: max(8px, env(safe-area-inset-top))
+    max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
+    max(10px, env(safe-area-inset-left));
+  background: #14211c;
+  color: #e5e9d7;
+  font:
+    11px Consolas,
+    monospace;
+}
+.hud-editor-content {
+  display: grid;
+  height: 100%;
+  grid-template: auto minmax(100px, 1fr) auto auto / minmax(0, 1fr);
+  gap: 8px;
+}
+.hud-editor header,
+.hud-editor footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hud-editor h2 {
+  margin: 3px 0;
+  font-size: 16px;
+}
+.hud-editor-stage {
+  position: relative;
+  overflow: hidden;
+  background: #18251f;
+  border: 1px solid #d9e4c533;
+}
+.hud-editor-screen {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100vw;
+  height: 100dvh;
+  transform: translate(-50%, -50%) scale(var(--preview-scale, 1));
+  background: #243229;
+}
+.hud-editor-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  transform: translateX(-50%);
+  color: #ccd3ba;
+  font-size: 9px;
+  pointer-events: none;
+}
+.hud-editor [data-touch-control] {
+  touch-action: none;
+}
+.hud-editor-stage .touch-button,
+.hud-editor-stage .touch-joystick {
+  cursor: grab;
+}
+.hud-editor-stage [data-selected='true'] {
+  outline: 2px solid #f2a66e;
+  outline-offset: 3px;
+}
+.hud-editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.hud-editor-tools > label:not(.hud-visible) {
+  display: grid;
+  gap: 5px;
+  min-width: 140px;
+}
+.hud-editor-tools select {
+  min-width: 150px;
+  padding: 7px;
+  color: #e5e9d7;
+  background: #18251f;
+  border: 1px solid #85917c66;
+}
+.hud-editor-tools output {
+  float: right;
+  color: #efae7a;
+}
+.hud-editor-tools input[type='range'] {
+  width: 150px;
+  accent-color: #efae7a;
+}
+.hud-editor-tools fieldset {
+  display: flex;
+  gap: 5px;
+  border: 1px solid #d9e4c533;
+}
+.hud-editor-tools fieldset button {
+  padding: 7px;
+  color: #e5e9d7;
+  background: #203128;
+  border: 1px solid #d9e4c544;
+}
+.hud-editor-tools fieldset button[aria-pressed='true'] {
+  color: #16221c;
+  background: #efae7a;
+}
+.hud-visible {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.hud-visible input {
+  accent-color: #efae7a;
+}
+.hud-editor footer .enter-button,
+.hud-editor footer .room-button {
+  min-width: 120px;
+  min-height: 42px;
+}
+.hud-confirm {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 40;
+  display: grid;
+  gap: 12px;
+  width: min(360px, 90vw);
+  padding: 20px;
+  background: #15221d;
+  border: 1px solid #efae7a;
+  box-shadow: 0 0 0 100vmax #0009;
+}
+.controller-settings-button {
+  width: 100%;
+  margin: 8px 0 18px;
+}
+.hud-layout-transfer label,
+.hud-layout-transfer textarea {
+  display: block;
+  margin: 8px 0;
+}
+.hud-layout-transfer textarea {
+  width: 100%;
+  padding: 8px;
+  color: inherit;
+  background: #15221d;
+  border: 1px solid #d9e4c544;
+}
+@media (max-height: 520px) {
+  .hud-editor-content {
+    gap: 4px;
+  }
+  .hud-editor-tools {
+    gap: 6px;
+  }
+  .hud-editor-tools > label {
+    min-width: 110px;
+  }
+  .hud-editor-tools input[type='range'] {
+    width: 110px;
   }
 }

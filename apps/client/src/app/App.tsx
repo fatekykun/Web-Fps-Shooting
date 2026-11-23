@@ -14,6 +14,8 @@ import { WeaponPanel } from '../components/WeaponPanel';
 import { PlayPanel, CreditsPanel } from '../components/CommandPanels';
 import { SettingsPanel, crosshairStyle } from '../components/SettingsPanel';
 import { MobileHUD } from '../components/MobileHUD';
+import { MobileHudEditor } from '../components/MobileHudEditor';
+import { ControllerSettings } from '../components/ControllerSettings';
 import {
   OrientationOverlay,
   useDeviceCapabilities,
@@ -37,6 +39,11 @@ import {
   defaultGraphics,
   normalizeGraphicsSettings,
 } from '../game/rendering/graphicsConfig';
+import {
+  loadMobileHudLayout,
+  saveMobileHudLayout,
+  type MobileHudLayout,
+} from '../game/input/mobileHudSettings';
 
 export function App() {
   const viewport = useRef<HTMLDivElement>(null);
@@ -68,6 +75,13 @@ export function App() {
   const roomSignature = useRef('');
   const [showScores, setShowScores] = useState(false);
   const [preferences, setPreferences] = useState(loadUserSettings);
+  const [mobileLayout, setMobileLayout] =
+    useState<MobileHudLayout>(loadMobileHudLayout);
+  const [controllerSettings, setControllerSettings] = useState(false);
+  const [hudEditor, setHudEditor] = useState<{
+    imported?: MobileHudLayout;
+  } | null>(null);
+  const [hudStorageUnavailable, setHudStorageUnavailable] = useState(false);
   const preferencesRef = useRef(preferences);
   const [saved, setSaved] = useState(true);
   const [overlay, setOverlay] = useState<
@@ -235,11 +249,13 @@ export function App() {
       matchEntry &&
       ready &&
       !portrait &&
+      !hudEditor &&
+      !controllerSettings &&
       !document.hidden &&
       document.hasFocus()
     )
       game.current?.enter(true);
-  }, [matchEntry, ready, portrait]);
+  }, [matchEntry, ready, portrait, hudEditor, controllerSettings]);
 
   useEffect(() => {
     if (portrait) game.current?.pause();
@@ -277,6 +293,11 @@ export function App() {
     setError(null);
     game.current?.enter();
   }
+  function saveMobileLayout(layout: MobileHudLayout): void {
+    setMobileLayout(layout);
+    setHudStorageUnavailable(!saveMobileHudLayout(layout));
+    setHudEditor(null);
+  }
 
   return (
     <>
@@ -285,7 +306,7 @@ export function App() {
         data-device={device.kind}
         onPointerDown={(event) => {
           game.current?.unlockAudio();
-          if (locked || !device.touch) return;
+          if (locked || !device.touch || controllerSettings) return;
           const touch = event.pointerType === 'touch';
           touchControlsRef.current = touch;
           game.current?.useTouchControls(touch);
@@ -487,7 +508,7 @@ export function App() {
             onClose={() => setOverlay(null)}
           />
         )}
-        {overlay === 'settings' && (
+        {overlay === 'settings' && !controllerSettings && (
           <SettingsPanel
             settings={preferences}
             graphics={graphics}
@@ -497,6 +518,9 @@ export function App() {
             onChange={changePreferences}
             onGraphics={changeGraphics}
             onClose={() => setOverlay(null)}
+            onControllerSettings={
+              device.touch ? () => setControllerSettings(true) : undefined
+            }
             onReset={() => {
               changePreferences(defaultUserSettings());
               changeGraphics({ ...defaultGraphics });
@@ -550,7 +574,28 @@ export function App() {
           <CombatHud combat={combat} bindings={preferences.bindings} />
         )}
         {locked && touchControls && (
-          <MobileHUD attach={attachTouchControls} tablet={device.tablet} />
+          <MobileHUD
+            attach={attachTouchControls}
+            tablet={device.tablet}
+            layout={mobileLayout}
+          />
+        )}
+        {controllerSettings && !hudEditor && (
+          <ControllerSettings
+            layout={mobileLayout}
+            storageUnavailable={hudStorageUnavailable}
+            onClose={() => setControllerSettings(false)}
+            onEdit={(imported) => setHudEditor({ imported })}
+          />
+        )}
+        {hudEditor && (
+          <MobileHudEditor
+            tablet={device.tablet}
+            initial={mobileLayout}
+            imported={hudEditor.imported}
+            onSave={saveMobileLayout}
+            onDiscard={() => setHudEditor(null)}
+          />
         )}
 
         <footer className="bottom-bar">

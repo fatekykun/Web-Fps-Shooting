@@ -84,6 +84,7 @@ export function SettingsPanel({
   onReset,
   onClose,
   onPreview,
+  onControllerSettings,
 }: {
   settings: UserSettings;
   graphics: GraphicsSettings;
@@ -95,6 +96,7 @@ export function SettingsPanel({
   onReset(): void;
   onClose(): void;
   onPreview(): Promise<boolean>;
+  onControllerSettings?(): void;
 }) {
   const [tab, setTab] = useState<(typeof tabs)[number]>('CONTROLS');
   const [listening, setListening] = useState<BindingAction | null>(null);
@@ -198,6 +200,14 @@ export function SettingsPanel({
       >
         {tab === 'CONTROLS' && (
           <>
+            {onControllerSettings && (
+              <button
+                className="enter-button controller-settings-button"
+                onClick={onControllerSettings}
+              >
+                CONTROLLER SETTINGS / CUSTOMIZE TOUCH HUD
+              </button>
+            )}
             <div className="setting-grid">
               <Range
                 label="Field of view"
