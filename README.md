@@ -21,7 +21,8 @@ Desktop and touchscreen laptops keep keyboard/mouse by default; tapping a menu
 button selects touch controls, while clicking with a mouse selects mouse capture.
 
 Drag the **left joystick** to move and the **right side** to look. **Sprint** and
-**ADS** toggle; **Fire** and **Jump** are held. **Slide**, **Dive**, **R** (reload),
+**ADS** toggle; **Fire** and **Jump** are held. **Crouch** also slides at sprint speed.
+**Prone** toggles crawling. **Dive**, **R** (reload),
 **Swap**, **Scores**, and **II** (pause) use the existing actions. Independent
 touches support moving, looking, aiming and firing together. Tablets have larger,
 more widely spaced controls. Settings → Sensitivity → **Touch camera** provides
@@ -546,14 +547,17 @@ For repeatable local profiling with the preview running:
 | Shift + W                                         | Sprint, accelerating toward 8 m/s                                           |
 | Space                                             | Jump; hold to bunny hop on landing                                          |
 | Space again while airborne near a wall            | Wall jump; two per airtime, no consecutive reuse of the same wall           |
+| C while standing or walking                       | Toggle crouch; in prone, rise to crouch if there is clearance               |
+| Z                                                 | Toggle prone; crawl while prone and stand where there is clearance          |
 | C while carrying sprint speed with Shift held     | Slide; entry speed 10 m/s, duration 0.65 s                                  |
 | S + C while carrying sprint speed with Shift held | Backslide at 6 m/s without turning the camera                               |
 | Space during a slide                              | Jump cancel, retaining horizontal momentum when there is standing clearance |
 | C again during a slide                            | Cancel into a short recovery, then walk/sprint                              |
 | X while sprinting                                 | Low-profile dolphin dive, followed by landing and recovery                  |
 
-Low-profile actions require at least 6 m/s of grounded speed. Repeated keydown
-events do not retrigger actions; release and press C/X again. Jump, slide and dive
+Slide and dive require sprint momentum. Crouch and prone work from rest and
+block standing up if cover is in the way. Repeated keydown events do not retrigger
+actions. Jump, slide and dive
 presses are buffered for 120 ms. Backslide allows a 120 ms W-to-S grace window;
 walking off a ledge allows an 80 ms coyote jump. Slides have a 350 ms
 cooldown after exit; dives have an 800 ms cooldown after exit. Dive recovery

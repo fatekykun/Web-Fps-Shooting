@@ -78,8 +78,13 @@ export function jointPose(
     air = pose.airBlend ?? 0;
   // Height fallback keeps older snapshots and capsule-only poses collision-safe.
   const low = Math.max(0, Math.min(1, (0.55 - pose.halfHeight) / 0.35));
-  const slide = pose.slideBlend ?? (pose.halfHeight > 0.1 ? low : 0);
-  const dive = pose.diveBlend ?? (pose.halfHeight <= 0.1 ? 1 : 0);
+  const prone = pose.proneBlend ?? Number(pose.movement === 'prone');
+  const crouch =
+    (pose.crouchBlend ?? Number(pose.movement === 'crouching')) * (1 - prone);
+  const standing = (1 - crouch) * (1 - prone);
+  const slide =
+    (pose.slideBlend ?? (pose.halfHeight > 0.1 ? low : 0)) * standing;
+  const dive = (pose.diveBlend ?? (pose.halfHeight <= 0.1 ? 1 : 0)) * standing;
   const land = pose.landingBlend ?? 0,
     hit = pose.hitBlend ?? 0,
     hitYaw = pose.hitYaw ?? 0;
@@ -89,38 +94,60 @@ export function jointPose(
   const aim = pose.aimBlend ?? 0;
   const carry = (pose.carryBlend ?? sprint) * (1 - aim) ** 3 * (1 - reload);
   const stride =
-    Math.sin(phase) * amount * (0.5 + 0.25 * sprint) * (1 - slide) * (1 - dive);
+    Math.sin(phase) *
+    amount *
+    (0.5 + 0.25 * sprint) *
+    (1 - slide) *
+    (1 - dive) *
+    (1 - crouch * 0.35) *
+    (1 - prone * 0.76);
   const kneeSwing = amount * 0.8 * (1 - slide) * (1 - dive);
-  const leftHip = stride + slide * 1.65 - dive * 1.2 + air * 0.25;
-  const rightHip = -stride + slide * 1.45 - dive * 1.2 - air * 0.15;
+  const leftHip =
+    stride + slide * 1.65 - dive * 1.2 + air * 0.25 + crouch * 1.06;
+  const rightHip =
+    -stride + slide * 1.45 - dive * 1.2 - air * 0.15 + crouch * 1.06;
   const leftKnee =
     -Math.max(0, -Math.sin(phase)) * kneeSwing -
     slide * 2.75 -
     air * 0.6 -
     land * 0.2 +
-    dive * 0.15;
+    dive * 0.15 -
+    crouch * 1.87 -
+    prone * 0.13;
   const rightKnee =
     -Math.max(0, Math.sin(phase)) * kneeSwing -
     slide * 0.15 -
     air * 0.55 -
     land * 0.2 +
-    dive * 0.15;
+    dive * 0.15 -
+    crouch * 1.87 -
+    prone * 0.13;
   out.x = joint.position[0];
   out.y = joint.position[1];
   out.z = joint.position[2];
   out.rx = out.ry = out.rz = 0;
   switch (joint.name) {
     case 'pelvis':
-      out.y -= slide * 0.54 + dive * 0.47 + air * 0.055 + land * 0.065;
+      out.y -=
+        slide * 0.54 +
+        dive * 0.47 +
+        air * 0.055 +
+        land * 0.065 +
+        crouch * 0.285 +
+        prone * 0.5;
       // Reach the legs forward before sitting into the slide. Keep the soles
       // above the floor during entry and recovery, with constant limb lengths.
-      if (slide > 0.05 && dive < 0.1) {
+      if ((slide > 0.05 && dive < 0.1) || crouch > 0.05 || prone > 0.05) {
+        const bodyTilt = (-prone * Math.PI) / 2;
         const reach = Math.max(
-          0.36 * Math.cos(leftHip) + 0.32 * Math.cos(leftHip + leftKnee),
-          0.36 * Math.cos(rightHip) + 0.32 * Math.cos(rightHip + rightKnee),
+          0.36 * Math.cos(bodyTilt + leftHip) +
+            0.32 * Math.cos(bodyTilt + leftHip + leftKnee),
+          0.36 * Math.cos(bodyTilt + rightHip) +
+            0.32 * Math.cos(bodyTilt + rightHip + rightKnee),
         );
         out.y = Math.max(out.y, 0.11 + reach);
       }
+      out.rx = (-prone * Math.PI) / 2;
       out.z += slide * 0.08;
       out.y += breath * 0.003 + Math.cos(phase * 2) * amount * 0.006;
       out.ry = stride * 0.04 + slide * 0.08;
@@ -131,6 +158,8 @@ export function jointPose(
         slide * 0.55 -
         dive * 1.25 -
         sprint * 0.2 +
+        prone * 0.17 -
+        crouch * 0.22 +
         air * 0.06 +
         hit * Math.cos(hitYaw) * 0.12;
       out.rz = hit * Math.sin(hitYaw) * 0.1 - slide * 0.06;
@@ -140,10 +169,15 @@ export function jointPose(
       out.ry = -stride * 0.06;
       break;
     case 'neck':
-      out.rx = pose.pitch * 0.15 - slide * 0.25;
+      out.rx = pose.pitch * 0.15 - slide * 0.25 + prone * 0.61;
       break;
     case 'head':
-      out.rx = pose.pitch * 0.65 - hit * 0.04 - slide * 0.3;
+      out.rx =
+        pose.pitch * 0.65 -
+        hit * 0.04 -
+        slide * 0.3 +
+        prone * 0.79 +
+        crouch * 0.16;
       out.rz = slide * 0.06;
       break;
     case 'leftShoulder':
@@ -166,22 +200,27 @@ export function jointPose(
       out.rx = rightKnee;
       break;
     case 'leftAnkle':
-      out.rx = air * 0.15 - sprint * 0.07 * (1 - slide) + slide * 1.1;
+      out.rx =
+        air * 0.15 - sprint * 0.07 * (1 - slide) + slide * 1.1 + crouch * 0.81;
       out.ry = -slide * 0.12;
       break;
     case 'rightAnkle':
-      out.rx = air * 0.15 - sprint * 0.07 * (1 - slide) - slide * 1.3;
+      out.rx =
+        air * 0.15 - sprint * 0.07 * (1 - slide) - slide * 1.3 + crouch * 0.81;
       break;
     case 'weapon':
       out.x += aim * 0.01 + carry * 0.025;
       out.y += aim * 0.18 - reload * 0.12 - slide * 0.035 * (1 - aim);
       out.z -= aim * 0.015;
+      out.z += prone * 0.24;
       out.z += (pose.fireBlend ?? 0) * 0.025;
       out.rx =
         pose.pitch * 0.8 -
         slide * 0.55 +
         dive * 1.25 +
         sprint * 0.2 +
+        prone * 1.4 +
+        crouch * 0.22 +
         carry * (0.9 + Math.sin(phase * 2) * 0.018) +
         (pose.fireBlend ?? 0) * 0.07;
       out.ry = carry * 0.22;

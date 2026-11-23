@@ -291,6 +291,7 @@ export class InputManager {
   consumeActions(): void {
     this.movement.jumpPressed = false;
     this.movement.slidePressed = false;
+    this.movement.pronePressed = false;
     this.movement.divePressed = false;
     this.weapon.firePressed = false;
     this.weapon.aimPressed = false;

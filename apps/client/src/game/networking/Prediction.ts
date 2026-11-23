@@ -40,6 +40,7 @@ export class Prediction {
       jump: !!input.jump,
       jumpPressed: !!input.jumpPressed,
       slidePressed: !!input.slidePressed,
+      ...(input.pronePressed ? { pronePressed: true } : {}),
       divePressed: !!input.divePressed,
       life: this.life,
       ...(weapon ? { weapon: { ...weapon } } : {}),

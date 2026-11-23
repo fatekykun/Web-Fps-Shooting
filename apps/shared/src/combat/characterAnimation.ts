@@ -11,6 +11,8 @@ export const animationFields = [
   'airBlend',
   'slideBlend',
   'diveBlend',
+  'crouchBlend',
+  'proneBlend',
   'landingBlend',
   'reloadBlend',
   'reloadProgress',
@@ -48,7 +50,11 @@ export class CharacterAnimation {
     const v = this.values;
     v.animationTime += dt;
     const locomotion =
-      grounded && (movement === 'walking' || movement === 'sprinting');
+      grounded &&
+      (movement === 'walking' ||
+        movement === 'sprinting' ||
+        movement === 'crouching' ||
+        movement === 'prone');
     this.sprinting = movement === 'sprinting' && speed > 0.5;
     v.gaitAmount = damp(
       v.gaitAmount,
@@ -75,6 +81,13 @@ export class CharacterAnimation {
       16,
     );
     v.diveBlend = damp(v.diveBlend, movement === 'diving' ? 1 : 0, dt, 16);
+    v.crouchBlend = damp(
+      v.crouchBlend,
+      movement === 'crouching' ? 1 : 0,
+      dt,
+      18,
+    );
+    v.proneBlend = damp(v.proneBlend, movement === 'prone' ? 1 : 0, dt, 14);
     v.landingBlend =
       !this.grounded && grounded ? 1 : v.landingBlend * Math.exp(-10 * dt);
     v.hitBlend *= Math.exp(-10 * dt);

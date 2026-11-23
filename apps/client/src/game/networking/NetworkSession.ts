@@ -160,6 +160,8 @@ export class NetworkSession {
         airBlend: player.airBlend,
         slideBlend: player.slideBlend,
         diveBlend: player.diveBlend,
+        crouchBlend: player.crouchBlend,
+        proneBlend: player.proneBlend,
         landingBlend: player.landingBlend,
         reloadBlend: player.reloadBlend,
         reloadProgress: player.reloadProgress,

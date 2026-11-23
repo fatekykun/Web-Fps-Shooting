@@ -79,7 +79,10 @@ export function parseInput(value: unknown): PlayerInput | null {
     return null;
   if (
     ![v.forward, v.right].every(
-      (axis) => axis === -1 || axis === 0 || axis === 1,
+      (axis) =>
+        typeof axis === 'number' &&
+        Number.isFinite(axis) &&
+        Math.abs(axis) <= 1,
     )
   )
     return null;
@@ -103,6 +106,8 @@ export function parseInput(value: unknown): PlayerInput | null {
     'divePressed',
   ] as const;
   if (flags.some((key) => typeof v[key] !== 'boolean')) return null;
+  if (v.pronePressed !== undefined && typeof v.pronePressed !== 'boolean')
+    return null;
   let weapon: WeaponInput | undefined;
   if (
     v.life !== undefined &&
@@ -149,6 +154,9 @@ export function parseInput(value: unknown): PlayerInput | null {
     jump: v.jump as boolean,
     jumpPressed: v.jumpPressed as boolean,
     slidePressed: v.slidePressed as boolean,
+    ...(v.pronePressed !== undefined
+      ? { pronePressed: v.pronePressed as boolean }
+      : {}),
     divePressed: v.divePressed as boolean,
     ...(v.life !== undefined ? { life: v.life as number } : {}),
     ...(weapon ? { weapon } : {}),

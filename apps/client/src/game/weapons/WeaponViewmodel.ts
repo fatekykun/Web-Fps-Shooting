@@ -293,7 +293,14 @@ export class WeaponViewmodel {
     }
     // Cosmetic stance transitions use frame-rate-independent damping; camera and shots stay authoritative.
     const blend = active ? 1 - Math.exp(-12 * Math.min(dt, 0.1)) : 0;
-    const targetStance = movement === 'diving' ? 0.11 : 0;
+    const targetStance =
+      movement === 'diving'
+        ? 0.11
+        : movement === 'prone'
+          ? 0.04
+          : movement === 'crouching'
+            ? 0.015
+            : 0;
     const targetCant =
       movement === 'sliding' || movement === 'backsliding'
         ? -0.055
@@ -325,7 +332,10 @@ export class WeaponViewmodel {
     // Integrate traveled distance rather than wall-clock time, matching sprint cadence.
     if (
       active &&
-      (movement === 'sprinting' || movement === 'walking') &&
+      (movement === 'sprinting' ||
+        movement === 'walking' ||
+        movement === 'crouching' ||
+        movement === 'prone') &&
       speed > 0.5
     )
       this.stridePhase =

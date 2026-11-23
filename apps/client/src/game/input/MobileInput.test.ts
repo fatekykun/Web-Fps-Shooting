@@ -109,6 +109,7 @@ class Root extends EventTarget {
       'sprint',
       'jump',
       'slide',
+      'prone',
       'dive',
       'reload',
       'swap',

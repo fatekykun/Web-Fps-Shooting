@@ -16,6 +16,42 @@ const base = {
   pitch: 0,
   halfHeight: 0.55,
 };
+it('lowers the target skeleton for crouch and turns it flat for prone', () => {
+  const rig = createRigTransforms();
+  const direction = { x: 0, y: 0, z: 1 };
+  const crouched = {
+    ...base,
+    halfHeight: 0.35,
+    crouchBlend: 1,
+    slideBlend: 0,
+    diveBlend: 0,
+  };
+  evaluateRig(crouched, rig);
+  const crouchedHead = rig[4]!;
+  expect(crouchedHead.y).toBeLessThan(1.4);
+  expect(
+    intersectAvatar({ x: 0, y: crouchedHead.y, z: -5 }, direction, crouched, 10)
+      ?.head,
+  ).toBe(true);
+  const prone = {
+    ...base,
+    halfHeight: 0.04,
+    proneBlend: 1,
+    slideBlend: 0,
+    diveBlend: 0,
+  };
+  evaluateRig(prone, rig);
+  const head = rig[4]!;
+  expect(head.y).toBeLessThan(0.6);
+  expect(head.z).toBeLessThan(-0.5);
+  expect(rig[20]!.z).toBeGreaterThan(0.5);
+  expect(
+    intersectAvatar({ x: 0, y: head.y, z: -5 }, direction, prone, 10)?.head,
+  ).toBe(true);
+  expect(
+    intersectAvatar({ x: 0, y: 1.53, z: -5 }, direction, prone, 10),
+  ).toBeNull();
+});
 it('hits the natural head/torso, respects range and ignores cosmetic weapon geometry', () => {
   expect(
     intersectAvatar({ x: 0, y: 1.53, z: 5 }, { x: 0, y: 0, z: -1 }, base, 10)

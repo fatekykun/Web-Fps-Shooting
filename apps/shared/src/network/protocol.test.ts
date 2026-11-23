@@ -61,6 +61,12 @@ describe('room protocol validation', () => {
       input,
     );
   });
+  it('accepts an analog joystick with an optional prone tap', () => {
+    const tap = { ...input, forward: 0.45, right: -0.2, pronePressed: true };
+    expect(parseInput(tap)).toEqual(tap);
+    expect(parseInput({ ...tap, pronePressed: 'true' })).toBeNull();
+    expect(parseInput({ ...tap, forward: 1.001 })).toBeNull();
+  });
   it.each([
     { seq: 0 },
     { seq: 1.1 },

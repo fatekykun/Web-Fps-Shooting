@@ -6,6 +6,7 @@ export const bindingActions = [
   'sprint',
   'jump',
   'slide',
+  'prone',
   'dive',
   'reload',
   'rifle',
@@ -22,7 +23,8 @@ export const bindingLabels: Record<BindingAction, string> = {
   right: 'Strafe right',
   sprint: 'Sprint',
   jump: 'Jump / wall jump',
-  slide: 'Slide / cancel',
+  slide: 'Crouch / slide',
+  prone: 'Prone',
   dive: 'Dive',
   reload: 'Reload',
   rifle: 'Equip rifle',
@@ -40,6 +42,7 @@ export const defaultBindings: Readonly<Record<BindingAction, string>> =
     sprint: 'ShiftLeft',
     jump: 'Space',
     slide: 'KeyC',
+    prone: 'KeyZ',
     dive: 'KeyX',
     reload: 'KeyR',
     rifle: 'Digit1',
@@ -162,10 +165,11 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     v = object(value),
     c = object(v.crosshair),
     b = { ...object(v.bindings) };
-  // Add the new action without resetting existing customized controls.
-  if (b.sniper === undefined) {
+  // Add bindings introduced after first release without resetting custom keys.
+  for (const action of ['sniper', 'prone'] as const) {
+    if (b[action] !== undefined) continue;
     const available = [
-      'Digit4',
+      d.bindings[action],
       'Digit5',
       'Digit6',
       'Digit7',
@@ -177,7 +181,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
         (_, index) => `Key${String.fromCharCode(65 + index)}`,
       ),
     ].find((code) => !Object.values(b).includes(code));
-    if (available) b.sniper = available;
+    if (available) b[action] = available;
   }
   const bool = (key: string, fallback: boolean) =>
     typeof v[key] === 'boolean' ? (v[key] as boolean) : fallback;

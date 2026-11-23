@@ -4,6 +4,8 @@ export const movementConfig = Object.freeze({
   maxSubsteps: 6,
   walkSpeed: 5,
   sprintSpeed: 8,
+  crouchSpeed: 2.65,
+  proneSpeed: 1.35,
   // Ground rates are m/s²; ordinary motion approaches a bounded target velocity.
   groundAcceleration: 70,
   sprintAcceleration: 90,
@@ -50,6 +52,8 @@ export const movementConfig = Object.freeze({
   diveRecovery: 0.2,
   recoverySpeed: 3,
   slideHalfHeight: 0.14,
+  crouchHalfHeight: 0.35,
+  proneHalfHeight: 0.04,
   diveHalfHeight: 0.04,
   postureSpeed: 3,
   wallReach: 0.24,
