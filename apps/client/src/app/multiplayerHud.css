@@ -462,10 +462,6 @@
   overflow-wrap: anywhere;
   font: 600 11px/1.25 var(--match-type);
 }
-.multiplayer-hud .kill-feed li span {
-  margin: 0 3px;
-  color: var(--match-gold);
-}
 .multiplayer-hud .scoreboard-panel {
   background: #17191df5;
   border-color: #ffffff38;
@@ -555,7 +551,7 @@
   padding: 6px 9px;
   gap: 3px 5px;
 }
-.multiplayer-hud.mobile-controls .match-weapon-icon {
+.multiplayer-hud.mobile-controls .combat-hud .match-weapon-icon {
   width: 58px;
   height: 14px;
 }
@@ -586,13 +582,34 @@
   top: calc(var(--match-top) + 58px);
   max-width: min(28%, 240px);
 }
-.multiplayer-hud.mobile-controls .kill-feed li,
-.multiplayer-hud.mobile-controls .kill-feed li span {
-  font-size: 9px;
-}
 .multiplayer-hud.mobile-controls .kill-feed li {
+  gap: 5px;
   padding-block: 3px;
+  font-size: 9px;
   line-height: 1.15;
+}
+.kill-feed .match-weapon-icon {
+  width: 40px;
+  height: 11px;
+  background: var(--match-text, #f5f5f2);
+}
+.kill-feed [data-weapon='smg'] .match-weapon-icon {
+  width: 32px;
+}
+.mobile-controls .kill-feed-weapon {
+  width: 32px;
+  height: 12px;
+}
+.mobile-controls .kill-feed .match-weapon-icon {
+  width: 32px;
+  height: 9px;
+}
+.mobile-controls .kill-feed [data-weapon='smg'] .match-weapon-icon {
+  width: 26px;
+}
+.mobile-controls .kill-feed-headshot {
+  width: 11px;
+  height: 11px;
 }
 
 @media (max-width: 700px) {

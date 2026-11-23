@@ -326,6 +326,19 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
       victim: 'Target0',
       headshot: true,
     });
+    const entry = page
+      .getByRole('list', { name: 'Kill feed' })
+      .getByRole('listitem')
+      .filter({ hasText: 'Target0' });
+    await expect(entry.locator('.kill-feed-name')).toHaveText([
+      'Sniper',
+      'Target0',
+    ]);
+    await expect(
+      entry.getByRole('img', { name: 'Sniper rifle' }),
+    ).toBeVisible();
+    await expect(entry.getByRole('img', { name: 'Headshot' })).toBeVisible();
+    await expect(entry).not.toContainText(/rifle|headshot/i);
     // Kill and shot are separate server messages; wait for both deliveries.
     await expect.poll(() => shots.length).toBeGreaterThan(0);
     expect(shots[0]).toMatchObject({ weapon: 'sniper', shooter: shooter.id });

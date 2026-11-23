@@ -1,6 +1,7 @@
 import type { CombatSnapshot } from '../game/combat/PracticeCombat';
 import { weaponConfigs, weaponOrder } from '@breakpoint/shared';
 import { playerCombatConfig } from '@breakpoint/shared/combat';
+import { KillFeed } from './KillFeed';
 import {
   defaultBindings,
   keyLabel,
@@ -157,20 +158,7 @@ export function CombatHud({
           )}
         </div>
       )}
-      {combat.killFeed && (
-        <ol className="kill-feed" aria-label="Kill feed">
-          {combat.killFeed.map((kill) => (
-            <li key={kill.id}>
-              <strong>{kill.killer}</strong>{' '}
-              <span>
-                {kill.weapon.toUpperCase()}
-                {kill.headshot ? ' / HEAD' : ''}
-              </span>{' '}
-              {kill.victim}
-            </li>
-          ))}
-        </ol>
-      )}
+      {combat.killFeed && <KillFeed events={combat.killFeed} />}
       {combat.hitSequence > 0 && (
         <div
           key={combat.hitSequence}

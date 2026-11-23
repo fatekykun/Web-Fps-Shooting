@@ -234,16 +234,57 @@
   pointer-events: none;
 }
 .kill-feed li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   background: #15251ed9;
-  border-left: 2px solid #cf9a78;
+  border-left: 2px solid #a4af9645;
   margin-bottom: 5px;
   padding: 10px;
   color: #d2dcc3;
 }
-.kill-feed li span {
-  margin: 0 10px;
-  color: #d8a27c;
-  font-size: 10px;
+.kill-feed-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kill-feed-victim {
+  color: #d5d7d8;
+}
+.kill-feed-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.kill-feed-weapon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 14px;
+}
+.kill-feed-headshot {
+  position: relative;
+  width: 13px;
+  height: 13px;
+  color: #ffb36a;
+}
+.kill-feed-headshot::before,
+.kill-feed-headshot::after {
+  content: '';
+  position: absolute;
+}
+.kill-feed-headshot::before {
+  inset: 2px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+.kill-feed-headshot::after {
+  inset: 0;
+  background:
+    linear-gradient(currentColor, currentColor) center / 1px 100% no-repeat,
+    linear-gradient(currentColor, currentColor) center / 100% 1px no-repeat;
 }
 .damage-flash {
   position: absolute;
