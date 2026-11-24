@@ -15,8 +15,8 @@ const labels = [
   { lines: ['NORTH SPAWN'], accent: '#719eb0' },
   { lines: ['SOUTH SPAWN'], accent: '#ca8a61' },
   { lines: ['CENTRAL', 'WATCHTOWER'], accent: '#d3a46a' },
-  { lines: ['WEST FLANK'], accent: '#d3a46a' },
-  { lines: ['EAST FLANK'], accent: '#d3a46a' },
+  { lines: ['FREIGHT LANE'], accent: '#d3a46a' },
+  { lines: ['BREACH LAB'], accent: '#d3a46a' },
 ];
 
 type Sign = {
@@ -36,8 +36,8 @@ const signs: Sign[] = [
     label: 3,
   },
   {
-    position: [20.989, 2.45, 1.95],
-    size: [3.2, 0.58],
+    position: [8.102, 2.55, 3.525],
+    size: [1.85, 0.35],
     yaw: -Math.PI / 2,
     label: 4,
   },

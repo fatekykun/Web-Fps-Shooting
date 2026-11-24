@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { Client } from '@colyseus/sdk';
 import type { ServerShot } from '@breakpoint/shared/combat';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
+import { arenas } from '@breakpoint/shared/maps';
 import { enterStartedMatch } from './helpers/matchEntry';
 
 test('plays Killhouse from the raised team spawn to the watchtower', async ({
@@ -57,7 +58,7 @@ test('plays Killhouse from the raised team spawn to the watchtower', async ({
     expect(north().yaw).toBeCloseTo(Math.PI);
     expect(south().yaw).toBeCloseTo(0);
     await expect(page.getByTestId('match-start-signal')).toBeHidden();
-    await page.screenshot({ path: 'test-results/bp18-killhouse.png' });
+    await page.screenshot({ path: 'test-results/bp23-killhouse-spawn.png' });
 
     const hold = async (key: string, reached: () => boolean) => {
       await page.keyboard.down(key);
@@ -73,13 +74,15 @@ test('plays Killhouse from the raised team spawn to the watchtower', async ({
     await hold('w', () => north().z > -9.6);
     expect(north().y).toBeLessThan(1.05);
     await hold('a', () => north().x > -0.49);
-    await hold('w', () => north().z > -1.9 && north().y > 3.7);
-    expect(north().y).toBeCloseTo(3.885, 1);
+    await hold('w', () => north().z > -1.9 && north().y > 4.2);
+    expect(north().y).toBeCloseTo(arenas.killhouse.towerHeight + 0.885, 1);
     const predictedY = Number(
       await page.getByTestId('position').getAttribute('data-y'),
     );
     expect(predictedY).toBeCloseTo(north().y, 0);
-    await page.screenshot({ path: 'test-results/bp18-watchtower.png' });
+    await page.screenshot({
+      path: 'test-results/bp23-killhouse-tower-gameplay.png',
+    });
 
     await page.mouse.down();
     try {

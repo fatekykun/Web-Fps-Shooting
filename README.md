@@ -58,6 +58,19 @@ continue. Losing focus or hiding the tab clears held keys and pauses offline mov
 Offline training pauses on mouse release. Private rooms stay live; releasing the
 mouse clears held inputs. Online rooms use server-owned health, ammunition and damage.
 
+### Killhouse warehouse preview (BP-23)
+
+From the repository root, run `npx vite --host 127.0.0.1 --port 4208` and open
+`http://127.0.0.1:4208/scripts/killhouse-preview/`. The camera links show the cutaway,
+top-down layout, Freight Lane, Breach Lab, and watchtower. Top-down markers show the
+initial team decks and the candidate positions ranked by the existing spawn director.
+
+The warehouse retains BREAKPOINT's 42 × 36 × 9 m interior, with the origin at
+floor center, east along +X, and south along +Z. The blueprint informed the glazed
+roof bays, steel bracing, plywood rooms, and industrial cover. Room openings,
+freight placement, and wreck locations use the BREAKPOINT layout. The tower deck
+is 3.55 m high and uses walkable stairs from both ends. The service ladder is scenery.
+
 ## Tactical interface and settings (milestone 8)
 
 The command menu offers **Play**, **Create room**, **Join room**, **Settings**,
