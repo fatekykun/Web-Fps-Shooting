@@ -41,7 +41,9 @@ it.each(house.stairs.map((stair, index) => ({ stair, index })))(
             { forward: 1, right: 0, yaw: angle },
             movementConfig.fixedStep,
           );
-        expect(until()).toBe(true);
+        expect(until(), `stuck at ${JSON.stringify(world.position)}`).toBe(
+          true,
+        );
       };
       travel(yaw, () => (z - world.position.z) * direction > run / 2 + 0.5);
       expect(world.position.y).toBeCloseTo(rise + 0.885, 1);
@@ -84,10 +86,14 @@ it('blocks shots at cover and the roof while leaving a crossover beneath the tow
     const across = { x: 1, y: 0, z: 0 };
     expect(world.castBullet({ x: -5.5, y: 1.6, z: 0 }, across, 11)).toBeNull();
     expect(
-      world.castBullet({ x: -5.5, y: 3.9, z: 0 }, across, 11)?.point.x,
+      world.castBullet(
+        { x: -5.5, y: house.towerHeight + 0.19, z: 0 },
+        across,
+        11,
+      )?.point.x,
     ).toBeCloseTo(-2.9, 2);
     const brace = world.castBullet(
-      { x: 0, y: 1.46, z: 0 },
+      { x: 0, y: house.towerHeight * 0.48, z: 0 },
       { x: 0, y: 0, z: -1 },
       3,
     );
@@ -102,6 +108,110 @@ it('blocks shots at cover and the roof while leaving a crossover beneath the tow
       world.castBullet({ x: 18.8, y: 1.6, z: 0 }, { x: 0, y: 1, z: 0 }, 20)
         ?.point.y,
     ).toBeCloseTo(9);
+  } finally {
+    world.dispose();
+  }
+});
+
+it('keeps every smart spawn candidate on a clear floor and out of cover geometry', () => {
+  const world = new PhysicsWorld(house.colliders, house.spawns.blue[0]!);
+  try {
+    for (const point of house.respawns.candidates)
+      expect(
+        world.canSpawnAt(point),
+        `${point.zone} at ${point.x}, ${point.z}`,
+      ).toBe(true);
+  } finally {
+    world.dispose();
+  }
+});
+
+it('traverses the Breach Lab cross-route and stops pellets at solid panels or door headers', () => {
+  const world = new PhysicsWorld(house.colliders, {
+    x: 6.7,
+    y: 0.91,
+    z: -3.475,
+  });
+  try {
+    const direction = { x: 1, y: 0, z: 0 };
+    expect(
+      world.castBullet({ x: 6.7, y: 1.6, z: -3.475 }, direction, 12),
+    ).toBeNull();
+    expect(
+      world.castBullet({ x: 6.7, y: 2.45, z: -3.475 }, direction, 12)?.point.x,
+    ).toBeCloseTo(8.11, 2);
+    expect(
+      world.castBullet({ x: 6.7, y: 1.6, z: -1 }, direction, 12)?.point.x,
+    ).toBeCloseTo(8.11, 2);
+    const movement = new MovementController(world);
+    for (let i = 0; i < 155; i++)
+      movement.step(
+        { forward: 1, right: 0, yaw: -Math.PI / 2 },
+        movementConfig.fixedStep,
+      );
+    expect(world.position.x).toBeGreaterThan(18.2);
+    expect(world.position.z).toBeCloseTo(-3.475, 2);
+  } finally {
+    world.dispose();
+  }
+});
+
+it('collides with rotated freight, with metal and wood contacts on upper surfaces', () => {
+  const world = new PhysicsWorld(house.colliders, { x: -11.3, y: 0.91, z: 10 });
+  const roof = new PhysicsWorld(house.colliders, { x: -11.3, y: 3.51, z: 7.3 });
+  const tower = new PhysicsWorld(house.colliders, {
+    x: 0,
+    y: house.towerHeight + 0.91,
+    z: 0,
+  });
+  try {
+    expect(
+      world.castBullet(world.position, { x: 0, y: 0, z: -1 }, 4)?.point.z,
+    ).toBeCloseTo(8.5, 2);
+    for (let i = 0; i < 75; i++) world.move({ x: 0, y: -0.04, z: -0.1 });
+    expect(world.position.z).toBeGreaterThan(8.75);
+    for (let i = 0; i < 8; i++) {
+      roof.move({ x: 0, y: -0.035, z: 0 });
+      tower.move({ x: 0, y: -0.035, z: 0 });
+    }
+    expect(roof.groundSurface()).toBe('metal');
+    expect(tower.groundSurface()).toBe('wood');
+    expect(tower.grounded).toBe(true);
+  } finally {
+    world.dispose();
+    roof.dispose();
+    tower.dispose();
+  }
+});
+
+it('connects the north and south rooms to the east corridor through staggered doorways', () => {
+  const world = new PhysicsWorld(house.colliders, {
+    x: 12.2,
+    y: 0.91,
+    z: -7.6,
+  });
+  try {
+    for (const [x, z] of [
+      [12.2, -5.45],
+      [10.5, -5.45],
+      [10.5, 3.75],
+      [15.2, 3.75],
+      [15.2, 1.67],
+      [18.35, 1.67],
+    ] as const) {
+      for (let frame = 0; frame < 160; frame++) {
+        const dx = x - world.position.x,
+          dz = z - world.position.z;
+        const distance = Math.hypot(dx, dz);
+        if (distance < 0.07) break;
+        const step = Math.min(0.08 / distance, 1);
+        world.move({ x: dx * step, y: -0.025, z: dz * step });
+      }
+      expect(
+        Math.hypot(x - world.position.x, z - world.position.z),
+        `room waypoint ${x}, ${z}`,
+      ).toBeLessThan(0.12);
+    }
   } finally {
     world.dispose();
   }

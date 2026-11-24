@@ -30,6 +30,7 @@ interface ArenaBatches {
   barrels: ArenaPart[];
   paint: ArenaPart[];
   overhead?: ArenaPart[];
+  daylight?: ArenaPart[];
 }
 interface ArenaLight {
   sky: number;
@@ -52,6 +53,7 @@ export class BatchedArena {
   private readonly surfaces: MeshLambertMaterial;
   private readonly metal = new MeshLambertMaterial({ flatShading: true });
   private readonly lamp = new MeshBasicMaterial();
+  private readonly daylight?: MeshBasicMaterial;
   private readonly batches: InstancedMesh[] = [];
   private shadowQuality: GraphicsSettings['shadowQuality'] = 'off';
 
@@ -92,6 +94,14 @@ export class BatchedArena {
     this.batch(this.drum, this.metal, parts.barrels, true);
     this.batch(this.box, this.lamp, parts.paint, false);
     if (parts.overhead) this.batch(this.box, this.metal, parts.overhead, false);
+    if (parts.daylight?.length) {
+      this.daylight = new MeshBasicMaterial({
+        transparent: true,
+        opacity: 0.25,
+        depthWrite: false,
+      });
+      this.batch(this.box, this.daylight, parts.daylight, false);
+    }
   }
 
   private batch(
@@ -154,5 +164,6 @@ export class BatchedArena {
     this.surfaces.dispose();
     this.metal.dispose();
     this.lamp.dispose();
+    this.daylight?.dispose();
   }
 }

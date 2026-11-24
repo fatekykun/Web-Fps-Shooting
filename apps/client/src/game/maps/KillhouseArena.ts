@@ -14,6 +14,7 @@ const tiles = {
   steel: 1,
   timber: 5,
   plywood: 5,
+  pallet: 5,
   brick: 6,
   sandbag: 0,
   container: 2,
@@ -23,8 +24,8 @@ const tiles = {
   target: 5,
 } satisfies Record<HousePart['surface'], number>;
 
-const steel = 0x414e49;
-const windowTint = 0x9eaaa1;
+const steel = 0x3b4648;
+const windowTint = 0xa2becb;
 
 function part(
   position: ArenaPart['position'],
@@ -53,21 +54,134 @@ function stairs(model: HousePart): ArenaSurface[] {
   });
 }
 
-/** Warehouse geometry rendered in five static batches, including its walkable decks. */
+function localPart(
+  model: ArenaPart,
+  x: number,
+  y: number,
+  z: number,
+  size: ArenaPart['size'],
+  color: number,
+): ArenaPart {
+  const yaw = model.yaw ?? 0;
+  const cosine = Math.cos(yaw),
+    sine = Math.sin(yaw);
+  const [mx, my, mz] = model.position;
+  return {
+    ...part(
+      [mx + x * cosine + z * sine, my + y, mz - x * sine + z * cosine],
+      size,
+      color,
+    ),
+    yaw,
+  };
+}
+
+function containerTrim(model: ArenaPart, trim: ArenaPart[]): void {
+  const [width, height, length] = model.size;
+  for (const side of [-1, 1]) {
+    for (const end of [-1, 1]) {
+      trim.push(
+        localPart(
+          model,
+          side * (width / 2 - 0.04),
+          0,
+          end * (length / 2),
+          [0.12, height, 0.13],
+          steel,
+        ),
+      );
+      trim.push(
+        localPart(
+          model,
+          side * 0.49,
+          0,
+          end * (length / 2 + 0.025),
+          [0.055, height - 0.18, 0.067],
+          0x8f958a,
+        ),
+      );
+    }
+    for (let rib = 1; rib < 15; rib++)
+      trim.push(
+        localPart(
+          model,
+          side * (width / 2 + 0.012),
+          0,
+          length * (rib / 15 - 0.5),
+          [0.04, height - 0.23, 0.075],
+          model.color,
+        ),
+      );
+    trim.push(
+      localPart(
+        model,
+        0,
+        side * (height / 2 - 0.04),
+        length / 2 + 0.008,
+        [width, 0.11, 0.07],
+        steel,
+      ),
+    );
+  }
+  trim.push(
+    localPart(
+      model,
+      0,
+      0,
+      length / 2 + 0.014,
+      [0.045, height - 0.18, 0.027],
+      steel,
+    ),
+  );
+}
+
+function palletSlats(model: ArenaPart, trim: ArenaPart[]): void {
+  const [width, height, length] = model.size;
+  const layers = Math.round(height / 0.28);
+  for (let layer = 0; layer < layers; layer++) {
+    const bottom = -height / 2 + layer * 0.28;
+    for (const rail of [-1, 0, 1])
+      trim.push(
+        localPart(
+          model,
+          rail * (width / 2 - 0.09),
+          bottom + 0.11,
+          0,
+          [0.14, 0.22, length],
+          0x604b33,
+        ),
+      );
+    for (let slat = 0; slat < 5; slat++)
+      trim.push(
+        localPart(
+          model,
+          0,
+          bottom + 0.25,
+          length * (slat / 5 - 0.4),
+          [width, 0.06, length * 0.155],
+          slat % 2 ? 0xad8959 : model.color,
+        ),
+      );
+  }
+}
+
+/** Warehouse geometry shares instanced batches and the server's modular layout. */
 export class KillhouseArena extends BatchedArena {
   private readonly removeSigns: () => void;
 
   constructor(scene: Scene) {
     const solids: ArenaSurface[] = [];
-    const trim: ArenaPart[] = [];
+    const trim: ArenaPart[] = [...house.roomTrim];
     const barrels: ArenaPart[] = [];
     const paint: ArenaPart[] = [];
-    const overhead: ArenaPart[] = [house.roof];
+    const overhead: ArenaPart[] = [];
+    const daylight: ArenaPart[] = [];
     for (const object of [
       house.floor,
       ...house.walls,
       ...house.structures,
       ...house.cover,
+      ...house.rooms,
     ]) {
       const [x, y, z] = object.position;
       const [sx, sy, sz] = object.size;
@@ -81,6 +195,10 @@ export class KillhouseArena extends BatchedArena {
       }
       if (object.surface === 'vehicle') {
         (object.kind === 'barrel' ? barrels : trim).push(object);
+        continue;
+      }
+      if (object.surface === 'pallet') {
+        palletSlats(object, trim);
         continue;
       }
       if (object.surface === 'sandbag') {
@@ -102,32 +220,27 @@ export class KillhouseArena extends BatchedArena {
         paint.push(part([x, y - 0.11, face], [0.38, 0.45, 0.01], 0x433f35));
         paint.push(part([x, y + 0.08, face], [0.47, 0.15, 0.01], 0x433f35));
       } else if (object.surface === 'container') {
-        for (const side of [-1, 1]) {
-          trim.push(
-            part(
-              [x + side * (sx / 2 - 0.04), y, z - sz / 2 - 0.007],
-              [0.09, sy, 0.02],
-              steel,
-            ),
-          );
-          trim.push(
-            part(
-              [x + side * 0.46, y, z - sz / 2 - 0.008],
-              [0.05, sy - 0.16, 0.022],
-              0x91978c,
-            ),
-          );
-        }
+        containerTrim(object, trim);
       }
     }
     for (const detail of house.vehicleTrim)
       (detail.kind === 'barrel' ? barrels : trim).push(detail);
     solids.push(...house.stairs.flatMap(stairs));
 
-    // False clerestory panes and solid roof trusses keep the room enclosed.
+    // A maintenance ladder dresses the scaffold; players reach the deck by stairs.
+    for (const z of [0.92, 1.76])
+      trim.push(part([2.84, 1.98, z], [0.1, 3.75, 0.105], 0x977a4d));
+    for (let y = 0.35; y < house.towerHeight; y += 0.31)
+      trim.push(part([2.855, y, 1.34], [0.086, 0.055, 0.91], 0xbe9b5f));
+
+    // Repeating steel posts, girts and braces support the lit clerestory bays.
     for (const side of [-1, 1]) {
-      for (let z = -15; z <= 15; z += 5) {
-        const windowZ = Math.min(z + 1.8, 15.94);
+      for (const y of [2.08, 6.35, 8.23]) {
+        overhead.push(part([side * 20.88, y, 0], [0.2, 0.15, 36], steel));
+        overhead.push(part([0, y, side * 17.9], [42, 0.15, 0.2], steel));
+      }
+      for (let bay = 0; bay < 7; bay++) {
+        const windowZ = -15 + bay * 5;
         overhead.push(
           part([side * 20.985, 7.35, windowZ], [0.035, 1.44, 3.78], steel),
         );
@@ -139,17 +252,22 @@ export class KillhouseArena extends BatchedArena {
               windowTint,
             ),
           );
-        overhead.push({
-          ...part([side * 20.92, 5.96, windowZ], [0.15, 0.16, 4.1], steel),
-          pitch: side * 0.43,
-        });
-        if (z % 10 === 0) {
+        for (const slope of [-1, 1])
+          overhead.push({
+            ...part(
+              [side * 20.9, 4.2, windowZ],
+              [0.14, 0.15, Math.hypot(4.35, 3.8)],
+              steel,
+            ),
+            pitch: slope * Math.atan2(3.8, 4.35),
+          });
+        if (bay % 2 === 0) {
           overhead.push(
-            part([side * 20.88, 3.45, z + 3.1], [0.2, 0.23, 1.28], steel),
+            part([side * 20.88, 3.45, windowZ], [0.2, 0.23, 1.28], steel),
           );
           paint.push(
             part(
-              [side * 20.762, 3.45, z + 3.1],
+              [side * 20.762, 3.45, windowZ],
               [0.024, 0.135, 0.95],
               0xe8ba72,
             ),
@@ -164,17 +282,56 @@ export class KillhouseArena extends BatchedArena {
           );
       }
     }
-    for (const z of [-15, -9, -3, 3, 9, 15]) {
-      overhead.push(part([0, 8.05, z], [42, 0.18, 0.2], steel));
-      for (const x of [-14, -7, 0, 7, 14])
+    // Glazed bays read as daylight even with real-time shadows disabled.
+    for (let x = -21; x <= 21; x += 7)
+      overhead.push(part([x, 8.87, 0], [0.21, 0.28, 36], steel));
+    for (let bay = 0; bay < 6; bay++) {
+      const z = -15 + bay * 6;
+      overhead.push(part([0, 8.12, z], [42, 0.18, 0.29], steel));
+      overhead.push(part([0, 8.88, z - 3], [42, 0.27, 0.24], steel));
+      for (let column = 0; column < 6; column++) {
+        const x = -17.5 + column * 7;
         overhead.push({
-          ...part([x, 8.54, z], [7.2, 0.12, 0.13], steel),
-          roll: (x % 2 === 0 ? 1 : -1) * 0.092,
+          ...part([x, 8.53, z], [7.1, 0.13, 0.15], steel),
+          roll: (column % 2 === 0 ? 1 : -1) * 0.1,
         });
+        if ((column + bay) % 3 === 0 || column === 0 || column === 5) {
+          overhead.push(part([x, 9.1, z], [7.03, 0.17, 6.04], 0x535d60));
+          continue;
+        }
+        overhead.push(part([x, 8.96, z], [0.12, 0.14, 6], steel));
+        overhead.push(part([x, 8.96, z], [7, 0.14, 0.14], steel));
+        for (const dx of [-1.75, 1.75])
+          for (const dz of [-1.5, 1.5]) {
+            const tint = dx * dz > 0 ? 0xb9d0d8 : 0x91b4c9;
+            paint.push(part([x + dx, 9.07, z + dz], [3.43, 0.07, 2.94], tint));
+            if (bay > 0)
+              daylight.push(
+                part(
+                  [x + dx + 2.5, 0.005, z + dz - 2.8],
+                  [3.23, 0.002, 2.69],
+                  0xe5d6b3,
+                ),
+              );
+          }
+      }
       for (const x of [-11.5, 0, 11.5]) {
         overhead.push(part([x, 7.91, z], [2.35, 0.125, 0.36], 0x49514a));
         paint.push(part([x, 7.836, z], [2.01, 0.024, 0.22], 0xe7ce98));
       }
+    }
+    overhead.push(part([0, 8.88, 18], [42, 0.27, 0.24], steel));
+
+    // The drainage grates are flush scenery. Their surface cannot catch a capsule.
+    for (const [x, z, length] of [
+      [-17.9, -4.7, 14.4],
+      [-5.9, 1.65, 7.2],
+      [6.1, 4.8, 9.6],
+      [18.15, -0.2, 12],
+    ] as const) {
+      trim.push(part([x, 0.006, z], [0.29, 0.01, length], 0x333938));
+      for (let along = -length / 2 + 0.15; along < length / 2; along += 0.24)
+        trim.push(part([x, 0.014, z + along], [0.25, 0.01, 0.04], 0x646a61));
     }
     for (const side of [-1, 1]) {
       const team = side < 0 ? 'blue' : 'orange';
@@ -204,11 +361,11 @@ export class KillhouseArena extends BatchedArena {
 
     super(
       scene,
-      { solids, trim, barrels, paint, overhead },
+      { solids, trim, barrels, paint, overhead, daylight },
       {
-        sky: 0x535a52,
-        fill: [0xe5e6d9, 0x8d8f7d, 2.12],
-        key: [0xffe0b7, 1.5],
+        sky: 0x8196a1,
+        fill: [0xe4e9e6, 0x96958a, 1.8],
+        key: [0xffe3bd, 1.48],
         keyPosition: [-9, 32, 13],
         normalBias: 0.035,
         textureTheme: 'warehouse',

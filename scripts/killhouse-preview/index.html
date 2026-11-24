@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Killhouse preview</title>
+    <style>
+      body {
+        margin: 0;
+        color: #eef1e8;
+        background: #172124;
+        font: 600 14px system-ui;
+      }
+      canvas {
+        display: block;
+      }
+      nav {
+        position: absolute;
+        inset: 18px auto auto 18px;
+        display: flex;
+        gap: 12px;
+        padding: 10px 14px;
+        background: #1e292df2;
+      }
+      a {
+        color: #bfcec5;
+      }
+      a[aria-current] {
+        color: #f2bf77;
+      }
+      p {
+        position: absolute;
+        inset: auto auto 4px 18px;
+        background: #1e292df2;
+        padding: 8px 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <nav aria-label="Killhouse preview cameras">
+      <span>KILLHOUSE</span>
+      <a href="?view=overview">Overview</a>
+      <a href="?view=layout">Top-down</a>
+      <a href="?view=west">Freight</a>
+      <a href="?view=east">Breach Lab</a>
+      <a href="?view=tower">Watchtower</a>
+    </nav>
+    <script type="module" src="./render.ts"></script>
+  </body>
+</html>

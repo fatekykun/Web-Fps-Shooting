@@ -7,6 +7,7 @@ type Surface =
   | 'timber'
   | 'brick'
   | 'plywood'
+  | 'pallet'
   | 'sandbag'
   | 'container'
   | 'crate'
@@ -20,13 +21,14 @@ const width = 42;
 const depth = 36;
 const height = 9;
 const deckHeight = 1.45;
-const towerHeight = 3;
+const towerHeight = 3.55;
 const colors: Record<Surface, number> = {
   concrete: 0x77786d,
   steel: 0x56635d,
   timber: 0x9b8056,
   brick: 0x8d5948,
-  plywood: 0x9b8a63,
+  plywood: 0xb69d70,
+  pallet: 0x937147,
   sandbag: 0x99865b,
   container: 0x587485,
   crate: 0x8b744f,
@@ -40,6 +42,7 @@ const surfaces: Record<Surface, NonNullable<ArenaBox['footstepSurface']>> = {
   timber: 'wood',
   brick: 'concrete',
   plywood: 'wood',
+  pallet: 'wood',
   sandbag: 'dirt',
   container: 'metal',
   crate: 'wood',
@@ -82,6 +85,8 @@ const walls = [-1, 1].flatMap((side) => [
 const structures: KillhousePart[] = [];
 const stairs: KillhousePart[] = [];
 const cover: KillhousePart[] = [];
+const rooms: KillhousePart[] = [];
+const roomTrim: ArenaBox[] = [];
 const vehicleTrim: ArenaBox[] = [];
 for (const side of [-1, 1]) {
   for (let z = -15; z <= 15; z += 5)
@@ -161,23 +166,32 @@ const towerSigns = [-1, 1].map((side) => {
 for (const side of [-1, 1]) {
   for (const end of [-1, 1])
     structures.push(
-      box('timber', [side * 2.56, 1.36, end * 2.36], [0.34, 2.72, 0.34]),
+      box(
+        'timber',
+        [side * 2.56, (towerHeight - 0.27) / 2, end * 2.36],
+        [0.34, towerHeight - 0.27, 0.34],
+      ),
     );
+  structures.push(
+    box('steel', [side * 2.56, towerHeight - 0.4, 0], [0.32, 0.23, 5.04]),
+  );
   rail(side * 2.83, towerHeight, 0, 0.14, 5.4);
   for (const x of [-2.15, 2.15]) rail(x, towerHeight, side * 2.62, 1.48, 0.14);
   for (const slope of [-1, 1])
     structures.push({
       ...box(
         'timber',
-        [0, 1.46, side * (2.37 + slope * 0.09)],
-        [5.5, 0.17, 0.17],
+        [0, towerHeight * 0.48, side * (2.37 + slope * 0.09)],
+        [Math.hypot(5.12, towerHeight - 0.74), 0.17, 0.17],
         0x846a48,
       ),
-      roll: slope * Math.atan2(2.05, 5.12),
+      roll: slope * Math.atan2(towerHeight - 0.74, 5.12),
     });
 }
-stair(0, -4.9, towerHeight, 4.4, 2.5, Math.PI);
-stair(0, 4.9, towerHeight, 4.4, 2.5, 0);
+const towerRun = 5.5;
+const towerStairCenter = (5.4 + towerRun) / 2;
+stair(0, -towerStairCenter, towerHeight, towerRun, 2.5, Math.PI);
+stair(0, towerStairCenter, towerHeight, towerRun, 2.5, 0);
 
 function wreck(x: number, z: number, yaw: number, tint: number) {
   const vehiclePart = (
@@ -270,16 +284,10 @@ for (const side of [-1, 1]) {
 
   cover.push(box('brick', [-6.8, 0.55, side * 7.8], [3.7, 1.1, 0.42]));
   cover.push(box('brick', [6.8, 0.55, side * 7.8], [3.7, 1.1, 0.42]));
-  for (const x of [-15.8, 15.8]) {
-    cover.push(box('plywood', [x, 0.98, side * 5.8], [0.22, 1.96, 2.8]));
-    cover.push(
-      box(
-        'brick',
-        [x + Math.sign(x) * 0.88, 0.51, side * 4.48],
-        [1.9, 1.02, 0.38],
-      ),
-    );
-  }
+  cover.push(
+    box('plywood', [-15.8, 0.98, side * 5.8], [0.22, 1.96, 2.8]),
+    box('brick', [-16.68, 0.51, side * 4.48], [1.9, 1.02, 0.38]),
+  );
   for (const x of [-4.85, 4.85]) {
     for (let i = -1; i <= 1; i++)
       cover.push(
@@ -321,19 +329,89 @@ for (const side of [-1, 1]) {
       kind: 'barrel',
     });
   }
-
-  wreck(
-    side * 13.7,
-    side * 9.1,
-    -0.53 + (side < 0 ? Math.PI : 0),
-    side < 0 ? colors.vehicle : 0x887554,
-  );
-  target(side * 8.4, 6.1, 0);
 }
 
 target(2.75, -8.4, Math.PI);
-cover.push(box('container', [-9.8, 1.3, -0.65], [2.4, 2.6, 5.6]));
-cover.push(box('container', [9.8, 1.3, 0.65], [2.4, 2.6, 5.6], 0x985746));
+target(10, 4.99, 0);
+wreck(-15.3, 2.25, -0.4, 0x64724b);
+wreck(11.2, -12, Math.PI / 2, 0x9b804a);
+cover.push(box('container', [-9.8, 1.3, -0.65], [2.4, 2.6, 5.6], 0x4c7393));
+cover.push(
+  box('container', [-11.3, 1.3, 7.3], [2.4, 2.6, 6], 0xac5938, Math.PI / 2),
+);
+cover.push(
+  box('pallet', [-13.15, 0.42, -6.4], [2.3, 0.84, 1.64]),
+  box('pallet', [-7.2, 0.28, 5.51], [1.8, 0.56, 1.38]),
+  box('pallet', [12.2, 0.28, 8.3], [2.2, 0.56, 1.5], undefined, Math.PI / 2),
+  box('pallet', [11, 0.28, -8.1], [2.2, 0.56, 1.5]),
+  box('concrete', [-11.4, 0.46, 3.25], [2.5, 0.92, 0.38]),
+  box('concrete', [8.5, 0.5, 8.8], [2.7, 1, 0.44]),
+  box('concrete', [-14.05, 0.47, -3.7], [0.32, 0.94, 2.3]),
+);
+
+// Wall spans and headers share one model between sightlines, movement and rendering.
+function roomWall(
+  axis: 'x' | 'z',
+  fixed: number,
+  start: number,
+  end: number,
+  doors: readonly (readonly [number, number])[] = [],
+) {
+  const height = 2.85;
+  const clearHeight = 2.22;
+  const thickness = 0.18;
+  const segment = (from: number, to: number, bottom: number, top: number) => {
+    if (to - from < 0.01) return;
+    const along = (from + to) / 2;
+    rooms.push(
+      box(
+        'plywood',
+        axis === 'x'
+          ? [along, (top + bottom) / 2, fixed]
+          : [fixed, (top + bottom) / 2, along],
+        axis === 'x'
+          ? [to - from, top - bottom, thickness]
+          : [thickness, top - bottom, to - from],
+      ),
+    );
+  };
+  let cursor = start;
+  for (const [left, right] of doors) {
+    segment(cursor, left, 0, height);
+    segment(left, right, clearHeight, height);
+    for (const along of [left - 0.04, right + 0.04])
+      roomTrim.push(
+        box(
+          'timber',
+          axis === 'x'
+            ? [along, height / 2, fixed]
+            : [fixed, height / 2, along],
+          axis === 'x'
+            ? [0.13, height, thickness + 0.08]
+            : [thickness + 0.08, height, 0.13],
+          0x715c40,
+        ),
+      );
+    cursor = right;
+  }
+  segment(cursor, end, 0, height);
+}
+
+roomWall('x', -6.8, 8.2, 17.2, [[11.15, 13.25]]);
+roomWall('x', 6.6, 8.2, 17.2, [[14.45, 16.5]]);
+roomWall('z', 8.2, -6.8, 6.6, [
+  [-4.5, -2.45],
+  [2.5, 4.55],
+]);
+roomWall('z', 17.2, -6.8, 6.6, [
+  [-4.5, -2.45],
+  [0.65, 2.7],
+]);
+roomWall('z', 13.6, -6.8, 6.6, [
+  [-4.5, -2.45],
+  [3.25, 5.3],
+]);
+roomWall('x', 0.65, 8.2, 13.6, [[9.45, 11.55]]);
 
 const blue = spawnRows[0]!,
   orange = spawnRows[1]!;
@@ -352,6 +430,8 @@ export const killhouse = {
   structures,
   stairs,
   cover,
+  rooms,
+  roomTrim,
   vehicleTrim,
   towerSigns,
   spawns: {
@@ -359,7 +439,15 @@ export const killhouse = {
     orange,
     none: blue.flatMap((point, i) => [point, orange[i]!]),
   },
-  colliders: [floor, roof, ...walls, ...structures, ...stairs, ...cover],
+  colliders: [
+    floor,
+    roof,
+    ...walls,
+    ...structures,
+    ...stairs,
+    ...cover,
+    ...rooms,
+  ],
 } satisfies ArenaDefinition & {
   width: number;
   depth: number;
@@ -372,6 +460,8 @@ export const killhouse = {
   structures: readonly KillhousePart[];
   stairs: readonly KillhousePart[];
   cover: readonly KillhousePart[];
+  rooms: readonly KillhousePart[];
+  roomTrim: readonly ArenaBox[];
   vehicleTrim: readonly ArenaBox[];
   towerSigns: readonly { position: ArenaBox['position']; yaw: number }[];
 };
