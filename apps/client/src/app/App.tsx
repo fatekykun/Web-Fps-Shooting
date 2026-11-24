@@ -73,7 +73,7 @@ export function App() {
   const reticle = useRef<HTMLDivElement>(null);
   const minimapPlayer = useRef<HTMLSpanElement>(null);
   const scope = useRef<HTMLDivElement>(null);
-  const reticleValues = useRef({ gap: -1, ads: -1 });
+  const reticleValues = useRef({ gap: -1, opacity: -1 });
   const [room, setRoom] = useState<RoomView | null>(null);
   const previousRoom = useRef<RoomView | null>(null);
   const [matchEntry, setMatchEntry] = useState(false);
@@ -116,7 +116,7 @@ export function App() {
         captured = value;
         setLocked(value);
         reticleValues.current.gap = -1;
-        reticleValues.current.ads = -1;
+        reticleValues.current.opacity = -1;
         if (value) {
           setMatchEntry(false);
           setEntered(true);
@@ -206,20 +206,19 @@ export function App() {
         if (cancelled || !reticle.current) return;
         const opacity = sniperScopeBlend(scoped);
         if (scope.current) {
+          const diameter = sniperScopeDiameter(scoped);
           scope.current.style.opacity = String(opacity);
           scope.current.style.setProperty(
             '--scope-diameter',
-            `${sniperScopeDiameter(scoped).toFixed(2)}vmin`,
+            `${diameter.toFixed(2)}vmin`,
           );
           scope.current.style.setProperty(
             '--scope-detail',
-            String(
-              Math.max(0, Math.min(1, (sniperScopeDiameter(scoped) - 30) / 40)),
-            ),
+            String(Math.max(0, Math.min(1, (diameter - 30) / 40))),
           );
         }
         reticle.current.style.visibility =
-          opacity > 0.95 || (opticReticle && ads > 0.95) ? 'hidden' : 'visible';
+          opacity === 1 || (opticReticle && ads > 0.95) ? 'hidden' : 'visible';
         const shape = shotgunRadius === undefined ? 'cross' : 'shotgun';
         if (reticle.current.dataset.shape !== shape)
           reticle.current.dataset.shape = shape;
@@ -239,9 +238,10 @@ export function App() {
           reticle.current.style.setProperty('--reticle-gap', `${gap}px`);
           reticleValues.current.gap = gap;
         }
-        if (Math.abs(ads - reticleValues.current.ads) > 0.02) {
-          reticle.current.style.opacity = String(1 - ads * 0.65);
-          reticleValues.current.ads = ads;
+        const hipOpacity = (1 - ads * 0.65) * (1 - opacity);
+        if (Math.abs(hipOpacity - reticleValues.current.opacity) > 0.005) {
+          reticle.current.style.opacity = String(hipOpacity);
+          reticleValues.current.opacity = hipOpacity;
         }
       },
     };
@@ -325,7 +325,7 @@ export function App() {
     setPreferences(settings);
     setSaved(saveUserSettings(settings));
     game.current?.setUserSettings(settings);
-    reticleValues.current = { gap: -1, ads: -1 };
+    reticleValues.current = { gap: -1, opacity: -1 };
   }
   function openRooms(tab: 'create' | 'join' = 'create'): void {
     setOverlay(null);

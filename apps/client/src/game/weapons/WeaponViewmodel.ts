@@ -260,6 +260,7 @@ export class WeaponViewmodel {
     movement: MovementState = 'walking',
     scopeStyle: ScopeStyle = 'classic',
     input?: Pick<WeaponInput, 'aim' | 'fire'>,
+    ads = weapons.ads,
   ): void {
     if (this.selected !== weapons.selected) {
       this.selected = weapons.selected;
@@ -270,7 +271,6 @@ export class WeaponViewmodel {
       this.kick = 1;
     }
     if (active) this.kick *= Math.exp(-22 * Math.min(dt, 0.1));
-    const ads = weapons.ads;
     const scoped = !!weapons.config.scopeMagnification;
     const pose = weaponSights[weapons.selected].ads;
     const raise = scoped ? sniperRaise(ads) : ads;

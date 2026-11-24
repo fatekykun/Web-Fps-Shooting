@@ -27,6 +27,7 @@ import {
   sniperZoom,
   sniperScopeBlend,
   sniperScopeDiameter,
+  SniperSlideAim,
 } from '../weapons/SniperScope';
 import type { OpticView } from '../rendering/OpticScope';
 import {
@@ -143,6 +144,8 @@ export class Game {
   private userSettings: UserSettings;
   private readonly audio = new AudioEngine();
   private readonly shotgunReticle = new ShotgunReticle();
+  private readonly sniperSlideAim = new SniperSlideAim();
+  private reticleGap = 5;
   private viewportHeight = 1;
   private shotgunRange?: ShotgunRange;
 
@@ -279,7 +282,9 @@ export class Game {
     const weapon = (this.session ? this.networkCombat : this.combat).weapons;
     return weapon.fieldOfView(
       this.userSettings.fov,
-      weapon.config.scopeMagnification ? sniperZoom(weapon.ads) : weapon.ads,
+      weapon.config.scopeMagnification
+        ? sniperZoom(this.sniperSlideAim.progress)
+        : weapon.ads,
     );
   }
   private combatSnapshot(): CombatSnapshot {
@@ -574,27 +579,37 @@ export class Game {
       !this.session ||
       (isMatchActive(this.session.view?.phase) &&
         !!this.networkCombat.owner?.alive);
-    if (this.input.locked || this.session)
-      weapons.updateAds(
-        delta,
-        armed &&
-          (!this.session || this.session.view?.phase === 'playing') &&
-          this.input.weapon.aim,
-      );
-    this.input.lookScale =
-      Math.tan((this.displayedFov * Math.PI) / 360) /
-      Math.tan((this.userSettings.fov * Math.PI) / 360);
+    const aiming =
+      armed &&
+      (!this.session || this.session.view?.phase === 'playing') &&
+      this.input.weapon.aim;
+    if (this.input.locked || this.session) weapons.updateAds(delta, aiming);
     const alpha =
       this.input.locked || this.session?.view?.phase === 'playing'
         ? this.clock.advance(delta, this.simulate)
         : 1;
+    const scopedWeapon = !!weapons.config.scopeMagnification;
+    const { state } = this.movement;
+    if (scopedWeapon && this.input.locked && armed) {
+      this.sniperSlideAim.update(
+        weapons.ads,
+        aiming && !weapons.reloading && !weapons.equipping,
+        state === 'sliding' || state === 'backsliding',
+        delta,
+      );
+    } else this.sniperSlideAim.reset();
+    const ads = scopedWeapon ? this.sniperSlideAim.progress : weapons.ads;
+    const fov = this.displayedFov;
+    this.input.lookScale =
+      Math.tan((fov * Math.PI) / 360) /
+      Math.tan((this.userSettings.fov * Math.PI) / 360);
     this.camera.update(
       this.movement,
       this.input,
       alpha,
       weapons.recoil.pitch,
       weapons.recoil.yaw,
-      this.displayedFov,
+      fov,
     );
     if (this.session) {
       this.session.prediction.smooth(delta);
@@ -620,16 +635,12 @@ export class Game {
       delta,
       this.input.locked && armed,
       this.userSettings.reducedMotion ? 0.2 : 1,
-      this.movement.state,
+      state,
       this.userSettings.scopeStyle,
       this.input.weapon,
+      ads,
     );
-    this.trails.step(
-      delta,
-      weapons.ads,
-      !!weapons.config.scopeMagnification,
-      this.resolveMuzzle,
-    );
+    this.trails.step(delta, ads, scopedWeapon, this.resolveMuzzle);
     let shotgunRadius: number | undefined;
     if (this.input.locked && armed && weapons.selected === 'shotgun') {
       const angle = weapons.spreadFor({
@@ -667,31 +678,36 @@ export class Game {
         camera.rotation.y,
       );
     }
-    if (this.input.locked)
-      this.callbacks.onReticle(
-        Math.max(
-          5,
-          Math.min(
-            50,
-            (Math.tan(weapons.spread) *
-              this.rendering.renderer.domElement.height) /
-              (2 * Math.tan((this.displayedFov * Math.PI) / 360)),
-          ),
+    if (this.input.locked) {
+      const gap = Math.max(
+        5,
+        Math.min(
+          50,
+          (Math.tan(weapons.spread) *
+            this.rendering.renderer.domElement.height) /
+            (2 * Math.tan((fov * Math.PI) / 360)),
         ),
-        weapons.ads,
-        armed && weapons.config.scopeMagnification ? weapons.ads : 0,
+      );
+      this.reticleGap = this.sniperSlideAim.easing
+        ? gap + (this.reticleGap - gap) * Math.exp(-Math.min(delta, 0.1) / 0.06)
+        : gap;
+      this.callbacks.onReticle(
+        this.reticleGap,
+        ads,
+        scopedWeapon ? ads : 0,
         this.viewmodel.hasAimDot,
         shotgunRadius,
       );
+    }
     const hasScope =
       this.input.locked &&
       armed &&
-      !!weapons.config.scopeMagnification &&
+      scopedWeapon &&
       this.userSettings.scopeStyle === 'optic';
     if (hasScope) {
       this.opticView.baseFov = this.userSettings.fov;
-      this.opticView.blend = sniperScopeBlend(weapons.ads);
-      this.opticView.diameter = sniperScopeDiameter(weapons.ads);
+      this.opticView.blend = sniperScopeBlend(ads);
+      this.opticView.diameter = sniperScopeDiameter(ads);
     }
     this.rendering.render(
       this.scene,
@@ -750,6 +766,8 @@ export class Game {
     this.trails.clear();
     this.audio.resetMotion();
     this.shotgunReticle.reset();
+    this.sniperSlideAim.reset();
+    this.reticleGap = 5;
     this.lastTime = null;
     this.clock.reset();
     this.monitor.reset();

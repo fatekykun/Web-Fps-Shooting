@@ -31,3 +31,28 @@ export function sniperScopeDiameter(ads: number): number {
   const bore = (100 * 0.066) / (2 * distance * Math.tan(Math.PI / 6));
   return bore + (86 - bore) * smoothRange(ads, 0.79, 0.96);
 }
+
+/** Ease the presentation when the rifle is raised from a sliding pose. */
+export class SniperSlideAim {
+  progress = 0;
+  easing = false;
+
+  update(actual: number, aiming: boolean, sliding: boolean, dt: number): void {
+    if (aiming && sliding && this.progress < 0.96 && actual > this.progress)
+      this.easing = true;
+    if (this.easing) {
+      const retention = Math.exp(-Math.min(dt, 0.1) / 0.11);
+      // Releasing early must never continue into a more magnified view.
+      const target = aiming ? actual : Math.min(actual, this.progress);
+      this.progress = target + (this.progress - target) * retention;
+      if (Math.abs(actual - this.progress) > 0.001) return;
+      this.easing = false;
+    }
+    this.progress = actual;
+  }
+
+  reset(): void {
+    this.progress = 0;
+    this.easing = false;
+  }
+}

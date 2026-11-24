@@ -193,6 +193,57 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   expect(errors).toEqual([]);
 });
 
+for (const style of ['optic', 'classic'] as const) {
+  test(`eases the ${style} scope and hip crosshair handoff when aiming during a slide`, async ({
+    page,
+  }) => {
+    await enter(page, style);
+    await page.keyboard.down('w');
+    await page.keyboard.down('Shift');
+    await page.clock.runFor(224);
+    await page.keyboard.press('c');
+    await page.clock.runFor(32);
+    await page.mouse.down({ button: 'right' });
+
+    const scope = page.getByTestId('sniper-scope');
+    const crosshair = page.locator('.crosshair');
+    await page.clock.runFor(208);
+    await expect(page.getByTestId('position')).toHaveAttribute(
+      'data-state',
+      'sliding',
+    );
+    await expect(scope).toHaveCSS('opacity', '0');
+    const hipBefore = Number(
+      await crosshair.evaluate((el) => el.style.opacity),
+    );
+
+    await page.clock.runFor(112);
+    const entering = Number(await scope.evaluate((el) => el.style.opacity));
+    expect(entering).toBeGreaterThan(0.15);
+    expect(entering).toBeLessThan(0.9);
+    const hipDuring = Number(
+      await crosshair.evaluate((el) => el.style.opacity),
+    );
+    expect(hipDuring).toBeGreaterThan(0);
+    expect(hipDuring).toBeLessThan(hipBefore);
+    const lens = (await scope.locator('.scope-lens').boundingBox())!;
+    expect(lens.x + lens.width / 2).toBeCloseTo(page.viewportSize()!.width / 2);
+    expect(lens.y + lens.height / 2).toBeCloseTo(
+      page.viewportSize()!.height / 2,
+    );
+
+    await page.clock.runFor(144);
+    await expect(scope).toHaveCSS('opacity', '1');
+    await expect(crosshair).toBeHidden();
+    await page.mouse.up({ button: 'right' });
+    await page.clock.runFor(160);
+    await expect(scope).toHaveCSS('opacity', '0');
+    await expect(crosshair).toBeVisible();
+    await page.keyboard.up('Shift');
+    await page.keyboard.up('w');
+  });
+}
+
 for (const region of ['leftArm', 'rightArm', 'leftLeg', 'rightLeg'] as const) {
   test(`scoped sniper shots damage the training ${region}`, async ({
     page,
