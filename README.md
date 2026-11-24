@@ -88,7 +88,23 @@ Settings apply immediately and save in this browser when storage is available:
 - **Audio:** mute, master, combat/movement, interface and ambient levels, plus a
   test tone. The header also offers a mute toggle.
 - **Crosshair:** live preview, color, length, thickness, gap, center dot and a
-  dynamic spread indicator. Disabling dynamic spread holds the selected gap.
+  dynamic spread indicator. Disabling dynamic spread holds the selected gap for
+  standard crosshairs. The shotgun ring always follows the live pellet cone.
+
+### Shotgun spread range (BP-22)
+
+The shotgun ring projects the outer edge of the shared hitscan pellet cone through
+the current vertical camera projection. It shows the possible spread of the eight
+pellets in hip-fire and ADS. The circle expands with the live cone and eases inward
+as accuracy recovers. Pellet positions are sampled inside the cone, and cover can
+intercept a pellet before it reaches the target.
+
+Run `npm run dev` and append `?shotgun-debug=3`, `?shotgun-debug=5`,
+`?shotgun-debug=10` or `?shotgun-debug=15` to the Vite URL. Enter Training and
+equip the shotgun with **3**. From spawn, fire at the marked wall to see actual
+pellet impacts, the live and last-shot half-angle and CSS-pixel radius, and a
+count of impacts outside the last shot's cone. The wall is available in local
+development Training.
 
 **Restore defaults** resets preferences and graphics. Bindings update the menu
 and HUD hints. Preferences use `breakpoint.settings.v1`; graphics retain their

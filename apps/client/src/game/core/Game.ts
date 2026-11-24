@@ -50,6 +50,8 @@ import {
   type UserSettings,
 } from '../settings/userSettings';
 import { AudioEngine, spatialAudio } from '../audio/AudioEngine';
+import { projectConeRadius, ShotgunReticle } from '../weapons/ShotgunReticle';
+import type { ShotgunRange } from '../weapons/ShotgunRange';
 
 const arenaRenderers = {
   depot: TrainingArena,
@@ -102,6 +104,7 @@ interface GameCallbacks {
     ads: number,
     scope: number,
     opticReticle: boolean,
+    shotgunRadius?: number,
   ) => void;
   onRoom: (view: RoomView | null) => void;
   onScoreboard: (open: boolean) => void;
@@ -138,6 +141,9 @@ export class Game {
   private round = 0;
   private userSettings: UserSettings;
   private readonly audio = new AudioEngine();
+  private readonly shotgunReticle = new ShotgunReticle();
+  private viewportHeight = 1;
+  private shotgunRange?: ShotgunRange;
 
   static async create(
     host: HTMLElement,
@@ -146,7 +152,20 @@ export class Game {
     preferences: UserSettings = defaultUserSettings(),
   ): Promise<Game> {
     await initializePhysics();
-    return new Game(host, callbacks, settings, preferences);
+    const range =
+      import.meta.env.DEV &&
+      new URLSearchParams(location.search).has('shotgun-debug')
+        ? await import('../weapons/ShotgunRange')
+        : undefined;
+    const game = new Game(host, callbacks, settings, preferences);
+    if (range) {
+      const distance = range.shotgunDebugDistance(location.search);
+      if (distance !== null) {
+        game.shotgunRange = new range.ShotgunRange(game.scene, host, distance);
+        game.setShotgunRangeActive(true);
+      }
+    }
+    return game;
   }
 
   private constructor(
@@ -168,7 +187,10 @@ export class Game {
       this.physics,
       this.scene,
       () => this.publishCombat(),
-      (weapon, origin, end) => this.trails.spawn(weapon, origin, end),
+      (shot, origin, end, yaw, pitch) => {
+        this.trails.spawn(shot.config.id, origin, end);
+        this.shotgunRange?.record(shot, origin, end, yaw, pitch);
+      },
     );
     this.networkCombat = new NetworkCombat(
       this.scene,
@@ -194,9 +216,11 @@ export class Game {
     );
     this.input.configure(preferences);
     this.setGraphicsSettings(settings);
+    this.viewportHeight = Math.max(1, host.clientHeight);
     this.resizeObserver = new ResizeObserver(() => {
       const width = Math.max(1, host.clientWidth);
       const height = Math.max(1, host.clientHeight);
+      this.viewportHeight = height;
       this.rendering.resize(width, height);
       this.camera.resize(width, height);
       this.viewmodel.resize(width, height);
@@ -287,8 +311,10 @@ export class Game {
       {
         isActive: () => !this.disposed && generation === this.networkGeneration,
         onArena: (id) => {
-          if (!this.disposed && generation === this.networkGeneration)
+          if (!this.disposed && generation === this.networkGeneration) {
+            this.setShotgunRangeActive(false);
             this.switchArena(id);
+          }
         },
         onView: (view) => {
           if (!this.disposed && generation === this.networkGeneration) {
@@ -422,6 +448,7 @@ export class Game {
       this.switchArena('depot');
       this.input.movement.yaw = this.input.pitch = 0;
     }
+    this.setShotgunRangeActive(true);
     this.networkCombat.reset();
     this.combat.setOnline(false);
     this.audio.resetFeedback(this.combat.snapshot());
@@ -459,6 +486,15 @@ export class Game {
       `${arenas[id].name} ${arenas[id].venue}`,
     );
     this.arenaId = id;
+  }
+
+  private setShotgunRangeActive(active: boolean): void {
+    if (!this.shotgunRange) return;
+    this.shotgunRange.setActive(active);
+    const colliders = arenas.depot.colliders;
+    this.physics.setArena(
+      active ? [...colliders, this.shotgunRange.collider] : colliders,
+    );
   }
 
   private readonly simulate = (dt: number): void => {
@@ -573,9 +609,13 @@ export class Game {
         this.input.movement.yaw,
         this.session.view.players,
       );
+    const speed = Math.hypot(
+      this.movement.velocity.x,
+      this.movement.velocity.z,
+    );
     this.viewmodel.update(
       weapons,
-      Math.hypot(this.movement.velocity.x, this.movement.velocity.z),
+      speed,
       delta,
       this.input.locked && armed,
       this.userSettings.reducedMotion ? 0.2 : 1,
@@ -589,6 +629,34 @@ export class Game {
       !!weapons.config.scopeMagnification,
       this.resolveMuzzle,
     );
+    let shotgunRadius: number | undefined;
+    if (this.input.locked && armed && weapons.selected === 'shotgun') {
+      const angle = weapons.spreadFor({
+        speed,
+        grounded: this.physics.grounded,
+        verticalSpeed: this.movement.velocity.y,
+      });
+      const height = this.viewportHeight;
+      const scaleY = this.camera.camera.projectionMatrix.elements[5]!;
+      shotgunRadius = projectConeRadius(
+        this.shotgunReticle.update(
+          angle,
+          delta,
+          this.userSettings.reducedMotion,
+        ),
+        height,
+        scaleY,
+      );
+      this.shotgunRange?.update({
+        angle,
+        radius: projectConeRadius(angle, height, scaleY),
+        height,
+        scaleY,
+      });
+    } else {
+      this.shotgunReticle.reset();
+      this.shotgunRange?.update();
+    }
     if (this.input.locked)
       this.callbacks.onReticle(
         Math.max(
@@ -603,6 +671,7 @@ export class Game {
         weapons.ads,
         armed && weapons.config.scopeMagnification ? weapons.ads : 0,
         this.viewmodel.hasAimDot,
+        shotgunRadius,
       );
     const hasScope =
       this.input.locked &&
@@ -628,9 +697,7 @@ export class Game {
       this.callbacks.onTelemetry({
         ...stats,
         ...this.physics.position,
-        speed: this.input.locked
-          ? Math.hypot(this.movement.velocity.x, this.movement.velocity.z)
-          : 0,
+        speed: this.input.locked ? speed : 0,
         grounded: this.physics.grounded,
         movementState: this.movement.state,
         halfHeight: this.physics.halfHeight,
@@ -672,6 +739,7 @@ export class Game {
   private resetTiming(): void {
     this.trails.clear();
     this.audio.resetMotion();
+    this.shotgunReticle.reset();
     this.lastTime = null;
     this.clock.reset();
     this.monitor.reset();
@@ -749,6 +817,7 @@ export class Game {
     );
     this.input.dispose();
     this.combat.dispose();
+    this.shotgunRange?.dispose();
     this.networkCombat.dispose();
     this.viewmodel.dispose();
     this.remotes.dispose();

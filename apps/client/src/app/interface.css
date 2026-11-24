@@ -655,6 +655,27 @@
 .command-interface .crosshair i:nth-child(4) {
   left: calc(var(--reticle-gap, 5px) + var(--reticle-thickness, 2px));
 }
+.command-interface .crosshair[data-shape='shotgun'] {
+  border-radius: 50%;
+}
+.command-interface .crosshair[data-shape='shotgun'] i {
+  display: none;
+}
+.command-interface .crosshair[data-shape='shotgun']::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--shotgun-diameter);
+  height: var(--shotgun-diameter);
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--crosshair-color, #edf0e3);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px #101510d9,
+    inset 0 0 0 1px #101510b3;
+}
 .operation-list {
   display: grid;
   gap: 12px;
