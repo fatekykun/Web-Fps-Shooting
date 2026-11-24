@@ -113,7 +113,8 @@ test.describe('phone touch controls', () => {
       page.getByRole('dialog', { name: 'ROTATE YOUR DEVICE' }),
     ).toBeHidden();
     await expect(slider).toHaveValue('200');
-    await page.getByRole('button', { name: 'SAVE', exact: true }).tap();
+    const save = page.getByRole('button', { name: 'SAVE', exact: true });
+    await save.press('Enter');
     await expect(
       controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }),
     ).toBeVisible();
@@ -129,10 +130,70 @@ test.describe('phone touch controls', () => {
     await page.getByRole('button', { name: 'DISCARD CHANGES' }).tap();
     await controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
     await expect(slider).toHaveValue('200');
-    await page.getByRole('button', { name: 'DISCARD', exact: true }).tap();
+    const mapEditor = page.getByRole('button', {
+      name: 'Minimap',
+      exact: true,
+    });
+    await mapEditor.tap();
+    await expect(
+      page.getByRole('combobox', { name: 'Selected control' }),
+    ).toHaveValue('minimap');
+    await page.getByRole('button', { name: '50%', exact: true }).tap();
+    await expect(page.getByTestId('minimap')).toHaveCSS('opacity', '0.5');
+    await save.tap();
+    await expect(
+      controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }),
+    ).toBeVisible();
+    await controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
+    await expect(page.getByTestId('minimap')).toHaveCSS('opacity', '0.5');
+    const mapBefore = (await mapEditor.boundingBox())!;
+    const preview = (await page.locator('.hud-editor-screen').boundingBox())!;
+    await fingers.down(1, {
+      x: mapBefore.x + mapBefore.width / 2,
+      y: mapBefore.y + mapBefore.height / 2,
+    });
+    await fingers.move(1, {
+      x: preview.x + preview.width * 0.48,
+      y: preview.y + preview.height * 0.24,
+    });
+    await fingers.up(1);
+    expect((await mapEditor.boundingBox())!.x).toBeGreaterThan(
+      mapBefore.x + 50,
+    );
+    await save.press('Enter');
+    await expect(
+      controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem('breakpoint.mobile-hud.v1')!).minimap
+            .opacity,
+      ),
+    ).toBe(50);
     await page.reload();
     await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
     await expect(fire).toBeVisible();
+    const minimap = page.getByTestId('minimap');
+    await expect(minimap).toHaveCSS('opacity', '0.5');
+    const mapBox = (await minimap.boundingBox())!;
+    expect(mapBox.x + mapBox.width / 2).toBeCloseTo(0.48 * 844, -1);
+    const marker = page.getByTestId('minimap-player');
+    const heading = () =>
+      marker.evaluate(
+        (element) => new DOMMatrix(getComputedStyle(element).transform).b,
+      );
+    const initialHeading = await heading();
+    await fingers.down(1, {
+      x: mapBox.x + mapBox.width / 2,
+      y: mapBox.y + mapBox.height / 2,
+    });
+    await fingers.move(1, {
+      x: mapBox.x + mapBox.width / 2 + 85,
+      y: mapBox.y + mapBox.height / 2,
+    });
+    await fingers.up(1);
+    await expect.poll(heading).toBeGreaterThan(initialHeading + 0.05);
     expect(
       await fire.evaluate((element) =>
         element.style.getPropertyValue('--hud-opacity'),
@@ -444,6 +505,10 @@ test.describe('tablet and hybrid layouts', () => {
       );
       await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
       await expect(page.locator('.mobile-hud.tablet')).toBeVisible();
+      await expect(page.getByTestId('minimap')).toBeVisible();
+      expect((await page.getByTestId('minimap').boundingBox())!.width).toBe(
+        138,
+      );
       expect((await page.locator('.touch-joystick').boundingBox())!.width).toBe(
         164,
       );

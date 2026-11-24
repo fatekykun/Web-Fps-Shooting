@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { ArenaId } from '@breakpoint/shared/maps';
 import { MobileHUD } from './MobileHUD';
 import {
   defaultMobileHudLayout,
+  hudOpacityOptions,
   mobileHudControlIds,
   type MobileHudControlId,
   type MobileHudLayout,
@@ -19,15 +21,20 @@ const labels: Record<MobileHudControlId, string> = {
   swap: 'Weapon switch',
   scores: 'Scores',
   pause: 'Pause',
+  minimap: 'Minimap',
 };
 export function MobileHudEditor({
   tablet,
+  map,
+  multiplayer,
   initial,
   imported,
   onSave,
   onDiscard,
 }: {
   tablet: boolean;
+  map: ArenaId;
+  multiplayer: boolean;
   initial: MobileHudLayout;
   imported?: MobileHudLayout;
   onSave(layout: MobileHudLayout): void;
@@ -109,6 +116,8 @@ export function MobileHudEditor({
             <MobileHUD
               tablet={tablet}
               layout={layout}
+              minimap={{ map }}
+              multiplayer={multiplayer}
               editor={{
                 selected,
                 select: setSelected,
@@ -144,7 +153,9 @@ export function MobileHudEditor({
           <label>
             SIZE <output>{layout[selected].scale}%</output>
             <input
-              aria-label="Button size"
+              aria-label={
+                selected === 'minimap' ? 'Minimap size' : 'Button size'
+              }
               type="range"
               min="50"
               max="200"
@@ -154,7 +165,7 @@ export function MobileHudEditor({
           </label>
           <fieldset>
             <legend>OPACITY</legend>
-            {[30, 50, 70, 100].map((value) => (
+            {hudOpacityOptions.map((value) => (
               <button
                 key={value}
                 aria-pressed={layout[selected].opacity === value}
@@ -171,7 +182,7 @@ export function MobileHudEditor({
               disabled={selected === 'pause'}
               onChange={(e) => patch({ visible: e.target.checked })}
             />{' '}
-            SHOW CONTROL
+            {selected === 'minimap' ? 'SHOW MINIMAP' : 'SHOW CONTROL'}
           </label>
           <button
             className="text-button"

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import type { MobileHudControlId } from '../game/input/mobileHudSettings';
 
-export type MobileControlIconName = MobileHudControlId | 'crouch';
+export type MobileControlIconName =
+  Exclude<MobileHudControlId, 'minimap'> | 'crouch';
 
 const icons: Record<MobileControlIconName, ReactNode> = {
   joystick: (

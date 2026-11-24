@@ -47,6 +47,10 @@ test('hosts Shipment with opposite team spawns, matched cover, and playable cont
     await expect(
       page.locator('canvas[aria-label="Shipment container yard"]'),
     ).toBeVisible();
+    await expect(page.getByTestId('minimap')).toHaveAttribute(
+      'data-map',
+      'shipment',
+    );
     const north = () => guest.state.players.get(guest.state.hostId)!;
     const south = () => guest.state.players.get(guest.sessionId)!;
     expect(north().z).toBeCloseTo(-15.7);
@@ -87,7 +91,7 @@ test('hosts Shipment with opposite team spawns, matched cover, and playable cont
     };
     await walkUntil('d', () => north().x < -11);
     // Leave room for input and network latency before the door leaves.
-    await walkUntil('w', () => north().z > -6.55);
+    await walkUntil('w', () => north().z > -6.85);
     await walkUntil('d', () => north().x < -14.2);
     await walkUntil('w', () => north().z > -2.95);
     expect(north().y).toBeCloseTo(0.965, 1);

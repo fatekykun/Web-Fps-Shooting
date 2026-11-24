@@ -5,9 +5,12 @@ import {
   useState,
   type CSSProperties,
   type PointerEvent,
+  type Ref,
 } from 'react';
 import { movementConfig, type MovementState } from '@breakpoint/shared';
+import type { ArenaId } from '@breakpoint/shared/maps';
 import { MobileControlIcon } from './MobileControlIcon';
+import { Minimap } from './Minimap';
 import {
   resolveMobileHud,
   type HudViewport,
@@ -44,12 +47,14 @@ export function MobileHUD({
   editor,
   multiplayer = false,
   movement,
+  minimap,
 }: {
   attach?: (root: HTMLElement) => (() => void) | undefined;
   tablet: boolean;
   layout: MobileHudLayout;
   editor?: HudEditorInteraction;
   multiplayer?: boolean;
+  minimap?: { map: ArenaId; marker?: Ref<HTMLSpanElement> };
   movement?: {
     movementState: MovementState;
     speed: number;
@@ -191,7 +196,7 @@ export function MobileHUD({
   return (
     <div
       ref={root}
-      className={`mobile-hud ${tablet ? 'tablet' : 'phone'}`}
+      className={`mobile-hud ${tablet ? 'tablet' : 'phone'} ${multiplayer ? 'match-layout' : ''}`}
       aria-label="Touch controls"
       onPointerDown={editor ? startDrag : undefined}
       onPointerMove={editor ? moveDrag : undefined}
@@ -206,6 +211,29 @@ export function MobileHUD({
           aria-label="Drag to look"
         />
       )}
+      {minimap &&
+        boxes.minimap &&
+        (editor ? (
+          <button
+            type="button"
+            className="touch-minimap editable-minimap"
+            data-hud-id="minimap"
+            data-selected={editor.selected === 'minimap'}
+            aria-label="Minimap"
+            onClick={() => editor.select('minimap')}
+            style={controlStyle('minimap')}
+          >
+            <Minimap map={minimap.map} opacity={layout.minimap.opacity} />
+          </button>
+        ) : (
+          <div className="touch-minimap" style={controlStyle('minimap')}>
+            <Minimap
+              map={minimap.map}
+              marker={minimap.marker}
+              opacity={layout.minimap.opacity}
+            />
+          </div>
+        ))}
       <button
         type="button"
         className="touch-joystick"

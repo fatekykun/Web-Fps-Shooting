@@ -46,6 +46,10 @@ test('plays Killhouse from the raised team spawn to the watchtower', async ({
     await expect(
       page.locator('canvas[aria-label="Killhouse indoor training warehouse"]'),
     ).toBeVisible();
+    await expect(page.getByTestId('minimap')).toHaveAttribute(
+      'data-map',
+      'killhouse',
+    );
     await expect(
       page.getByRole('complementary', { name: 'Map and match' }),
     ).toContainText('KILLHOUSE');
