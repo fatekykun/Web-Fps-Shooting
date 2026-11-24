@@ -11,6 +11,7 @@ export type {
   Vector3Like,
 } from './types/movement';
 export { combatConfig, weaponConfigs, weaponOrder } from './config/weapons';
+export { recoilProfiles } from './config/recoil';
 export { calculateDamage, rangeDamageMultiplier } from './combat/damage';
 export {
   calculateSpread,
@@ -23,6 +24,8 @@ export type {
   WeaponInput,
   WeaponConfig,
   WeaponCategory,
+  RecoilCategory,
+  RecoilProfile,
   HitRegion,
   DamageRangePoint,
   AccuracyContext,

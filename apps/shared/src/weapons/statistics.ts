@@ -27,7 +27,9 @@ export function weaponStatistics(
 ): WeaponStatistic[] {
   const rpm = 60 / config.fireInterval;
   const range = effectiveRange(config);
-  const kick = Math.hypot(config.recoilPitch, config.recoilYaw);
+  const { vertical, horizontal, cameraKick, cameraRecovery, hipMultiplier } =
+    config.recoil;
+  const kick = Math.hypot(vertical, horizontal) * cameraKick * hipMultiplier;
   const rating = (value: number) =>
     Math.round(Math.max(0, Math.min(100, value)));
   return [
@@ -56,7 +58,7 @@ export function weaponStatistics(
     {
       id: 'control',
       label: 'CONTROL',
-      rating: rating(100 / (1 + (10 * kick) / config.recoilRecovery)),
+      rating: rating(100 / (1 + (15 * kick) / cameraRecovery)),
       value: kick,
       unit: 'deg KICK / SHOT',
     },

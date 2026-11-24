@@ -44,7 +44,7 @@ import type {
   PrivateRoomSettings,
   Team,
 } from '@breakpoint/shared/match';
-import { weaponOrder } from '@breakpoint/shared';
+import { movementConfig, weaponOrder } from '@breakpoint/shared';
 import { isMatchActive } from '@breakpoint/shared/match';
 import {
   defaultUserSettings,
@@ -204,6 +204,7 @@ export class Game {
       () => {
         this.input.clear();
         this.audio.resetMotion();
+        this.viewmodel.resetRecoil();
       },
     );
     this.viewmodel = new WeaponViewmodel();
@@ -341,8 +342,7 @@ export class Game {
         },
         onLookReset: (look) => {
           if (!this.disposed && generation === this.networkGeneration) {
-            this.input.movement.yaw = look.yaw;
-            this.input.pitch = look.pitch;
+            this.input.setLook(look.yaw, look.pitch);
           }
         },
         onError: this.callbacks.onError,
@@ -506,6 +506,7 @@ export class Game {
   private readonly simulate = (dt: number): void => {
     const priorVerticalSpeed = this.movement.velocity.y;
     const weapons = (this.session ? this.networkCombat : this.combat).weapons;
+    const previousShots = weapons.shotsFired;
     const scale = weapons.movementScale(
       this.input.weapon.aim,
       this.input.movement,
@@ -514,6 +515,7 @@ export class Game {
     if (this.session) {
       if (this.session.view?.phase === 'countdown') {
         this.movement.stop();
+        weapons.updateAds(dt, false);
         this.networkCombat.step(
           dt,
           {
@@ -534,7 +536,12 @@ export class Game {
         return;
       }
       if (!this.networkCombat.owner?.alive) this.input.clearGameplay();
+      this.input.recoverRecoil(weapons.recoil, dt);
       const weaponInput = this.networkCombat.filterInput(this.input.weapon);
+      weapons.updateAds(
+        dt,
+        !!this.networkCombat.owner?.alive && weaponInput.aim,
+      );
       this.session.step(
         this.input.movement,
         this.input.pitch,
@@ -547,6 +554,10 @@ export class Game {
       );
       this.networkCombat.step(dt, weaponInput, this.movement);
     } else {
+      if (this.input.locked) {
+        this.input.recoverRecoil(weapons.recoil, dt);
+        weapons.updateAds(dt, this.input.weapon.aim);
+      }
       this.movement.step(this.input.movement, dt, scale);
       if (this.input.locked)
         this.combat.step(
@@ -558,6 +569,11 @@ export class Game {
         );
     }
     this.input.consumeActions();
+    this.viewmodel.simulateRecoil(
+      weapons,
+      dt,
+      weapons.shotsFired > previousShots,
+    );
     const active = this.session ? this.networkCombat : this.combat;
     this.audio.observe(
       dt,
@@ -583,23 +599,28 @@ export class Game {
       armed &&
       (!this.session || this.session.view?.phase === 'playing') &&
       this.input.weapon.aim;
-    if (this.input.locked || this.session) weapons.updateAds(delta, aiming);
     const alpha =
       this.input.locked || this.session?.view?.phase === 'playing'
         ? this.clock.advance(delta, this.simulate)
         : 1;
     const scopedWeapon = !!weapons.config.scopeMagnification;
+    const recoilTime = this.input.locked ? alpha * movementConfig.fixedStep : 0;
+    const interpolatedAds = weapons.sampleAds(recoilTime, aiming);
     const { state } = this.movement;
     if (scopedWeapon && this.input.locked && armed) {
       this.sniperSlideAim.update(
-        weapons.ads,
+        interpolatedAds,
         aiming && !weapons.reloading && !weapons.equipping,
         state === 'sliding' || state === 'backsliding',
         delta,
       );
     } else this.sniperSlideAim.reset();
-    const ads = scopedWeapon ? this.sniperSlideAim.progress : weapons.ads;
-    const fov = this.displayedFov;
+    const ads = scopedWeapon ? this.sniperSlideAim.progress : interpolatedAds;
+    const fov = weapons.fieldOfView(
+      this.userSettings.fov,
+      scopedWeapon ? sniperZoom(ads) : ads,
+    );
+    const recoil = this.input.previewRecoil(weapons.recoil, recoilTime);
     this.input.lookScale =
       Math.tan((fov * Math.PI) / 360) /
       Math.tan((this.userSettings.fov * Math.PI) / 360);
@@ -607,8 +628,8 @@ export class Game {
       this.movement,
       this.input,
       alpha,
-      weapons.recoil.pitch,
-      weapons.recoil.yaw,
+      recoil.pitch,
+      recoil.yaw,
       fov,
     );
     if (this.session) {
@@ -639,6 +660,7 @@ export class Game {
       this.userSettings.scopeStyle,
       this.input.weapon,
       ads,
+      recoilTime,
     );
     this.trails.step(delta, ads, scopedWeapon, this.resolveMuzzle);
     let shotgunRadius: number | undefined;
@@ -767,6 +789,7 @@ export class Game {
     this.audio.resetMotion();
     this.shotgunReticle.reset();
     this.sniperSlideAim.reset();
+    this.viewmodel.resetRecoil();
     this.reticleGap = 5;
     this.lastTime = null;
     this.clock.reset();

@@ -378,9 +378,11 @@ Switching takes 180 ms and
 cancels reload without spending reserve ammo. Offline pause freezes reload/cooldown
 timers and clears held/queued firing, so resume never causes a stale shot.
 
-Recoil and spread are separate systems. Camera recoil changes actual subsequent
-aim, has bounded pitch/yaw impulses and recovers over time; mouse movement can
-counter it. Spread samples an independent accuracy cone. ADS reduces the cone;
+Camera recoil applies a damped pitch/yaw offset to subsequent shots in training
+and multiplayer. Automatic and burst recoil carries across rounds so a spray
+climbs and sweeps sideways. Mouse and touch aim can cover part of the spring's return.
+The first-person gun has its own kickback and rotation spring. Spread samples
+an independent accuracy cone. ADS reduces the cone;
 movement, jumping, falling and sustained-fire bloom enlarge it. Bloom has its
 own cap, delay and weapon-specific recovery. The dynamic crosshair reflects the
 cone. Weapon tuning (angles in degrees) lives in `apps/shared/src/config/weapons.ts`;
@@ -399,6 +401,27 @@ Prototype limits: magazine-style reloads for all four weapons (no per-shell
 shotgun loading) and primitive viewmodels. Practice uses eleven stationary sensors;
 online avatars use the shared tactical skeleton with articulated limb joints.
 Weapon values are prototype balance settings.
+
+### Tuning recoil
+
+Edit `apps/shared/src/config/recoil.ts` for category defaults. Each weapon in
+`apps/shared/src/config/weapons.ts` selects a profile and can override individual
+fields by spreading the category profile into its `recoil` object. The LMG and
+pistol profiles are available for future weapons. The current inventory has
+rifle, SMG, shotgun and sniper. Set `burstSize` in a weapon's config to fire a
+fixed number of rounds per trigger press at its existing `fireInterval`.
+
+| Goal                                  | Fields to adjust                                                                                                                                                                                                                                                                                             |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Change how far aim moves              | `vertical`, `horizontal`, `maxVertical`, and `maxHorizontal` are in degrees. Use `cameraKick` to scale the whole camera impulse.                                                                                                                                                                             |
+| Change the shape of automatic fire    | `firstShotMultiplier` sets the opening kick. `sustainedMultiplier` sets how much the kick builds during consecutive shots. Each `pattern` pair scales vertical and signed horizontal kick. `randomness` adds small reproducible variation. `resetDelay` is the pause in seconds before the pattern restarts. |
+| Change how quickly the camera settles | Higher `cameraAttack` produces a faster initial kick. Higher `cameraRecovery` returns the aim sooner. Both are rates per second.                                                                                                                                                                             |
+| Change the gun animation              | `weaponKickback` and `weaponSway` are in meters. `weaponPitch`, `weaponYaw`, and `weaponRoll` are in degrees. Increase `springStiffness` to speed up the pose response. `springDamping` is a damping ratio with a minimum of 1 for a non-oscillating return.                                                 |
+| Stabilize ADS                         | `hipMultiplier` and `adsMultiplier` scale each camera impulse. `weaponAdsMultiplier` independently scales gun animation at full ADS.                                                                                                                                                                         |
+
+Tune with single shots and full-magazine sprays in Training, then repeat in a
+private room. If the local multiplayer server was started with `npm run
+start:server`, rebuild and restart it to load changes to the shared profiles.
 
 ### Tactical characters (BP-11)
 

@@ -1,4 +1,5 @@
 import type { WeaponConfig, WeaponId } from '../types/weapons';
+import { recoilProfiles } from './recoil';
 
 export const weaponOrder: readonly WeaponId[] = [
   'rifle',
@@ -11,8 +12,6 @@ export const combatConfig = Object.freeze({
   equipTime: 0.18,
   fireBuffer: 0.1,
   bloomRecoveryDelay: 0.15,
-  maxRecoilPitch: 6,
-  maxRecoilYaw: 3,
   dummyHealth: 100,
   dummyResetTime: 2,
 });
@@ -42,9 +41,7 @@ export const weaponConfigs: Readonly<Record<WeaponId, Readonly<WeaponConfig>>> =
       bloomPerShot: 1.5,
       maxBloom: 3,
       bloomRecovery: 3,
-      recoilPitch: 3.8,
-      recoilYaw: 0.65,
-      recoilRecovery: 4,
+      recoil: recoilProfiles.sniper,
       pellets: 1,
       damage: 90,
       range: 220,
@@ -89,9 +86,7 @@ export const weaponConfigs: Readonly<Record<WeaponId, Readonly<WeaponConfig>>> =
       bloomPerShot: 0.35,
       maxBloom: 3.5,
       bloomRecovery: 2.5,
-      recoilPitch: 0.45,
-      recoilYaw: 0.16,
-      recoilRecovery: 5,
+      recoil: recoilProfiles.rifle,
       pellets: 1,
       damage: 25,
       bodyMultipliers: {
@@ -134,9 +129,7 @@ export const weaponConfigs: Readonly<Record<WeaponId, Readonly<WeaponConfig>>> =
       bloomPerShot: 0.4,
       maxBloom: 4,
       bloomRecovery: 3.5,
-      recoilPitch: 0.28,
-      recoilYaw: 0.23,
-      recoilRecovery: 6,
+      recoil: recoilProfiles.smg,
       pellets: 1,
       damage: 17,
       bodyMultipliers: {
@@ -180,9 +173,7 @@ export const weaponConfigs: Readonly<Record<WeaponId, Readonly<WeaponConfig>>> =
       bloomPerShot: 1,
       maxBloom: 3,
       bloomRecovery: 2,
-      recoilPitch: 1.5,
-      recoilYaw: 0.3,
-      recoilRecovery: 4,
+      recoil: recoilProfiles.shotgun,
       pellets: 8,
       damage: 12,
       bodyMultipliers: {

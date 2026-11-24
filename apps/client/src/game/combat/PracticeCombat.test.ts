@@ -78,8 +78,7 @@ describe('local hitscan against Rapier world and target', () => {
     expect(combat.dummy.health).toBe(75);
     expect(combat.hitSequence).toBe(1);
     step(10);
-    combat.weapons.recoil.pitch = 0;
-    combat.weapons.recoil.yaw = 0;
+    combat.weapons.recoil.reset();
     step(1, { ...idle, firePressed: true }, 0.018);
     expect(combat.critical).toBe(true);
     expect(combat.lastDamage).toBe(45);

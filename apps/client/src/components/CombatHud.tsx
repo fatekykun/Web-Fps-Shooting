@@ -73,7 +73,7 @@ export function CombatHud({
         </div>
         {multiplayer && (
           <span className="match-fire-mode">
-            {weapon.automatic ? 'AUTO' : 'SINGLE'}
+            {weapon.burstSize ? 'BURST' : weapon.automatic ? 'AUTO' : 'SINGLE'}
           </span>
         )}
         <div className="reload-track">

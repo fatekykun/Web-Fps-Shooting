@@ -39,6 +39,7 @@ test('responsive ADS, local hits, recoil, reload and weapon switching', async ({
     'data-health',
     '75',
   );
+  await page.clock.runFor(180);
   expect(Number(await hud.getAttribute('data-recoil'))).toBeGreaterThan(0);
   await page.screenshot({ path: 'test-results/depot-ads.png' });
   await page.mouse.up({ button: 'right' });
@@ -64,6 +65,38 @@ test('responsive ADS, local hits, recoil, reload and weapon switching', async ({
   await expect(hud).toHaveAttribute('data-ammo', '30');
   await expect(hud).toHaveAttribute('data-reserve', '119');
   expect(errors).toEqual([]);
+});
+
+test('rifle ADS spray climbs and sweeps the actual view before recovering', async ({
+  page,
+}) => {
+  await enter(page);
+  const hud = page.getByTestId('weapon-status');
+  const marker = page.getByTestId('minimap-player');
+  const pitch = async () =>
+    (Number(await hud.getAttribute('data-recoil')) * 180) / Math.PI;
+  const heading = () =>
+    marker.evaluate((element) => {
+      const rotation = new DOMMatrix(getComputedStyle(element).transform);
+      return (Math.atan2(rotation.b, rotation.a) * 180) / Math.PI;
+    });
+  await page.mouse.down({ button: 'right' });
+  await page.clock.runFor(448);
+  const initialHeading = await heading();
+  await page.mouse.down({ button: 'left' });
+  await page.clock.runFor(380);
+  const earlyPitch = await pitch();
+  const firstSweep = await heading();
+  expect(earlyPitch).toBeGreaterThan(1.6);
+  expect(Math.abs(firstSweep - initialHeading)).toBeGreaterThan(0.65);
+  await page.clock.runFor(460);
+  expect(await pitch()).toBeGreaterThan(3.2);
+  expect(Math.abs((await heading()) - firstSweep)).toBeGreaterThan(0.65);
+  await page.mouse.up({ button: 'left' });
+  await page.clock.runFor(800);
+  expect(await pitch()).toBeLessThan(0.02);
+  expect(Math.abs((await heading()) - initialHeading)).toBeLessThan(0.02);
+  await page.mouse.up({ button: 'right' });
 });
 
 test('shotgun requires fresh presses and reload pauses safely with training', async ({

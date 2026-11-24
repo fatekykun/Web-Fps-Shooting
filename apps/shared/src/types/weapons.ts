@@ -1,5 +1,35 @@
 export type WeaponId = 'rifle' | 'smg' | 'shotgun' | 'sniper';
 export type WeaponCategory = 'rifle' | 'smg' | 'shotgun' | 'sniper';
+export type RecoilCategory = WeaponCategory | 'lmg' | 'pistol';
+
+export interface RecoilProfile {
+  /** Camera degrees per shot, before pattern and multipliers. */
+  vertical: number;
+  horizontal: number;
+  maxVertical: number;
+  maxHorizontal: number;
+  firstShotMultiplier: number;
+  sustainedMultiplier: number;
+  cameraKick: number;
+  /** Camera spring rates in 1/s. */
+  cameraAttack: number;
+  cameraRecovery: number;
+  /** Viewmodel distances in meters and rotations in degrees. */
+  weaponKickback: number;
+  weaponSway: number;
+  weaponPitch: number;
+  weaponYaw: number;
+  weaponRoll: number;
+  springStiffness: number;
+  /** Viewmodel damping ratio. One is critical damping. */
+  springDamping: number;
+  hipMultiplier: number;
+  adsMultiplier: number;
+  weaponAdsMultiplier: number;
+  pattern: readonly (readonly [vertical: number, horizontal: number])[];
+  randomness: number;
+  resetDelay: number;
+}
 export type HitRegion =
   | 'head'
   | 'upperTorso'
@@ -34,6 +64,8 @@ export interface WeaponConfig {
   name: string;
   category: WeaponCategory;
   automatic: boolean;
+  /** Rounds per trigger press for a burst weapon. Each round uses fireInterval. */
+  burstSize?: number;
   magazine: number;
   reserve: number;
   fireInterval: number;
@@ -48,9 +80,7 @@ export interface WeaponConfig {
   bloomPerShot: number;
   maxBloom: number;
   bloomRecovery: number;
-  recoilPitch: number;
-  recoilYaw: number;
-  recoilRecovery: number;
+  recoil: Readonly<RecoilProfile>;
   pellets: number;
   damage: number;
   bodyMultipliers: Readonly<Record<HitRegion, number>>;

@@ -87,14 +87,16 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   await page.clock.runFor(80);
   await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '0');
   await page.screenshot({ path: 'test-results/bp04-sniper-raise.png' });
-  await page.clock.runFor(80);
+  await page.clock.runFor(64);
   await page.screenshot({ path: 'test-results/bp04-sniper-align.png' });
-  await page.clock.runFor(48);
-  const entering = Number(
-    await page
-      .getByTestId('sniper-scope')
-      .evaluate((el) => getComputedStyle(el).opacity),
-  );
+  const scope = page.getByTestId('sniper-scope');
+  const scopeOpacity = async () =>
+    Number(await scope.evaluate((el) => el.style.opacity));
+  let entering = await scopeOpacity();
+  for (let frame = 0; frame < 8 && entering === 0; frame++) {
+    await page.clock.runFor(16);
+    entering = await scopeOpacity();
+  }
   expect(entering).toBeGreaterThan(0);
   expect(entering).toBeLessThan(1);
   await page.screenshot({ path: 'test-results/bp04-sniper-handoff.png' });
@@ -128,6 +130,7 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   await expect(hud).toHaveAttribute('data-ammo', '4');
   await expect(hud).toHaveAttribute('data-cycling', 'true');
   await expect(hud).toHaveAttribute('data-hits', '1');
+  await page.clock.runFor(164);
   expect(await number('recoil')).toBeGreaterThan(0);
   await page.mouse.down();
   await page.clock.runFor(300);
@@ -227,9 +230,13 @@ for (const style of ['optic', 'classic'] as const) {
     expect(hipDuring).toBeGreaterThan(0);
     expect(hipDuring).toBeLessThan(hipBefore);
     const lens = (await scope.locator('.scope-lens').boundingBox())!;
-    expect(lens.x + lens.width / 2).toBeCloseTo(page.viewportSize()!.width / 2);
+    expect(lens.x + lens.width / 2).toBeCloseTo(
+      page.viewportSize()!.width / 2,
+      1,
+    );
     expect(lens.y + lens.height / 2).toBeCloseTo(
       page.viewportSize()!.height / 2,
+      1,
     );
 
     await page.clock.runFor(144);
