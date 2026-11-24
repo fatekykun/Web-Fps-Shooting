@@ -351,7 +351,7 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
     const shooter = [...state.players.values()].find(
       (p) => p.name === 'Sniper',
     )!;
-    const victim = state.players.get(peers[0]!.sessionId)!;
+    const victim = state.players.get(peers[1]!.sessionId)!;
     const dx = victim.x - shooter.x,
       dz = victim.z - shooter.z;
     const yaw = Math.atan2(-dx, -dz);
@@ -370,7 +370,7 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
             movementY: -pitch / 0.002,
           }),
         ),
-      { yaw, pitch },
+      { yaw: yaw - shooter.yaw, pitch },
     );
     await page.mouse.down({ button: 'right' });
     await page.waitForTimeout(1200);
@@ -381,16 +381,16 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
     expect(kills[0]).toMatchObject({
       weapon: 'sniper',
       killer: 'Sniper',
-      victim: 'Target0',
+      victim: victim.name,
       headshot: true,
     });
     const entry = page
       .getByRole('list', { name: 'Kill feed' })
       .getByRole('listitem')
-      .filter({ hasText: 'Target0' });
+      .filter({ hasText: victim.name });
     await expect(entry.locator('.kill-feed-name')).toHaveText([
       'Sniper',
-      'Target0',
+      victim.name,
     ]);
     await expect(
       entry.getByRole('img', { name: 'Sniper rifle' }),
@@ -410,7 +410,7 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
       '1',
     );
     await expect(page.getByRole('list', { name: 'Kill feed' })).toContainText(
-      'Target0',
+      victim.name,
     );
     await page.screenshot({ path: 'test-results/bp04-server-sniper.png' });
     expect(errors).toEqual([]);

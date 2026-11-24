@@ -2,9 +2,10 @@ import type { WeaponId } from '../types/weapons';
 import { weaponOrder } from './weapons';
 import {
   arenas,
-  isArenaId,
+  defaultMultiplayerMapId,
+  isMultiplayerMapId,
   type ArenaDefinition,
-  type ArenaId,
+  type MultiplayerMapId,
 } from '../maps/arenas';
 
 export type GameMode = 'ffa' | 'tdm';
@@ -21,7 +22,7 @@ export interface MatchSettings {
 }
 export const playerLimits = [2, 4, 6, 8] as const;
 export interface PrivateRoomSettings extends MatchSettings {
-  mapId?: ArenaId;
+  mapId?: MultiplayerMapId;
   playerLimit?: (typeof playerLimits)[number];
   /** Omitted means unrestricted; custom restrictions contain one or two categories. */
   allowedWeapons?: readonly WeaponId[];
@@ -33,7 +34,7 @@ export function parsePrivateRoomSettings(
   const match = parseMatchSettings(value);
   if (!match) return null;
   const v = value as Record<string, unknown>;
-  if (v.mapId !== undefined && !isArenaId(v.mapId)) return null;
+  if (v.mapId !== undefined && !isMultiplayerMapId(v.mapId)) return null;
   if (
     v.playerLimit !== undefined &&
     !playerLimits.includes(v.playerLimit as 2 | 4 | 6 | 8)
@@ -124,7 +125,7 @@ export function rankScores(rows: readonly ScoreRow[]): ScoreRow[] {
 }
 export function spawnCandidates(
   team: string,
-  arena: ArenaDefinition = arenas.depot,
+  arena: ArenaDefinition = arenas[defaultMultiplayerMapId],
 ) {
   return arena.spawns[team === 'blue' || team === 'orange' ? team : 'none'];
 }

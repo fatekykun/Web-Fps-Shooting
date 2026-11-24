@@ -49,6 +49,17 @@ export const arenas = {
 } satisfies Record<string, ArenaDefinition>;
 export type ArenaId = keyof typeof arenas;
 
+export const multiplayerMapIds = [
+  'shipment',
+  'killhouse',
+] as const satisfies readonly ArenaId[];
+export type MultiplayerMapId = (typeof multiplayerMapIds)[number];
+export const defaultMultiplayerMapId = multiplayerMapIds[0];
+
+export function isMultiplayerMapId(value: unknown): value is MultiplayerMapId {
+  return multiplayerMapIds.some((id) => id === value);
+}
+
 export function isArenaId(value: unknown): value is ArenaId {
   return typeof value === 'string' && Object.hasOwn(arenas, value);
 }

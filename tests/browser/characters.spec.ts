@@ -1,4 +1,4 @@
-import { enterStartedMatch } from './helpers/matchEntry';
+import { enterStartedMatch, reserveSpawnSlot } from './helpers/matchEntry';
 import { expect, test } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
@@ -42,6 +42,7 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
 }) => {
   test.setTimeout(120000);
   let peer: Room<unknown, RoomState> | undefined,
+    filler: Room<unknown, RoomState> | undefined,
     timer: ReturnType<typeof setInterval> | undefined;
   let sequence = 0,
     forward = 0,
@@ -55,7 +56,7 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     slidePressed = false,
     reloadPressed = false,
     firePressed = false;
-  let lookYaw = 0,
+  let lookYaw = Math.PI,
     lookPitch = 0;
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -74,10 +75,10 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     await page.getByRole('button', { name: 'PRIVATE ROOMS' }).click();
     await page.getByLabel('PLAYER NAME').fill('Character viewer');
     await page.getByRole('button', { name: 'CREATE PRIVATE ROOM' }).click();
-    peer = await new Client('http://127.0.0.1:2567').joinById<RoomState>(
-      (await page.getByTestId('room-code').textContent())!,
-      { name: 'Tactical actor' },
-    );
+    const client = new Client('http://127.0.0.1:2567');
+    const code = (await page.getByTestId('room-code').textContent())!;
+    filler = await reserveSpawnSlot(client, code);
+    peer = await client.joinById<RoomState>(code, { name: 'Tactical actor' });
     for (const type of ['shot', 'kill', 'correction', 'notice'])
       peer.onMessage(type, () => {});
     peer.send('ready', true);
@@ -115,15 +116,15 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     await enterStartedMatch(page);
     yaw = 0;
     right = 1;
-    await page.keyboard.down('d');
+    await page.keyboard.down('a');
     await expect
       .poll(
         async () =>
           Number(await page.getByTestId('position').getAttribute('data-x')),
         { intervals: [50] },
       )
-      .toBeGreaterThan(-4.5);
-    await page.keyboard.up('d');
+      .toBeGreaterThan(-5.8);
+    await page.keyboard.up('a');
     await expect
       .poll(() => actor().x, { intervals: [50] })
       .toBeGreaterThan(-0.2);
@@ -170,7 +171,7 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     pitch = 0;
     aim = false;
     await expect.poll(() => actor().aimBlend).toBeLessThan(0.01);
-    yaw = 0;
+    yaw = -Math.PI / 2;
     forward = 1;
     await expect.poll(() => actor().gaitAmount).toBeGreaterThan(0.5);
     await lookAtActor();
@@ -206,6 +207,9 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     await expect
       .poll(() => actor().landingBlend, { intervals: [25] })
       .toBeGreaterThan(0.3);
+    const landingX = actor().x;
+    yaw = Math.PI / 2;
+    await expect.poll(() => actor().x).toBeLessThan(landingX - 0.8);
     slidePressed = true;
     await expect
       .poll(() => actor().slideBlend, { intervals: [25] })
@@ -244,11 +248,12 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     await page.screenshot({ path: 'test-results/bp11-tactical-hit.png' });
     await page.mouse.up({ button: 'right' });
     expect(Number.isFinite(actor().hitYaw)).toBe(true);
-    expect(peer.state.players.size).toBe(2);
+    expect(peer.state.players.size).toBe(3);
     expect(errors).toEqual([]);
   } finally {
     if (timer) clearInterval(timer);
-    await page.keyboard.up('d');
+    await page.keyboard.up('a');
     await peer?.leave();
+    await filler?.leave();
   }
 });

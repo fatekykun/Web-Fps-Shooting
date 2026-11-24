@@ -39,7 +39,7 @@ test('starting the session takes the host straight from the lobby into gameplay 
     await page.keyboard.down('w');
     await expect
       .poll(() => peer.state.players.get(peer.state.hostId)?.z)
-      .toBeLessThan(11);
+      .toBeGreaterThan(-14.7);
     await page.keyboard.up('w');
     await page.keyboard.press('Escape');
     await expect(

@@ -13,7 +13,10 @@ import type {
 } from '@breakpoint/shared/combat';
 import { MovementController } from '@breakpoint/shared/movement/MovementController';
 import type { RemoteFootstep } from '@breakpoint/shared/movement/Footsteps';
-import { isArenaId, type ArenaId } from '@breakpoint/shared/maps';
+import {
+  isMultiplayerMapId,
+  type MultiplayerMapId,
+} from '@breakpoint/shared/maps';
 import {
   codePattern,
   networkConfig,
@@ -48,7 +51,7 @@ interface WireState extends Omit<MatchView, 'scores'> {
 }
 interface Callbacks {
   isActive(): boolean;
-  onArena(id: ArenaId): void;
+  onArena(id: MultiplayerMapId): void;
   onView(view: RoomView | null): void;
   onError(message: string): void;
   onLeave(): void;
@@ -146,7 +149,14 @@ export class NetworkSession {
   }
 
   private receive(state: WireState): void {
-    const mapId = isArenaId(state.mapId) ? state.mapId : 'depot';
+    const { mapId } = state;
+    if (this.leaving || mapId === undefined) return;
+    if (!isMultiplayerMapId(mapId)) {
+      this.fail(
+        'This room uses a map unavailable in multiplayer. Create a new room.',
+      );
+      return;
+    }
     const players: PublicPlayer[] = [];
     state.players.forEach((player) =>
       players.push({

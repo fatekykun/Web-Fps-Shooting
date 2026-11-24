@@ -23,7 +23,9 @@ test('hosts Shipment with opposite team spawns, matched cover, and playable cont
   await page.getByRole('button', { name: 'PRIVATE ROOMS' }).click();
   await page.getByLabel('PLAYER NAME').fill('North');
   await page.getByLabel('GAME MODE').selectOption('tdm');
-  await page.getByLabel('MAP').selectOption('shipment');
+  const map = page.getByRole('combobox', { name: 'MAP', exact: true });
+  await expect(map.locator('option')).toHaveText(['Shipment', 'Killhouse']);
+  await expect(map).toHaveValue('shipment');
   await page.getByRole('button', { name: 'CREATE PRIVATE ROOM' }).click();
   await expect(page.getByRole('dialog')).toContainText(
     'SHIPMENT / PRIVATE SESSION',

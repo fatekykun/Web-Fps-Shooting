@@ -33,6 +33,7 @@ it('keeps eight avatars in one pool and only uploads colors when their appearanc
     team: 'blue',
   }));
   const view: RoomView = {
+    mapId: 'shipment',
     code: 'ABC234',
     selfId: 'self',
     hostId: 'self',

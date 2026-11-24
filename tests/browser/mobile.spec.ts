@@ -437,7 +437,7 @@ test.describe('phone touch controls', () => {
       const crawlStart = host().z;
       await fingers.down(9, joystick);
       await fingers.move(9, { x: joystick.x, y: joystick.y - 22 });
-      await expect.poll(() => host().z).toBeLessThan(crawlStart - 0.15);
+      await expect.poll(() => host().z).toBeGreaterThan(crawlStart + 0.15);
       await fingers.up(9);
       await page.getByRole('button', { name: 'Toggle prone' }).tap();
       await expect.poll(() => host().movement).toBe('walking');
@@ -445,7 +445,7 @@ test.describe('phone touch controls', () => {
       await fingers.down(1, joystick);
       await fingers.move(1, { x: joystick.x, y: joystick.y - 40 });
       await fingers.down(2, await point(page, 'fire'));
-      await expect.poll(() => host().z).toBeLessThan(start - 0.5);
+      await expect.poll(() => host().z).toBeGreaterThan(start + 0.5);
       await expect
         .poll(async () =>
           Number(

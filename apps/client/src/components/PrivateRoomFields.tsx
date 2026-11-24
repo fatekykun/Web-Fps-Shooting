@@ -1,5 +1,10 @@
 import { weaponOrder } from '@breakpoint/shared';
-import { arenas, isArenaId } from '@breakpoint/shared/maps';
+import {
+  arenas,
+  defaultMultiplayerMapId,
+  isMultiplayerMapId,
+  multiplayerMapIds,
+} from '@breakpoint/shared/maps';
 import {
   playerLimits,
   type PrivateRoomSettings,
@@ -21,15 +26,15 @@ export function PrivateRoomFields({
       <label className="room-field">
         MAP
         <select
-          value={value.mapId ?? 'depot'}
+          value={value.mapId ?? defaultMultiplayerMapId}
           onChange={(event) => {
             const mapId = event.target.value;
-            if (isArenaId(mapId)) onChange({ ...value, mapId });
+            if (isMultiplayerMapId(mapId)) onChange({ ...value, mapId });
           }}
         >
-          {Object.entries(arenas).map(([id, arena]) => (
+          {multiplayerMapIds.map((id) => (
             <option key={id} value={id}>
-              {arena.name}
+              {arenas[id].name}
             </option>
           ))}
         </select>

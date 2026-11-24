@@ -5,7 +5,7 @@ import { weaponOrder } from '../config/weapons';
 import type { CharacterAnimationValues } from '../combat/characterAnimation';
 import type { OwnerCombat } from '../combat/networkCombat';
 import type { MatchPhase, MatchView, Team } from '../config/match';
-import type { ArenaId } from '../maps/arenas';
+import type { MultiplayerMapId } from '../maps/arenas';
 import type { RemoteFootstep } from '../movement/Footsteps';
 
 export const networkConfig = Object.freeze({
@@ -59,7 +59,7 @@ export interface PublicPlayer extends Partial<CharacterAnimationValues> {
   team: Team;
 }
 export interface RoomView {
-  mapId?: ArenaId;
+  mapId: MultiplayerMapId;
   playerLimit?: number;
   allowedWeapons?: readonly WeaponId[];
   code: string;

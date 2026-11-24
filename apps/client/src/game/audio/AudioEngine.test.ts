@@ -16,6 +16,7 @@ function matchView(
   round = 1,
 ): RoomView {
   return {
+    mapId: 'shipment',
     code: 'ABC234',
     selfId: 'a',
     hostId: 'a',

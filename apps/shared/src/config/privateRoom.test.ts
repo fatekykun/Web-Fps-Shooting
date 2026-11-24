@@ -26,7 +26,14 @@ it('validates the arena only when creating a room', () => {
       ?.mapId,
   ).toBe('shipment');
   expect(
+    parsePrivateRoomSettings({ ...matchDefaults.ffa, mapId: 'killhouse' })
+      ?.mapId,
+  ).toBe('killhouse');
+  expect(
     parsePrivateRoomSettings({ ...matchDefaults.tdm, mapId: 'unknown' }),
+  ).toBeNull();
+  expect(
+    parsePrivateRoomSettings({ ...matchDefaults.ffa, mapId: 'depot' }),
   ).toBeNull();
   expect(
     parseMatchSettings({ ...matchDefaults.tdm, mapId: 'shipment' }),

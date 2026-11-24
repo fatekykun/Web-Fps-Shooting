@@ -55,6 +55,6 @@ it('ranks copies consistently and provides four spawns on each opposite side', (
   expect(rankScores(rows)[0]!.id).toBe('b');
   expect(rows[0]!.id).toBe('a');
   expect(spawnCandidates('blue')).toHaveLength(4);
-  expect(spawnCandidates('orange').every((p) => p.z < 0)).toBe(true);
-  expect(spawnCandidates('blue').every((p) => p.z > 0)).toBe(true);
+  expect(spawnCandidates('blue').every((p) => p.z < 0)).toBe(true);
+  expect(spawnCandidates('orange').every((p) => p.z > 0)).toBe(true);
 });
