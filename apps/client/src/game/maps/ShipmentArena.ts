@@ -1,181 +1,153 @@
-import { Color, type Scene } from 'three';
+import type { Scene } from 'three';
 import { arenas } from '@breakpoint/shared/maps';
 import {
   BatchedArena,
   type ArenaPart as Part,
   type ArenaSurface as Surface,
 } from './BatchedArena';
+import { addShipmentCargo, addShipmentPallet } from './ShipmentCargoVisuals';
+import {
+  addShipmentBoundary,
+  addShipmentFence,
+  buildPortBackdrop,
+} from './ShipmentPort';
 
 const yard = arenas.shipment;
 
-/** The room's physical yard rendered as shared instanced surfaces and trim. */
+function decorateGround(trim: Part[], paint: Part[]): void {
+  for (const side of [-1, 1]) {
+    for (const z of [-11, -7, -3, 1, 5, 9, 13])
+      paint.push({
+        position: [side * 11.2, 0.007, z],
+        size: [0.075, 0.01, 1.18],
+        color: 0xa7924d,
+      });
+    const tint = side < 0 ? 0x638fa2 : 0xb66c4c;
+    for (const point of yard.spawns[side < 0 ? 'blue' : 'orange']) {
+      paint.push({
+        position: [point.x, 0.009, point.z + side * 0.85],
+        size: [2.25, 0.01, 0.1],
+        color: tint,
+      });
+      for (const direction of [-1, 1])
+        paint.push({
+          position: [point.x + direction * 0.25, 0.009, point.z],
+          size: [0.08, 0.01, 0.64],
+          yaw: (side * direction * Math.PI) / 3,
+          color: tint,
+        });
+    }
+  }
+  for (const [x, z, length] of [
+    [-16.9, -2.6, 12.2],
+    [10.3, 4.8, 9.3],
+    [17.2, -7.8, 8.4],
+  ] as const) {
+    trim.push({
+      position: [x, 0.004, z],
+      size: [0.27, 0.007, length],
+      color: 0x303739,
+    });
+    for (let offset = -length / 2 + 0.15; offset < length / 2; offset += 0.23)
+      trim.push({
+        position: [x, 0.011, z + offset],
+        size: [0.23, 0.007, 0.046],
+        color: 0x60686a,
+      });
+  }
+  for (const [x, z, w, l, yaw, color] of [
+    [12.1, -12.8, 6.2, 3.6, 0, 0x737775],
+    [-14.5, -1.45, 4.4, 8.35, 0, 0x6a6d66],
+    [7.7, 10.5, 3.5, 1.2, 0.31, 0x3c484d],
+    [-6.3, -13.8, 1.67, 1.12, -0.12, 0x444b48],
+    [11.4, 4.9, 1.8, 1.1, 0.42, 0x3b484c],
+    [13.8, -13.32, 0.92, 1.38, 0.32, 0x444748],
+    [4.7, -1.65, 1.82, 0.67, -0.23, 0x414b4b],
+  ] as const)
+    trim.push({ position: [x, 0.0025, z], size: [w, 0.003, l], color, yaw });
+  for (const [x, z] of [
+    [12.25, -10.86],
+    [15.7, -10.86],
+    [-15.8, 2.97],
+    [-12.78, 2.97],
+  ] as const) {
+    for (let stripe = 0; stripe < 5; stripe++)
+      paint.push({
+        position: [x + stripe * 0.18, 0.012, z],
+        size: [0.093, 0.008, 0.63],
+        yaw: 0.65,
+        color: stripe % 2 ? 0x9b8346 : 0xb89a4e,
+      });
+  }
+  for (const [x, z] of [
+    [12.4, -11.32],
+    [15.86, -11.35],
+    [-12.58, 3.3],
+  ] as const) {
+    trim.push({
+      position: [x, 0.034, z],
+      size: [0.25, 0.068, 0.25],
+      color: 0x3c423d,
+    });
+    trim.push({
+      position: [x, 0.145, z],
+      size: [0.17, 0.19, 0.17],
+      color: 0xb7662d,
+    });
+    trim.push({
+      position: [x, 0.265, z],
+      size: [0.098, 0.12, 0.098],
+      color: 0xc78142,
+    });
+  }
+}
+
+/** The playable freight follows the same shell geometry as client and server hit tests. */
 export class ShipmentArena extends BatchedArena {
+  private readonly removeFence: () => void;
+
   constructor(scene: Scene) {
     const solids: Surface[] = [{ ...yard.floor, tile: 7 }];
-    const trim: Part[] = [];
+    const trim: Part[] = [...yard.forklift.structure];
     const barrels: Part[] = [];
     const paint: Part[] = [];
-    const [width, height, length] = yard.containerSize;
-    for (const { x, z, level, yaw, color } of yard.containers) {
-      const y = (level + 0.5) * height;
-      const sine = Math.sin(yaw),
-        cosine = Math.cos(yaw);
-      const surface = (
-        position: Part['position'],
-        size: Part['size'],
-        tint: number,
-      ): Part => ({
-        position: [
-          x + position[0] * cosine + position[2] * sine,
-          y + position[1],
-          z - position[0] * sine + position[2] * cosine,
-        ],
-        size,
-        color: tint,
-        yaw,
-      });
-      solids.push({
-        ...surface(
-          [0, 0, 0],
-          [width - 0.08, height - 0.08, length - 0.08],
-          color,
-        ),
-        tile: 2,
-      });
-      const frame = new Color(color).multiplyScalar(0.68).getHex();
-      for (const side of [-1, 1]) {
-        for (const end of [-1, 1]) {
-          trim.push(
-            surface([side * 1.14, 0, end * 2.94], [0.12, height, 0.12], frame),
-          );
-          trim.push(
-            surface([side * 1.14, end * 1.235, 0], [0.12, 0.13, length], frame),
-          );
-          trim.push(
-            surface([0, end * 1.235, side * 2.94], [width, 0.13, 0.12], frame),
-          );
-        }
-        for (let rib = -6; rib <= 6; rib++)
-          trim.push(
-            surface([side * 1.18, 0, rib * 0.41], [0.04, 2.3, 0.074], frame),
-          );
-        // A pair of inset doors with metal locking bars and contrasting latches.
-        trim.push(surface([side * 0.54, 0, 2.963], [1.05, 2.28, 0.035], color));
-        trim.push(
-          surface([side * 0.42, 0, 2.987], [0.04, 2.18, 0.025], 0x9a9e8f),
-        );
-        trim.push(
-          surface([side * 0.33, -0.26, 2.986], [0.24, 0.07, 0.026], 0x515851),
-        );
-        trim.push(
-          surface(
-            [side * 1.165, -0.95, side * 2.49],
-            [0.016, 0.25, 0.38],
-            0x795c48,
-          ),
-        );
-        trim.push(
-          surface(
-            [side * 1.165, -0.8, -side * 1.48],
-            [0.016, 0.12, 0.21],
-            0x81644e,
-          ),
-        );
-      }
-    }
-
-    for (const wall of yard.perimeter) {
-      const [x, , z] = wall.position;
-      const [sx, sy, sz] = wall.size;
-      solids.push({
-        ...wall,
-        position: [x, (0.72 + sy - 0.24) / 2, z],
-        size: [sx, sy - 0.96, sz],
-        tile: 6,
-      });
-      trim.push({
-        position: [x, 0.36, z],
-        size: [sx, 0.72, sz],
-        color: 0x71766b,
-      });
-      trim.push({
-        position: [x, sy - 0.12, z],
-        size: [sx, 0.24, sz],
-        color: 0x828a7e,
-      });
-      for (let along = -16; along <= 16; along += 4) {
-        trim.push({
-          position: [x || along, sy / 2, z || along],
-          size: [x ? sx + 0.025 : 0.16, sy, z ? sz + 0.025 : 0.16],
-          color: 0x7d877b,
-        });
-      }
-    }
-
+    const panels = addShipmentBoundary(trim, paint);
+    yard.containers.forEach((model, index) =>
+      addShipmentCargo(model, yard.cargo[index]!, solids, trim, paint),
+    );
+    for (const pallet of yard.pallets) addShipmentPallet(pallet, trim);
+    for (const part of yard.forklift.detail)
+      (part.kind === 'barrel' ? barrels : trim).push(part);
     for (const prop of yard.props) {
       if (prop.kind === 'barrel') {
         barrels.push(prop);
         const [x, y, z] = prop.position;
-        for (const dy of [-0.3, 0.28])
+        for (const dy of [-0.27, 0.26])
           barrels.push({
             position: [x, y + dy, z],
-            size: [0.568, 0.065, 0.568],
-            color: 0x9b9c83,
+            size: [0.58, 0.062, 0.58],
+            color: 0x929789,
           });
-      } else solids.push({ ...prop, tile: 3 });
+      } else solids.push({ ...prop, tile: prop.kind === 'crate' ? 3 : 0 });
     }
-
-    for (const [x, z] of yard.floodlights) {
-      trim.push({
-        position: [x, 4.8, z],
-        size: [0.18, 1.8, 0.18],
-        color: 0x343d37,
-      });
-      trim.push({
-        position: [x, 5.65, z],
-        size: [1.03, 0.16, 0.27],
-        color: 0x434a43,
-      });
-      for (const offset of [-0.31, 0.31])
-        paint.push({
-          position: [x + offset, 5.64, z - Math.sign(z) * 0.154],
-          size: [0.32, 0.12, 0.035],
-          color: 0xe7d5a0,
-        });
-    }
-    for (const side of [-1, 1]) {
-      for (const z of [-11, -7, -3, 1, 5, 9, 13])
-        paint.push({
-          position: [side * 11.2, 0.007, z],
-          size: [0.075, 0.012, 1.2],
-          color: 0xb2995a,
-        });
-      const color = side < 0 ? 0x638fa2 : 0xb66c4c;
-      for (const point of yard.spawns[side < 0 ? 'blue' : 'orange']) {
-        paint.push({
-          position: [point.x, 0.009, point.z + side * 0.85],
-          size: [2.25, 0.012, 0.1],
-          color,
-        });
-        for (const direction of [-1, 1])
-          paint.push({
-            position: [point.x + direction * 0.25, 0.01, point.z],
-            size: [0.08, 0.012, 0.64],
-            yaw: (side * direction * Math.PI) / 3,
-            color,
-          });
-      }
-    }
+    decorateGround(trim, paint);
     super(
       scene,
-      { solids, trim, barrels, paint },
+      { solids, trim, barrels, paint, overhead: buildPortBackdrop() },
       {
-        sky: 0x939d91,
-        fill: [0xe1e8dd, 0x7d8475, 1.9],
-        key: [0xffedcf, 1.65],
+        sky: 0xa0b0b9,
+        fill: [0xe5eef0, 0x7a8075, 1.84],
+        key: [0xffe8cc, 1.66],
         keyPosition: [-20, 29, -12],
         normalBias: 0.035,
+        textureTheme: 'yard',
       },
     );
+    this.removeFence = addShipmentFence(scene, panels);
+  }
+
+  override dispose(): void {
+    this.removeFence();
+    super.dispose();
   }
 }

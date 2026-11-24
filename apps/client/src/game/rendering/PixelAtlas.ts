@@ -15,7 +15,7 @@ const rows = 2;
 /** Deterministic 32px industrial tiles; one 32 KiB RGBA atlas, no downloads or mip seams. */
 export function createPixelAtlas(
   tileSize: 16 | 32 = 32,
-  theme?: 'warehouse',
+  theme?: 'warehouse' | 'yard',
 ): DataTexture {
   const width = tileSize * columns,
     height = tileSize * rows;
@@ -42,6 +42,11 @@ export function createPixelAtlas(
           value = px % 8 < 2 ? 190 : px % 8 === 2 ? 253 : 234;
           if (py === 0 || py === 31) value = 177;
           if (patch === 5 && py > 22) value = 216;
+          if (
+            theme === 'yard' &&
+            (patch === 7 || (px % 11 === 0 && py % 13 < 3))
+          )
+            value -= 29;
         } else if (tile === 3) {
           // Crate reinforcement.
           if (px < 3 || py < 3 || px > 28 || py > 28 || Math.abs(px - py) < 2)
@@ -73,6 +78,17 @@ export function createPixelAtlas(
           if (px % 16 === 0 || py % 16 === 0) value = 200;
           if (px > 17 && px < 27 && py === 17 + Math.floor((px - 17) / 3))
             value = 208;
+          if (theme === 'yard') {
+            // Granular asphalt with broken seams and exposed aggregate.
+            value -= 10 + ((px * 7 + py * 13 + ((px * py) % 19)) % 17);
+            if (patch < 5) value -= 18;
+            if (
+              py === 11 + Math.floor(Math.abs(px - 15) / 4) &&
+              px > 6 &&
+              px < 24
+            )
+              value = 166;
+          }
         }
         const offset =
           ((Math.floor(tile / columns) * tileSize + y) * width +

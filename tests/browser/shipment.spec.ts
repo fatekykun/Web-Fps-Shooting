@@ -54,7 +54,7 @@ test('hosts Shipment with opposite team spawns, matched cover, and playable cont
     expect(south().z).toBeCloseTo(15.7);
     expect(south().yaw).toBeCloseTo(0);
     await expect(page.getByTestId('match-start-signal')).toBeHidden();
-    await page.screenshot({ path: 'test-results/bp17-shipment.png' });
+    await page.screenshot({ path: 'test-results/bp24-shipment-spawn.png' });
     await page.keyboard.down('a');
     await expect.poll(() => north().x).toBeGreaterThan(-6.99);
     await page.keyboard.up('a');
@@ -75,6 +75,24 @@ test('hosts Shipment with opposite team spawns, matched cover, and playable cont
       'data-ammo',
       /^(2[0-9]|[0-9])$/,
     );
+    const walkUntil = async (key: string, reached: () => boolean) => {
+      await page.keyboard.down(key);
+      try {
+        await expect
+          .poll(reached, { timeout: 5000, intervals: [40] })
+          .toBe(true);
+      } finally {
+        await page.keyboard.up(key);
+      }
+    };
+    await walkUntil('d', () => north().x < -11);
+    // Leave room for input and network latency before the door leaves.
+    await walkUntil('w', () => north().z > -6.55);
+    await walkUntil('d', () => north().x < -14.2);
+    await walkUntil('w', () => north().z > -2.95);
+    expect(north().y).toBeCloseTo(0.965, 1);
+    await page.screenshot({ path: 'test-results/bp24-shipment-tunnel.png' });
+    await walkUntil('w', () => north().z > 2.7);
     const stats = await page.locator('.telemetry').evaluate((element) => ({
       fps: Number((element as HTMLElement).dataset.fps),
       frameMs: Number((element as HTMLElement).dataset.frameMs),
