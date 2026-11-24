@@ -66,8 +66,12 @@ export function WeaponPanel({
         <div className="section-heading">
           <h3 id={title}>{config.name}</h3>
           <span>
-            {config.automatic ? 'AUTOMATIC' : 'SEMI-AUTO'} / {config.magazine}{' '}
-            ROUNDS
+            {config.burstSize
+              ? `${config.burstSize}-ROUND BURST`
+              : config.automatic
+                ? 'AUTOMATIC'
+                : 'SEMI-AUTO'}{' '}
+            / {config.magazine} ROUNDS
           </span>
         </div>
         <div className="weapon-stat-grid">

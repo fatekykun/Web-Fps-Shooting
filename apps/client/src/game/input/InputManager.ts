@@ -10,10 +10,33 @@ import {
   type UserSettings,
 } from '../settings/userSettings';
 import type { WeaponController } from '../weapons/WeaponController';
+import type { Recoil, RecoilAxes } from '../weapons/Recoil';
 import { KeyboardInput } from './KeyboardInput';
 import { MouseInput } from './MouseInput';
 import { TouchInput } from './TouchInput';
 import { readDevice } from './deviceCapabilities';
+
+const lookLimit = Math.PI / 2 - 0.02;
+
+function wrapYaw(yaw: number): number {
+  return (
+    ((((yaw + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) -
+    Math.PI
+  );
+}
+
+function coverReturn(covered: number, recoil: number, input: number): number {
+  const sign = Math.sign(recoil);
+  return (
+    sign * Math.min(Math.abs(recoil), Math.max(0, (covered - input) * sign))
+  );
+}
+
+function returned(covered: number, before: number, after: number): number {
+  const sign = Math.sign(covered);
+  const recovered = before * sign - Math.max(0, after * sign);
+  return sign * Math.min(Math.abs(covered), Math.max(0, recovered));
+}
 
 /** Devices supply intentions to the existing movement and weapon controllers. */
 export class InputManager {
@@ -45,6 +68,8 @@ export class InputManager {
   private readonly controlClicks = new Set<number>();
   private lastControlRelease: { x: number; y: number; time: number } | null =
     null;
+  private readonly coveredReturn: RecoilAxes = { pitch: 0, yaw: 0 };
+  private readonly recoilPreview: RecoilAxes = { pitch: 0, yaw: 0 };
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -278,15 +303,57 @@ export class InputManager {
     this.look(dx * scale, dy * scale);
   }
   private look(x: number, y: number): void {
-    this.movement.yaw =
-      ((((this.movement.yaw - x + Math.PI) % (Math.PI * 2)) + Math.PI * 2) %
-        (Math.PI * 2)) -
-      Math.PI;
-    const limit = Math.PI / 2 - 0.02;
+    const previousPitch = this.pitch;
+    this.movement.yaw = wrapYaw(this.movement.yaw - x);
     this.pitch = Math.max(
-      -limit,
-      Math.min(limit, this.pitch - y * (this.settings.invertY ? -1 : 1)),
+      -lookLimit,
+      Math.min(lookLimit, previousPitch - y * (this.settings.invertY ? -1 : 1)),
     );
+    // Apply every input delta immediately. Credit only the part opposing the spring,
+    // so its later recovery cannot move the sights down a second time.
+    if (this.locked) {
+      const recoil = this.getWeapon()?.recoil;
+      if (recoil) {
+        this.coveredReturn.pitch = coverReturn(
+          this.coveredReturn.pitch,
+          recoil.pitch,
+          this.pitch - previousPitch,
+        );
+        this.coveredReturn.yaw = coverReturn(
+          this.coveredReturn.yaw,
+          recoil.yaw,
+          wrapYaw(-x),
+        );
+      }
+    }
+  }
+
+  recoverRecoil(recoil: Recoil, dt: number): void {
+    const covered = this.coveredReturn;
+    if (!covered.pitch && !covered.yaw) return;
+    const next = recoil.sample(dt, this.recoilPreview);
+    const pitch = returned(covered.pitch, recoil.pitch, next.pitch);
+    const yaw = returned(covered.yaw, recoil.yaw, next.yaw);
+    covered.pitch -= pitch;
+    covered.yaw -= yaw;
+    // The normal look angles include the covered return before the input packet is sent.
+    this.pitch = Math.max(-lookLimit, Math.min(lookLimit, this.pitch + pitch));
+    if (yaw) this.movement.yaw = wrapYaw(this.movement.yaw + yaw);
+    if (next.pitch * covered.pitch <= 0) covered.pitch = 0;
+    if (next.yaw * covered.yaw <= 0) covered.yaw = 0;
+  }
+
+  previewRecoil(recoil: Recoil, dt: number): RecoilAxes {
+    const view = recoil.sample(dt, this.recoilPreview);
+    view.pitch += returned(this.coveredReturn.pitch, recoil.pitch, view.pitch);
+    view.yaw += returned(this.coveredReturn.yaw, recoil.yaw, view.yaw);
+    return view;
+  }
+
+  setLook(yaw: number, pitch: number): void {
+    this.movement.yaw = yaw;
+    this.pitch = pitch;
+    this.coveredReturn.pitch = this.coveredReturn.yaw = 0;
   }
   consumeActions(): void {
     this.movement.jumpPressed = false;
@@ -303,6 +370,7 @@ export class InputManager {
     this.clearGameplay();
   }
   clearGameplay(): void {
+    this.coveredReturn.pitch = this.coveredReturn.yaw = 0;
     this.keyboard.clear();
     this.touch?.clear();
     this.touchAxes = { forward: 0, right: 0, sprint: false, jump: false };

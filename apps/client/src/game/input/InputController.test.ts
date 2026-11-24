@@ -2,6 +2,53 @@ import { expect, it, vi } from 'vitest';
 import { InputController } from './InputController';
 import { defaultUserSettings, rebind } from '../settings/userSettings';
 import { movementConfig } from '@breakpoint/shared';
+import { WeaponController } from '../weapons/WeaponController';
+
+it.each(['mouse', 'touch'] as const)(
+  'honors %s counter-aim and consumes only the covered return',
+  (device) => {
+    vi.stubGlobal('document', new EventTarget());
+    vi.stubGlobal(
+      'window',
+      Object.assign(new EventTarget(), { innerWidth: 844, innerHeight: 390 }),
+    );
+    const weapon = new WeaponController(() => {});
+    const input = new InputController(
+      new EventTarget() as unknown as HTMLCanvasElement,
+      () => {},
+      () => {},
+      () => {},
+      () => weapon,
+    );
+    try {
+      input.locked = true;
+      const { recoil, config } = weapon;
+      recoil.kick(config.recoil, 0, 0);
+      recoil.step(0.04);
+      const before = recoil.pitch;
+      const compensation = before * 0.65;
+      if (device === 'mouse')
+        input.mouseLook(0, compensation / movementConfig.sensitivity);
+      else input.touchLook(0, (compensation * 390 * 1.2) / Math.PI);
+      expect(input.pitch + recoil.pitch).toBeCloseTo(before - compensation, 10);
+
+      const fractional = input.previewRecoil(recoil, 1 / 144);
+      expect(fractional.pitch + input.pitch).toBeCloseTo(
+        before - compensation,
+        10,
+      );
+      for (let frame = 0; frame < 90; frame++) {
+        input.recoverRecoil(recoil, 1 / 60);
+        recoil.step(1 / 60);
+        expect(input.pitch + recoil.pitch).toBeGreaterThanOrEqual(-0.000001);
+      }
+      expect(input.pitch).toBeCloseTo(0, 10);
+    } finally {
+      input.dispose();
+      vi.unstubAllGlobals();
+    }
+  },
+);
 
 it('quietly handles automatic capture denial and still reports an explicit retry failure', async () => {
   const domDocument = new EventTarget();

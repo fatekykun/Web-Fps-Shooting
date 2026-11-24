@@ -156,14 +156,84 @@ describe('local weapon rules', () => {
     expect(controller.spread).toBeCloseTo(initial);
   });
 
+  it.each([
+    ['rifle', 3.2, 0.75],
+    ['smg', 2.1, 0.4],
+  ] as const)(
+    'keeps a visible upward climb and lateral sweep through a held %s ADS spray',
+    (id, minimumPitch, minimumYaw) => {
+      const controller = new WeaponController(() => {});
+      controller.switchWeapon(id);
+      step(controller, 15);
+      controller.ads = 1;
+      const fire = { ...idle, fire: true, aim: true };
+      const interval = Math.round(controller.config.fireInterval / dt);
+      const degrees = 180 / Math.PI;
+      step(controller, 1, fire);
+      step(controller, interval - 1, fire);
+      const firstPitch = controller.recoil.pitch * degrees;
+      const samples = [];
+      for (let i = 0; i < interval * 9; i++) {
+        step(controller, 1, fire);
+        samples.push({
+          pitch: controller.recoil.pitch * degrees,
+          yaw: controller.recoil.yaw * degrees,
+        });
+      }
+      expect(firstPitch).toBeGreaterThan(0.35);
+      expect(samples.at(-1)!.pitch).toBeGreaterThan(minimumPitch);
+      expect(
+        Math.max(...samples.map(({ yaw }) => yaw)) -
+          Math.min(...samples.map(({ yaw }) => yaw)),
+      ).toBeGreaterThan(minimumYaw);
+      for (let i = 1; i < samples.length; i++)
+        expect(samples[i]!.pitch).toBeGreaterThanOrEqual(
+          samples[i - 1]!.pitch - 0.001,
+        );
+      const beforeRecovery = controller.recoil.pitch;
+      step(controller, 2);
+      expect(controller.recoil.pitch).toBeGreaterThan(beforeRecovery * 0.96);
+      step(controller, 45);
+      expect(controller.recoil.pitch * degrees).toBeLessThan(0.01);
+    },
+  );
+
   it('caps camera recoil without modifying the separate accuracy cone', () => {
     const controller = new WeaponController(() => {});
     const spread = calculateSpread(controller.config, 0, 0, grounded);
-    for (let i = 0; i < 1000; i++)
-      controller.recoil.kick(controller.config, 1, 0);
-    expect(controller.recoil.pitch).toBeCloseTo((6 * Math.PI) / 180);
-    expect(controller.recoil.yaw).toBeCloseTo((3 * Math.PI) / 180);
+    const profile = { ...controller.config.recoil, pattern: [[1, 1]] as const };
+    for (let i = 0; i < 1000; i++) {
+      controller.recoil.kick(profile, i * dt, 0);
+      controller.recoil.step(dt);
+      expect(controller.recoil.pitch).toBeLessThanOrEqual(
+        (profile.maxVertical * Math.PI) / 180,
+      );
+      expect(Math.abs(controller.recoil.yaw)).toBeLessThanOrEqual(
+        (profile.maxHorizontal * Math.PI) / 180,
+      );
+    }
     expect(calculateSpread(controller.config, 0, 0, grounded)).toBe(spread);
+  });
+
+  it('plays configured bursts on the existing cadence and cancels them on reload', () => {
+    class BurstRifle extends WeaponController {
+      override get config() {
+        return { ...super.config, burstSize: 3 };
+      }
+    }
+    const controller = new BurstRifle(() => {});
+    step(controller, 1, { ...idle, fire: true, firePressed: true });
+    step(controller, 5);
+    expect(controller.shotsFired).toBe(1);
+    step(controller, 1);
+    expect(controller.shotsFired).toBe(2);
+    step(controller, 30, { ...idle, fire: true });
+    expect(controller.shotsFired).toBe(3);
+    step(controller, 1, { ...idle, fire: true, firePressed: true });
+    step(controller, 1, { ...idle, reloadPressed: true });
+    step(controller, 150);
+    expect(controller.shotsFired).toBe(4);
+    expect(controller.current.magazine).toBe(30);
   });
 
   it.each(['rifle', 'smg', 'shotgun'] as WeaponId[])(

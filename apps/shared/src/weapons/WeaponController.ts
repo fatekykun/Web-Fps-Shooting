@@ -1,7 +1,7 @@
 import {
   calculateSpread,
   combatConfig,
-  shotRandom,
+  movementConfig,
   weaponConfigs,
   weaponOrder,
   type AccuracyContext,
@@ -43,6 +43,7 @@ export class WeaponController {
   private reloadEnd = 0;
   private equipEnd = 0;
   private fireBuffer = 0;
+  private burstRemaining = 0;
   private readonly shot: ShotEvent = {
     config: weaponConfigs.rifle,
     spread: 0,
@@ -123,10 +124,16 @@ export class WeaponController {
   }
 
   updateAds(dt: number, aiming: boolean): void {
+    this.ads = this.sampleAds(dt, aiming);
+  }
+
+  sampleAds(dt: number, aiming: boolean): number {
     const target = aiming && !this.reloading && !this.equipping ? 1 : 0;
-    this.ads +=
-      (target - this.ads) *
-      (1 - Math.exp((-Math.LN10 * Math.min(dt, 0.1)) / this.config.adsTime));
+    return (
+      target +
+      (this.ads - target) *
+        Math.exp((-Math.LN10 * Math.min(dt, 0.1)) / this.config.adsTime)
+    );
   }
 
   switchWeapon(id: WeaponId): void {
@@ -136,7 +143,8 @@ export class WeaponController {
     this.selected = id;
     this.reloadEnd = 0;
     this.equipEnd = this.time + combatConfig.equipTime;
-    this.fireBuffer = 0;
+    this.clearTriggerBuffer();
+    this.recoil.resetPattern();
     this.onChange();
   }
 
@@ -149,13 +157,14 @@ export class WeaponController {
     )
       return false;
     this.reloadEnd = this.time + this.config.reloadTime;
-    this.fireBuffer = 0;
+    this.clearTriggerBuffer();
     this.onChange();
     return true;
   }
 
   /** Presentation correction only; ammo always comes from the authoritative owner snapshot. */
   synchronizeReload(reloading: boolean, progress: number): void {
+    if (reloading) this.burstRemaining = 0;
     this.reloadEnd = reloading
       ? this.time +
         (1 - Math.max(0, Math.min(1, progress))) * this.config.reloadTime
@@ -164,6 +173,7 @@ export class WeaponController {
 
   clearTriggerBuffer(): void {
     this.fireBuffer = 0;
+    this.burstRemaining = 0;
   }
 
   spreadFor(context: AccuracyContext): number {
@@ -181,7 +191,7 @@ export class WeaponController {
           ammo.bloom - weaponConfigs[id].bloomRecovery * dt,
         );
     }
-    this.recoil.step(dt, this.config.recoilRecovery);
+    this.recoil.step(dt);
     if (input.switchTo) this.switchWeapon(input.switchTo);
     if (this.reloading && this.time + 1e-9 >= this.reloadEnd) {
       const amount = Math.min(
@@ -215,7 +225,9 @@ export class WeaponController {
       return;
     }
     const wantsFire =
-      this.fireBuffer > 0 || (this.config.automatic && input.fire);
+      this.fireBuffer > 0 ||
+      this.burstRemaining > 0 ||
+      (this.config.automatic && !this.config.burstSize && input.fire);
     if (
       !wantsFire ||
       this.current.magazine === 0 ||
@@ -223,6 +235,13 @@ export class WeaponController {
     )
       return;
     this.fireBuffer = 0;
+    this.burstRemaining =
+      this.burstRemaining > 0
+        ? this.burstRemaining - 1
+        : Math.min(
+            this.current.magazine - 1,
+            Math.max(0, Math.floor(this.config.burstSize ?? 1) - 1),
+          );
     this.current.magazine--;
     this.current.nextShot = this.time + this.config.fireInterval;
     this.current.lastShot = this.time;
@@ -237,7 +256,16 @@ export class WeaponController {
       this.config.maxBloom,
       this.current.bloom + this.config.bloomPerShot,
     );
-    this.recoil.kick(this.config, shotRandom(this.shotsFired * 17), this.ads);
+    const profile = this.config.recoil;
+    // Keep the camera climbing between rounds in a spray. The extra tick covers cadence rounding.
+    const hold =
+      this.config.automatic || (this.config.burstSize ?? 1) > 1
+        ? Math.min(
+            profile.resetDelay,
+            this.config.fireInterval + movementConfig.fixedStep,
+          )
+        : 0;
+    this.recoil.kick(profile, this.time, this.ads, hold);
     const autoStarted =
       this.autoReload && this.current.magazine === 0 && this.reload();
     if (!autoStarted) this.onChange();

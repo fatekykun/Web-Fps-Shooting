@@ -245,6 +245,7 @@ it('collimates an unlit rifle red dot to the camera aim ray during recoil and hi
           { ...idle, fire: true, firePressed: true },
           { speed: 0, grounded: true, verticalSpeed: 0 },
         );
+      model.simulateRecoil(w, 1 / 60, frame === 1);
       model.update(w, 4, 1 / 60, true);
       model.scene.updateMatrixWorld(true);
       model.camera.updateMatrixWorld(true);

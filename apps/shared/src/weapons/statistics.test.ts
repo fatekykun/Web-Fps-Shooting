@@ -52,7 +52,7 @@ it('derives ratings from individual values, allowing different weapons in the sa
     name: 'Alternate rifle',
     damage: 90,
     fireInterval: 0.2,
-    recoilPitch: 0.1,
+    recoil: { ...original.recoil, vertical: 0.1 },
     adsSpread: 0.05,
     adsTime: 0.08,
     damageFalloff: [],

@@ -21,6 +21,7 @@ import {
   Vector3,
 } from 'three';
 import {
+  degreesToRadians,
   weaponOrder,
   type MovementState,
   type WeaponId,
@@ -39,6 +40,7 @@ import {
 import { FirstPersonArms } from '../characters/FirstPersonArms';
 import { strideRadiansPerMeter } from '@breakpoint/shared/character';
 import { weaponMuzzles } from './WeaponMuzzles';
+import { RecoilSpring } from './Recoil';
 
 /** Low-poly models are pooled; the active model is one instanced draw. */
 export class WeaponViewmodel {
@@ -72,8 +74,9 @@ export class WeaponViewmodel {
   private readonly models = new Map<WeaponId, InstancedMesh>();
   private readonly muzzles = new Map<WeaponId, Object3D>();
   private selected: WeaponId | null = null;
-  private lastShot = 0;
-  private kick = 0;
+  private readonly recoil = new RecoilSpring();
+  private readonly recoilSample = { pitch: 0, yaw: 0 };
+  private recoilWeapon: WeaponId | null = null;
   private stance = 0;
   private cant = 0;
   private sprint = 0;
@@ -251,6 +254,32 @@ export class WeaponViewmodel {
         reticle.halfWindow[1];
   }
 
+  simulateRecoil(weapons: WeaponController, dt: number, fired: boolean): void {
+    if (this.recoilWeapon !== weapons.selected) {
+      this.resetRecoil();
+      this.recoilWeapon = weapons.selected;
+    }
+    this.recoil.step(dt);
+    if (!fired) return;
+    const { springStiffness, springDamping, weaponAdsMultiplier } =
+      weapons.config.recoil;
+    const frequency = Math.sqrt(springStiffness);
+    const damping = Math.max(1, springDamping);
+    const ratio = damping + Math.sqrt(damping ** 2 - 1);
+    this.recoil.rates(frequency * ratio, frequency / ratio);
+    const aim = 1 + (weaponAdsMultiplier - 1) * weapons.ads;
+    this.recoil.impulse(
+      weapons.recoil.shot.pitch * aim,
+      weapons.recoil.shot.yaw * aim,
+      1.85,
+      1.35,
+    );
+  }
+
+  resetRecoil(): void {
+    this.recoil.reset();
+  }
+
   update(
     weapons: WeaponController,
     speed: number,
@@ -261,16 +290,17 @@ export class WeaponViewmodel {
     scopeStyle: ScopeStyle = 'classic',
     input?: Pick<WeaponInput, 'aim' | 'fire'>,
     ads = weapons.ads,
+    recoilTime = 0,
   ): void {
     if (this.selected !== weapons.selected) {
       this.selected = weapons.selected;
+      if (this.recoilWeapon !== this.selected) this.resetRecoil();
       for (const [id, mesh] of this.models) mesh.visible = id === this.selected;
     }
-    if (weapons.shotsFired !== this.lastShot) {
-      this.lastShot = weapons.shotsFired;
-      this.kick = 1;
-    }
-    if (active) this.kick *= Math.exp(-22 * Math.min(dt, 0.1));
+    const recoil = this.recoil.sample(recoilTime, this.recoilSample);
+    const kick = recoil.pitch * motion;
+    const lateral = recoil.yaw * motion;
+    const profile = weapons.config.recoil;
     const scoped = !!weapons.config.scopeMagnification;
     const pose = weaponSights[weapons.selected].ads;
     const raise = scoped ? sniperRaise(ads) : ads;
@@ -355,6 +385,7 @@ export class WeaponViewmodel {
     this.root.position.set(
       0.27 +
         (pose.position[0] - 0.27) * raise +
+        lateral * profile.weaponSway +
         Math.cos(weapons.time * 9) * bob +
         carry * (0.02 + sway * 0.012 * motion) +
         brace * 0.025 * motion,
@@ -369,19 +400,20 @@ export class WeaponViewmodel {
       (scoped
         ? sniperEyePosition(ads, pose.position[2])
         : -0.65 + (pose.position[2] + 0.65) * raise) +
-        this.kick * 0.065 * motion -
+        kick * profile.weaponKickback -
         carry * 0.22 +
         brace * 0.035 * motion,
     );
     this.root.rotation.set(
       pose.rotation[0] * raise +
-        this.kick * 0.035 * motion +
+        kick * profile.weaponPitch * degreesToRadians +
         carry * (0.9 + step * 0.018 * motion),
       pose.rotation[1] * raise +
+        lateral * profile.weaponYaw * degreesToRadians +
         carry * (0.22 + Math.cos(this.stridePhase) * 0.012 * motion),
       pose.rotation[2] * raise -
         reload * 0.65 +
-        this.kick * 0.01 * motion +
+        lateral * profile.weaponRoll * degreesToRadians +
         this.cant * (1 - ads) * motion +
         carry * (-0.25 + sway * 0.018 * motion),
     );

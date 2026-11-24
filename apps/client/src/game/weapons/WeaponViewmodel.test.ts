@@ -3,6 +3,62 @@ import { InstancedMesh, Matrix4, NearestFilter } from 'three';
 import { WeaponViewmodel } from './WeaponViewmodel';
 import { WeaponController } from './WeaponController';
 
+it('layers smooth kickback and rotation over the pose, with a smaller ADS impulse', () => {
+  const kick = (ads: number) => {
+    const model = new WeaponViewmodel();
+    const weapons = new WeaponController(() => {});
+    weapons.ads = ads;
+    const root = model.scene.getObjectByName('weapon-rifle')!.parent!;
+    const update = (preview = 0) =>
+      model.update(
+        weapons,
+        0,
+        1 / 60,
+        true,
+        1,
+        'walking',
+        'classic',
+        undefined,
+        ads,
+        preview,
+      );
+    try {
+      update();
+      const start = root.position.clone();
+      weapons.step(
+        1 / 60,
+        {
+          fire: false,
+          firePressed: true,
+          aim: !!ads,
+          reloadPressed: false,
+          switchTo: null,
+        },
+        { speed: 0, grounded: true, verticalSpeed: 0 },
+      );
+      model.simulateRecoil(weapons, 1 / 60, true);
+      update();
+      expect(root.position.toArray()).toEqual(start.toArray());
+      update(1 / 120);
+      expect(root.position.z).toBeGreaterThan(start.z);
+      for (let i = 0; i < 2; i++) model.simulateRecoil(weapons, 1 / 60, false);
+      update();
+      const distance = root.position.z - start.z;
+      expect(root.rotation.x).toBeGreaterThan(0);
+      expect(Math.abs(root.position.x - start.x)).toBeGreaterThan(0);
+      for (let i = 0; i < 90; i++) model.simulateRecoil(weapons, 1 / 60, false);
+      update();
+      expect(root.position.distanceTo(start)).toBeLessThan(0.000001);
+      return distance;
+    } finally {
+      model.dispose();
+    }
+  };
+  const hip = kick(0);
+  expect(hip).toBeGreaterThan(0.02);
+  expect(kick(1)).toBeCloseTo(hip * 0.5, 8);
+});
+
 it('pools the sniper into one draw with sharp textures and animates its bolt without creating geometry', () => {
   const model = new WeaponViewmodel();
   const weapons = new WeaponController(() => {});

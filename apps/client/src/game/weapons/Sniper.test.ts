@@ -43,6 +43,7 @@ describe('bolt-action sniper', () => {
     expect(w.shotsFired).toBe(1);
     step(w, 1, { ...idle, firePressed: true });
     expect(w.current.magazine).toBe(3);
+    step(w, 1);
     expect(w.recoil.pitch).toBeGreaterThan(0);
   });
   it('enforces the 45 RPM boundary and all five rounds, then transfers only server-rule reserve ammo', () => {

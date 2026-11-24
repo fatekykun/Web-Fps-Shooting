@@ -86,7 +86,9 @@ it('resets cosmetic weapon state on a new life and ignores older life snapshots'
   );
   try {
     combat.receive(owner);
-    combat.weapons.recoil.pitch = 1;
+    combat.weapons.recoil.kick(combat.weapons.config.recoil, 0, 0);
+    combat.weapons.recoil.step(1 / 60);
+    expect(combat.weapons.recoil.pitch).toBeGreaterThan(0);
     combat.receive({ ...owner, life: 2 });
     expect(cleared).toBe(2);
     expect(combat.weapons.recoil.pitch).toBe(0);
