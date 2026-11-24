@@ -58,6 +58,42 @@ it.each(house.stairs.map((stair, index) => ({ stair, index })))(
   },
 );
 
+it.each(house.stairs.map((stair, index) => ({ stair, index })))(
+  'keeps flat-floor sprint speed up staircase $index and onto its landing',
+  ({ stair }) => {
+    const [x, , z] = stair.position;
+    const [, rise, run] = stair.size;
+    const yaw = stair.yaw ?? 0;
+    const direction = Math.cos(yaw);
+    const lowerEdge = z + direction * (run / 2);
+    const world = new PhysicsWorld(house.colliders, {
+      x,
+      y: 0.91,
+      z: lowerEdge + direction * 1.5,
+    });
+    try {
+      const movement = new MovementController(world);
+      const { fixedStep, sprintSpeed } = movementConfig;
+      const progress = () => (lowerEdge - world.position.z) * direction;
+      const speeds = [];
+      for (let frame = 0; frame < 100 && progress() < run + 0.5; frame++) {
+        const before = progress();
+        movement.step({ forward: 1, right: 0, yaw, sprint: true }, fixedStep);
+        if (before >= -0.65) {
+          speeds.push((progress() - before) / fixedStep);
+          expect(movement.state).toBe('sprinting');
+        }
+      }
+      expect(progress()).toBeGreaterThanOrEqual(run + 0.5);
+      expect(world.position.y).toBeCloseTo(rise + 0.885, 1);
+      expect(Math.min(...speeds)).toBeGreaterThan(sprintSpeed * 0.97);
+      expect(Math.max(...speeds)).toBeLessThan(sprintSpeed * 1.03);
+    } finally {
+      world.dispose();
+    }
+  },
+);
+
 it.each([-18.6, 18.6])(
   'runs the outer flank at x=%s and stops at the warehouse corner',
   (x) => {
