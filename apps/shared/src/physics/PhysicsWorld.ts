@@ -39,6 +39,7 @@ export class PhysicsWorld {
   private readonly character: RAPIER.RigidBody;
   private readonly collider: RAPIER.Collider;
   private readonly arenaColliders: RAPIER.Collider[] = [];
+  private readonly stairColliders = new Set<number>();
   private readonly groundMaterials = new Map<number, FootstepSurface>();
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly nextPosition: Vector3Like = { x: 0, y: 0, z: 0 };
@@ -69,6 +70,7 @@ export class PhysicsWorld {
     normal: { x: 0, y: 0, z: 0 },
   };
   private readonly correctedMovement: Vector3Like = { x: 0, y: 0, z: 0 };
+  private readonly stairMovement: Vector3Like = { x: 0, y: 0, z: 0 };
   private currentHalfHeight: number = movementConfig.capsuleHalfHeight;
   private idleTraction = false;
   readonly position: Vector3Like = { x: 0, y: 0, z: 0 };
@@ -132,6 +134,7 @@ export class PhysicsWorld {
     for (const collider of this.arenaColliders)
       this.world.removeCollider(collider, false);
     this.arenaColliders.length = 0;
+    this.stairColliders.clear();
     this.groundMaterials.clear();
     this.addArena(boxes);
     // Rebuild query bounds before the next controller step or hitscan.
@@ -163,6 +166,7 @@ export class PhysicsWorld {
         shape.setTranslation(...box.position),
       );
       this.arenaColliders.push(collider);
+      if (box.kind === 'stair') this.stairColliders.add(collider.handle);
       const surface =
         box.footstepSurface ??
         (box.kind === 'crate' || box.kind === 'stair'
@@ -236,6 +240,13 @@ export class PhysicsWorld {
       RAPIER.QueryFilterFlags.EXCLUDE_SENSORS,
     );
     const movement = this.controller.computedMovement(this.correctedMovement);
+    if (
+      !idle &&
+      this.grounded &&
+      displacement.y <= 0 &&
+      this.stairColliders.size
+    )
+      this.preserveStairSpeed(displacement, movement);
     this.hitCeiling = false;
     if (displacement.y > 0) {
       for (let i = 0; i < this.controller.numComputedCollisions(); i++) {
@@ -253,6 +264,46 @@ export class PhysicsWorld {
     this.position.y = position.y;
     this.position.z = position.z;
     this.grounded = displacement.y <= 0 && this.controller.computedGrounded();
+  }
+
+  private preserveStairSpeed(
+    displacement: Vector3Like,
+    movement: Vector3Like,
+  ): void {
+    const missingX = displacement.x - movement.x;
+    const missingZ = displacement.z - movement.z;
+    const nudge = movementConfig.collisionNormalNudge;
+    if (Math.abs(missingX) + Math.abs(missingZ) <= nudge) return;
+    const collisions = this.controller.numComputedCollisions();
+    for (let i = 0; i < collisions; i++) {
+      const collision = this.controller.computedCollision(i, this.contact);
+      if (
+        !collision?.collider ||
+        !this.stairColliders.has(collision.collider.handle)
+      )
+        continue;
+      const { x, y, z } = collision.normal1;
+      if (y < Math.SQRT1_2) continue;
+      const lost = -x * missingX - z * missingZ;
+      const before = collision.translationDeltaApplied;
+      const rise =
+        (-x * (displacement.x - before.x) - z * (displacement.z - before.z)) /
+        y;
+      if (lost <= nudge || rise <= nudge) continue;
+
+      // Rapier projects a horizontal move onto the ramp, shortening its floor-plane component.
+      // Supply the rise for the part of the move on the staircase and resolve collisions again.
+      this.stairMovement.x = displacement.x;
+      this.stairMovement.y = before.y + rise - nudge;
+      this.stairMovement.z = displacement.z;
+      this.controller.computeColliderMovement(
+        this.collider,
+        this.stairMovement,
+        RAPIER.QueryFilterFlags.EXCLUDE_SENSORS,
+      );
+      this.controller.computedMovement(movement);
+      return;
+    }
   }
 
   canStand(): boolean {
