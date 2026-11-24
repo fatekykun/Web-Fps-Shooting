@@ -38,7 +38,7 @@ interface ArenaLight {
   key: readonly [number, number];
   keyPosition: readonly [number, number, number];
   normalBias: number;
-  textureTheme?: 'warehouse';
+  textureTheme?: 'warehouse' | 'yard';
 }
 
 /** Shared instanced rendering and resource lifetime for the modular multiplayer maps. */
