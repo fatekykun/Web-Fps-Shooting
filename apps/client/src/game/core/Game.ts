@@ -97,6 +97,7 @@ export interface GameTelemetry extends PerformanceStats {
 interface GameCallbacks {
   onLockChange: (locked: boolean) => void;
   onTelemetry: (stats: GameTelemetry) => void;
+  onMinimap: (map: ArenaId, x: number, z: number, yaw: number) => void;
   onError: (message: string) => void;
   onCombat: (snapshot: CombatSnapshot) => void;
   onReticle: (
@@ -656,6 +657,15 @@ export class Game {
     } else {
       this.shotgunReticle.reset();
       this.shotgunRange?.update();
+    }
+    if (this.input.locked && armed) {
+      const camera = this.camera.camera;
+      this.callbacks.onMinimap(
+        this.arenaId,
+        camera.position.x,
+        camera.position.z,
+        camera.rotation.y,
+      );
     }
     if (this.input.locked)
       this.callbacks.onReticle(

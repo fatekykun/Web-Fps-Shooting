@@ -24,7 +24,6 @@ interface ControlBox {
   scale: number;
 }
 
-// Original edge offsets from the phone, compact phone and tablet HUDs.
 // Each tuple gives width, height, horizontal inset and vertical inset.
 const phone = {
   joystick: [120, 120, 0, 0],
@@ -39,12 +38,14 @@ const phone = {
   swap: [62, 48, 170, 70],
   pause: [44, 44, 0, 0],
   scores: [52, 44, 52, 0],
+  minimap: [100, 100, 0, 0],
 } as const;
 const compact = {
   ...phone,
   joystick: [104, 104, 0, 0],
   sprint: [48, 48, 28, 120],
   swap: [62, 48, 146, 74],
+  minimap: [84, 84, 0, 0],
 } as const;
 const tablet = {
   joystick: [164, 164, 16, 24],
@@ -59,6 +60,7 @@ const tablet = {
   swap: [60, 60, 240, 138],
   pause: phone.pause,
   scores: phone.scores,
+  minimap: [138, 138, 0, 0],
 } as const;
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -171,23 +173,31 @@ export function resolveMobileHud(
     .sort((a, b) => {
       if (a === 'pause') return -1;
       if (b === 'pause') return 1;
+      if (a === 'minimap') return 1;
+      if (b === 'minimap') return -1;
       return metrics[b][0] * layout[b].scale - metrics[a][0] * layout[a].scale;
     });
   for (const id of priority) {
     const [w, h, offsetX, offsetY] = metrics[id];
     const control = layout[id];
-    const leftControl = id === 'joystick' || id === 'sprint';
-    const topControl = id === 'pause' || id === 'scores';
+    const map = id === 'minimap';
+    const leftControl = map || id === 'joystick' || id === 'sprint';
+    const topControl = map || id === 'pause' || id === 'scores';
+    const itemBounds = map
+      ? { ...bounds, top: Math.max(bounds.top, safe.top + 54) }
+      : bounds;
+    const feedInset =
+      map && viewport.hudClearance ? Math.min(width * 0.28, 240) + 4 : 0;
     const x =
       control.x === null
         ? leftControl
-          ? left + offsetX + w / 2
+          ? left + offsetX + feedInset + w / 2
           : right - offsetX - w / 2
         : safe.left + control.x * safeWidth;
     const y =
       control.y === null
         ? topControl
-          ? top + offsetY + h / 2
+          ? Math.max(top, itemBounds.top) + offsetY + h / 2
           : bottom - offsetY - h / 2
         : safe.top + control.y * safeHeight;
     let scale = control.scale / 100;
@@ -196,7 +206,7 @@ export function resolveMobileHud(
       y,
       (w * scale) / 2,
       (h * scale) / 2,
-      bounds,
+      itemBounds,
       occupied,
     );
     // Very crowded layouts can exceed the space on a smaller screen. Preserve
@@ -208,7 +218,7 @@ export function resolveMobileHud(
         y,
         (w * scale) / 2,
         (h * scale) / 2,
-        bounds,
+        itemBounds,
         occupied,
       );
     }

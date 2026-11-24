@@ -32,6 +32,10 @@ held controls. Online matches continue while paused, as on desktop.
 See [BP-13](docs/BP-13.md) for implementation, validation, browser limitations and
 instructions for testing from a phone on the same Wi-Fi network.
 
+The in-game minimap shows your position and facing direction. Change its opacity
+or visibility under **Settings → Display**. In **Controller Settings → Edit HUD
+Layout**, select **Minimap** to drag it, resize it, or preview opacity before saving.
+
 ## Run locally
 
 BP-12 adds animated barrel-origin bullet trails for all four weapons in training

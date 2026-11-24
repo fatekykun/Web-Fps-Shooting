@@ -15,6 +15,8 @@ import { WeaponPanel } from '../components/WeaponPanel';
 import { PlayPanel, CreditsPanel } from '../components/CommandPanels';
 import { SettingsPanel, crosshairStyle } from '../components/SettingsPanel';
 import { MobileHUD } from '../components/MobileHUD';
+import { Minimap } from '../components/Minimap';
+import { placeMinimapMarker } from '../game/rendering/minimap';
 import { MobileHudEditor } from '../components/MobileHudEditor';
 import { ControllerSettings } from '../components/ControllerSettings';
 import {
@@ -30,7 +32,7 @@ import {
   type UserSettings,
 } from '../game/settings/userSettings';
 import type { RoomView } from '@breakpoint/shared/network';
-import { arenas } from '@breakpoint/shared/maps';
+import { arenas, type ArenaId } from '@breakpoint/shared/maps';
 import { isMatchActive, matchCountdownSeconds } from '@breakpoint/shared/match';
 import { readInviteCode } from '../game/networking/invites';
 import type { CombatSnapshot } from '../game/combat/PracticeCombat';
@@ -42,6 +44,7 @@ import {
   normalizeGraphicsSettings,
 } from '../game/rendering/graphicsConfig';
 import {
+  defaultMobileHudLayout,
   loadMobileHudLayout,
   saveMobileHudLayout,
   type MobileHudLayout,
@@ -68,6 +71,7 @@ export function App() {
   const [combat, setCombat] = useState<CombatSnapshot | null>(null);
   const owner = combat?.player;
   const reticle = useRef<HTMLDivElement>(null);
+  const minimapPlayer = useRef<HTMLSpanElement>(null);
   const scope = useRef<HTMLDivElement>(null);
   const reticleValues = useRef({ gap: -1, ads: -1 });
   const [room, setRoom] = useState<RoomView | null>(null);
@@ -124,6 +128,10 @@ export function App() {
           setStats(value);
           setCombat(value.combat);
         }
+      },
+      onMinimap: (map: ArenaId, x: number, z: number, yaw: number) => {
+        const marker = minimapPlayer.current;
+        if (!cancelled && marker) placeMinimapMarker(marker, map, x, z, yaw);
       },
       onError: (message: string) => {
         if (!cancelled) setError(message);
@@ -344,7 +352,10 @@ export function App() {
 
   const inArena = locked || choosingLoadout;
   const multiplayerHud = inArena && room !== null && isMatchActive(room.phase);
-  const arena = arenas[room?.mapId ?? 'depot'];
+  const mapId = room?.mapId ?? 'depot';
+  const arena = arenas[mapId];
+  const showMinimap =
+    locked && !choosingLoadout && mobileLayout.minimap.visible;
 
   return (
     <>
@@ -424,7 +435,18 @@ export function App() {
           </div>
         </header>
 
-        <Telemetry stats={stats} multiplayer={multiplayerHud} />
+        {showMinimap && !touchControls ? (
+          <div className="desktop-map-stack">
+            <Telemetry stats={stats} multiplayer={multiplayerHud} />
+            <Minimap
+              map={mapId}
+              marker={minimapPlayer}
+              opacity={mobileLayout.minimap.opacity}
+            />
+          </div>
+        ) : (
+          <Telemetry stats={stats} multiplayer={multiplayerHud} />
+        )}
         {!inArena &&
           !touchControls &&
           !matchEntry &&
@@ -561,7 +583,7 @@ export function App() {
             settings={preferences}
             graphics={graphics}
             antiAliasing={stats?.antiAliasing}
-            saved={saved}
+            saved={saved && !hudStorageUnavailable}
             ready={ready}
             onChange={changePreferences}
             onGraphics={changeGraphics}
@@ -569,9 +591,21 @@ export function App() {
             onControllerSettings={
               device.touch ? () => setControllerSettings(true) : undefined
             }
+            minimap={mobileLayout.minimap}
+            onMinimapChange={(values) =>
+              saveMobileLayout({
+                ...mobileLayout,
+                minimap: { ...mobileLayout.minimap, ...values },
+              })
+            }
             onReset={() => {
               changePreferences(defaultUserSettings());
               changeGraphics({ ...defaultGraphics });
+              const { opacity, visible } = defaultMobileHudLayout().minimap;
+              saveMobileLayout({
+                ...mobileLayout,
+                minimap: { ...mobileLayout.minimap, opacity, visible },
+              });
             }}
             onPreview={() =>
               game.current?.previewAudio() ?? Promise.resolve(false)
@@ -635,6 +669,9 @@ export function App() {
             layout={mobileLayout}
             multiplayer={multiplayerHud}
             movement={stats}
+            minimap={
+              showMinimap ? { map: mapId, marker: minimapPlayer } : undefined
+            }
           />
         )}
         {choosingLoadout && room && (
@@ -668,6 +705,8 @@ export function App() {
         {!choosingLoadout && hudEditor && (
           <MobileHudEditor
             tablet={device.tablet}
+            map={mapId}
+            multiplayer={room?.phase === 'playing'}
             initial={mobileLayout}
             imported={hudEditor.imported}
             onSave={saveMobileLayout}

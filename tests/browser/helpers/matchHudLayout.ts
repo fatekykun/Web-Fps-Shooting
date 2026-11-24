@@ -6,6 +6,7 @@ export async function expectMatchHudLayout(page: Page, touch = false) {
     '.top-bar',
     '.match-status',
     '.telemetry',
+    '.tactical-minimap',
     '.player-health',
     '.match-map',
     '.combat-hud',

@@ -485,7 +485,7 @@
   --match-left: max(8px, env(safe-area-inset-left));
   --match-right: max(8px, env(safe-area-inset-right));
 }
-.multiplayer-hud .mobile-hud {
+.mobile-hud.match-layout {
   --match-touch-top: 55px;
   --match-touch-bottom: 66px;
   --match-feed-height: 100px;

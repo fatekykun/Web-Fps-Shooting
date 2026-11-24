@@ -11,7 +11,9 @@ export const mobileHudControlIds = [
   'swap',
   'scores',
   'pause',
+  'minimap',
 ] as const;
+export const hudOpacityOptions = [30, 50, 70, 100];
 export type MobileHudControlId = (typeof mobileHudControlIds)[number];
 export interface MobileHudControl {
   x: number | null;
@@ -51,7 +53,7 @@ export function normalizeMobileHudLayout(value: unknown): MobileHudLayout {
       y: number(v.y, 0, 1),
       scale: Math.round(number(v.scale, 50, 200) ?? 100),
       opacity:
-        typeof v.opacity === 'number' && [30, 50, 70, 100].includes(v.opacity)
+        typeof v.opacity === 'number' && hudOpacityOptions.includes(v.opacity)
           ? v.opacity
           : 100,
       visible: id === 'pause' || v.visible !== false,

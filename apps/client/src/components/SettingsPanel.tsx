@@ -11,6 +11,10 @@ import {
 } from '../game/settings/userSettings';
 import type { GraphicsSettings } from '../game/rendering/graphicsConfig';
 import type { AntiAliasingState } from '../game/rendering/antiAliasing';
+import {
+  hudOpacityOptions,
+  type MobileHudControl,
+} from '../game/input/mobileHudSettings';
 import { GraphicsControls } from './GraphicsControls';
 import { TacticalDialog } from './TacticalDialog';
 
@@ -21,6 +25,7 @@ const tabs = [
   'AUDIO',
   'CROSSHAIR',
 ] as const;
+type MinimapSettings = Pick<MobileHudControl, 'opacity' | 'visible'>;
 const sensitivityLabels = {
   steering: 'Steering Sensitivity',
   ads: 'ADS Sensitivity',
@@ -85,6 +90,8 @@ export function SettingsPanel({
   onClose,
   onPreview,
   onControllerSettings,
+  minimap,
+  onMinimapChange,
 }: {
   settings: UserSettings;
   graphics: GraphicsSettings;
@@ -97,6 +104,8 @@ export function SettingsPanel({
   onClose(): void;
   onPreview(): Promise<boolean>;
   onControllerSettings?(): void;
+  minimap: MinimapSettings;
+  onMinimapChange(values: Partial<MinimapSettings>): void;
 }) {
   const [tab, setTab] = useState<(typeof tabs)[number]>('CONTROLS');
   const [listening, setListening] = useState<BindingAction | null>(null);
@@ -372,6 +381,32 @@ export function SettingsPanel({
             <div className="section-heading">
               <h3>PRESENTATION</h3>
               <span>NATIVE HUD / PIXEL WORLD</span>
+            </div>
+            <label className="setting-toggle">
+              <input
+                type="checkbox"
+                checked={minimap.visible}
+                onChange={(event) =>
+                  onMinimapChange({ visible: event.target.checked })
+                }
+              />{' '}
+              Show minimap
+            </label>
+            <div className="scope-style-setting">
+              <label htmlFor={`${id}-minimap-opacity`}>Minimap opacity</label>
+              <select
+                id={`${id}-minimap-opacity`}
+                value={minimap.opacity}
+                onChange={(event) =>
+                  onMinimapChange({ opacity: Number(event.target.value) })
+                }
+              >
+                {hudOpacityOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}%
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="scope-style-setting">
               <label htmlFor={`${id}-scope-style`}>Sniper scope style</label>
