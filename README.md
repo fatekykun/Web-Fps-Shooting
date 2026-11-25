@@ -38,9 +38,9 @@ The in-game minimap shows your position and facing direction. Change its opacity
 or visibility under **Settings → Display**. In **Controller Settings → Edit HUD
 Layout**, select **Minimap** to drag it, resize it, or preview opacity before saving.
 
-### Cinder Wyrm rifle skin
+### Molten Lava rifle skin
 
-Open **Armory → AR-01 / Rifle → Rifle skin** and select **Cinder Wyrm / Mythic**.
+Open **Armory → AR-01 / Rifle → Rifle skin** and select **Molten Lava / Mythic**.
 The selection is saved in this browser and applies when you equip the rifle in
 training or a private match. Press **I**, or tap the eye icon on the touch HUD,
 to inspect it. Aiming, firing, reloading, switching weapons and movement end the

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('Cinder Wyrm saves from the Armory, renders its ADS sight and yields inspect to firing', async ({
+test('Molten Lava saves from the Armory, renders its ADS sight and yields inspect to firing', async ({
   page,
 }, testInfo) => {
   const errors: string[] = [];
@@ -34,13 +34,16 @@ test('Cinder Wyrm saves from the Armory, renders its ADS sight and yields inspec
   const standardDraws = await draws();
   await page.keyboard.press('Escape');
   await armory.click();
-  await page.getByLabel('Rifle skin').selectOption('cinder-wyrm');
+  await page
+    .getByLabel('Rifle skin')
+    .selectOption({ label: 'Molten Lava / Mythic' });
   await page.reload();
   await armory.click();
   await expect(page.getByLabel('Rifle skin')).toHaveValue('cinder-wyrm');
   await page.getByRole('button', { name: 'Close armory' }).click();
   await enter.click();
   await expect(hud).toHaveAttribute('data-rifle-skin', 'cinder-wyrm');
+  await expect(hud).toContainText('AR-01 / MOLTEN LAVA');
   await expect.poll(draws).toBeGreaterThan(standardDraws);
   expect(await draws()).toBeLessThanOrEqual(standardDraws + 7);
   await page.screenshot({ path: testInfo.outputPath('hip-fire.png') });
@@ -116,7 +119,7 @@ test.describe('touch inspect', () => {
     userAgent:
       'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36',
   });
-  test('shows the inspect action for Cinder Wyrm and interrupts it with touch ADS', async ({
+  test('shows the inspect action for Molten Lava and interrupts it with touch ADS', async ({
     page,
   }) => {
     await page.addInitScript(() => {

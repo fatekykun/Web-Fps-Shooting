@@ -74,7 +74,7 @@ export class CinderBatch {
     for (const part of this.parts) part.dispose();
     this.parts.length = 0;
     if (!geometry)
-      throw new Error('Cinder Wyrm geometry attributes must match');
+      throw new Error('Molten Lava geometry attributes must match');
     return geometry;
   }
 }

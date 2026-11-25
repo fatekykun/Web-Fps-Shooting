@@ -3,7 +3,7 @@ import { InstancedMesh, Matrix4, NearestFilter, Vector3 } from 'three';
 import { WeaponViewmodel } from './WeaponViewmodel';
 import { WeaponController } from './WeaponController';
 
-it('animates the Cinder Wyrm using pooled geometry and collimates its optic', () => {
+it('animates Molten Lava using pooled geometry and collimates its optic', () => {
   const model = new WeaponViewmodel();
   const weapons = new WeaponController(() => {});
   const step = (ads = 0, moving = false) =>

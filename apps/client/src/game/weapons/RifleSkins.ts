@@ -1,6 +1,6 @@
 export const rifleSkins = {
   standard: { name: 'Standard' },
-  'cinder-wyrm': { name: 'Cinder Wyrm' },
+  'cinder-wyrm': { name: 'Molten Lava' },
 } as const;
 
 export type RifleSkin = keyof typeof rifleSkins;
