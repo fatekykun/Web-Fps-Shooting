@@ -21,6 +21,8 @@ export class TrainingDummy {
   private readonly geometry = new BoxGeometry(1, 1, 1);
   private readonly material = new MeshBasicMaterial();
   private readonly mesh: InstancedMesh;
+  private readonly poseMatrix = new Matrix4();
+  private readonly poseColor = new Color();
 
   constructor(
     private readonly physics: PhysicsWorld,
@@ -79,6 +81,14 @@ export class TrainingDummy {
   }
   region(handle: number): HitRegion | null {
     return this.regions.get(handle) ?? null;
+  }
+
+  captureEliminationPose(write: (matrix: Matrix4, tint: number) => void): void {
+    for (let i = 0; i < this.regions.size; i++) {
+      this.mesh.getMatrixAt(i, this.poseMatrix);
+      this.mesh.getColorAt(i, this.poseColor);
+      write(this.poseMatrix, this.poseColor.getHex());
+    }
   }
 
   private enableSensors(enabled: boolean): void {

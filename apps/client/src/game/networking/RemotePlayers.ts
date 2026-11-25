@@ -2,6 +2,7 @@ import {
   Color,
   DynamicDrawUsage,
   InstancedMesh,
+  Matrix4,
   Object3D,
   Vector3,
   type Scene,
@@ -17,13 +18,33 @@ import { TacticalSkeleton } from '../characters/TacticalSkeleton';
 import { createTacticalGeometry } from '../characters/TacticalGeometry';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import { weaponMuzzles } from '../weapons/WeaponMuzzles';
-import type { WeaponId } from '@breakpoint/shared';
+import type { Vector3Like, WeaponId } from '@breakpoint/shared';
 
 const colors = [
   0x87917a, 0x6b9ca8, 0x9f9676, 0x8d9386, 0x7e9274, 0x968373, 0x80969a,
   0xa49e88,
 ];
 const chestJoint = rigJoints.findIndex(({ name }) => name === 'chest');
+const weaponJoint = rigJoints.findIndex(({ name }) => name === 'weapon');
+
+function avatarPalette(player: PublicPlayer) {
+  const uniform =
+    player.team === 'blue'
+      ? 0x6b9ca8
+      : player.team === 'orange'
+        ? 0xa99174
+        : colors[player.slot]!;
+  return {
+    uniform,
+    vest: player.team === 'blue' ? 0x42666b : 0x57604a,
+    skin: 0xc4a27e,
+    glove: 0x303a34,
+    boot: 0x29322e,
+    metal: 0x46534f,
+    visor: 0x789c9d,
+    patch: uniform,
+  };
+}
 
 export class RemotePlayers {
   private readonly geometry = createTacticalGeometry();
@@ -45,6 +66,9 @@ export class RemotePlayers {
     aimPoint: new Vector3(),
   }));
   private readonly color = new Color();
+  private readonly poseMatrix = new Matrix4();
+  private readonly eliminationRig = new TacticalSkeleton();
+  private readonly eliminated = new Map<string, number>();
   private count = 0;
   private readonly tints = new Uint32Array(8 * parts.length).fill(0xffffffff);
   private colorsChanged = false;
@@ -75,6 +99,48 @@ export class RemotePlayers {
     return undefined;
   }
 
+  captureEliminationPose(
+    player: PublicPlayer,
+    origin: Vector3Like,
+    write: (matrix: Matrix4, tint: number) => void,
+  ): void {
+    if (player.alive) this.eliminated.set(player.id, player.life);
+    const index = this.poses.findIndex(
+      (pose, i) => i < this.playerCount && pose.id === player.id,
+    );
+    if (index < 0) {
+      const rig = this.eliminationRig;
+      rig.root.position.set(origin.x, origin.y, origin.z);
+      rig.root.rotation.y = player.yaw;
+      rig.update(player);
+      const palette = avatarPalette(player);
+      for (const definition of parts) {
+        if (definition.joint === weaponJoint) continue;
+        this.part.position.set(...definition.position);
+        this.part.scale.set(...definition.size);
+        this.part.updateMatrix();
+        this.part.matrix.premultiply(rig.bones[definition.joint]!.matrixWorld);
+        write(this.part.matrix, palette[definition.color]);
+      }
+      return;
+    }
+    const root = this.rigs[index]!.root.position;
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i]!.joint === weaponJoint) continue;
+      const instance = index * parts.length + i;
+      this.mesh.getMatrixAt(instance, this.poseMatrix);
+      const elements = this.poseMatrix.elements;
+      elements[12]! += origin.x - root.x;
+      elements[13]! += origin.y - root.y;
+      elements[14]! += origin.z - root.z;
+      write(this.poseMatrix, this.tints[instance]!);
+    }
+  }
+
+  clearEliminations(): void {
+    this.eliminated.clear();
+  }
+
   constructor(private readonly scene: Scene) {
     this.mesh.count = 0;
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -96,6 +162,11 @@ export class RemotePlayers {
   }
 
   private readonly write = (player: PublicPlayer): void => {
+    const eliminatedLife = this.eliminated.get(player.id);
+    if (eliminatedLife !== undefined) {
+      if (player.alive && player.life === eliminatedLife) return;
+      this.eliminated.delete(player.id);
+    }
     if (!player.alive) return;
     const rig = this.rigs[this.playerCount]!;
     rig.root.position.set(player.x, player.y - standingAnchor, player.z);
@@ -107,22 +178,7 @@ export class RemotePlayers {
     pose.muzzle
       .set(...weaponMuzzles[player.weapon].remote)
       .applyMatrix4(rig.bones[21]!.matrixWorld);
-    const uniform =
-      player.team === 'blue'
-        ? 0x6b9ca8
-        : player.team === 'orange'
-          ? 0xa99174
-          : colors[player.slot]!;
-    const palette = {
-      uniform,
-      vest: player.team === 'blue' ? 0x42666b : 0x57604a,
-      skin: 0xc4a27e,
-      glove: 0x303a34,
-      boot: 0x29322e,
-      metal: 0x46534f,
-      visor: 0x789c9d,
-      patch: uniform,
-    };
+    const palette = avatarPalette(player);
     for (const definition of parts) {
       this.part.position.set(...definition.position);
       this.part.scale.set(...definition.size);
@@ -156,6 +212,7 @@ export class RemotePlayers {
     this.mesh.dispose();
     this.geometry.dispose();
     for (const rig of this.rigs) rig.dispose();
+    this.eliminationRig.dispose();
     this.material.dispose();
   }
 }

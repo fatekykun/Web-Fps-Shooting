@@ -11,13 +11,14 @@ import type { Scene } from 'three';
 import type { MovementController } from '../movement/MovementController';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { WeaponController, type ShotEvent } from '../weapons/WeaponController';
-import type { RifleSkin } from '../weapons/RifleSkins';
+import type { RifleSkin, RifleSkinStatus } from '../weapons/RifleSkins';
 import { TrainingDummy } from './TrainingDummy';
 import { PooledImpacts } from '../effects/PooledImpacts';
 import type { OwnerCombat, KillEvent } from '@breakpoint/shared/combat';
 
 export interface CombatSnapshot {
   rifleSkin?: RifleSkin;
+  rifleSkinStatus?: RifleSkinStatus;
   inspecting?: boolean;
   allowedWeapons?: readonly WeaponId[];
   weapon: WeaponId;

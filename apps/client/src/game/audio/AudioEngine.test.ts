@@ -153,6 +153,8 @@ class Context {
   readonly decodedElimination = { duration: 0.164 };
   readonly decodedMoltenLava = { duration: 0.68 };
   readonly decodedMoltenKill = { duration: 1.38 };
+  readonly decodedMementoMori = { duration: 0.339 };
+  readonly decodedSoulRequiem = { duration: 1.79 };
   decodeAudioData = vi.fn(
     async (data: ArrayBuffer) =>
       [
@@ -165,6 +167,8 @@ class Context {
         this.decodedElimination,
         this.decodedMoltenLava,
         this.decodedMoltenKill,
+        this.decodedMementoMori,
+        this.decodedSoulRequiem,
       ][data.byteLength - 1]!,
   );
   resume = vi.fn(async () => {
@@ -395,6 +399,8 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     '/audio/breakpoint-elimination.wav',
     '/audio/molten_lava_rifle_shot.wav',
     '/audio/molten_lava_kill_effect.wav',
+    '/audio/memento_mori_reference_shot.wav',
+    '/audio/memento_mori_reference_kill.wav',
   ];
   const fetchShot = vi.fn(
     async (path: string) =>
@@ -516,6 +522,7 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     expect(moltenKills[0]?.stop).toHaveBeenCalledWith(1.38);
     expect(headshots()).toHaveLength(2);
     audio.shot('rifle', 1, 0, 'cinder-wyrm');
+    audio.shot('rifle', 1, 0, 'memento-mori');
     audio.shot('rifle', 0.4, -0.6);
     audio.shot('smg', 1, 0, 'cinder-wyrm');
     const mythicShots = context.nodes.filter(
@@ -523,12 +530,37 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     );
     expect(mythicShots).toHaveLength(1);
     expect(mythicShots[0]?.stop).toHaveBeenCalledWith(0.68);
+    const mementoShots = context.nodes.filter(
+      (node) => node.buffer === context.decodedMementoMori,
+    );
+    expect(mementoShots).toHaveLength(1);
+    expect(mementoShots[0]?.stop).toHaveBeenCalledWith(0.339);
     expect(
       context.nodes.filter((node) => node.buffer === context.decodedRifle),
     ).toHaveLength(3);
     expect(
       context.nodes.filter((node) => node.buffer === context.decodedSmg),
     ).toHaveLength(3);
+    audio.feedback({
+      ...downedTarget,
+      hitSequence: 7,
+      rifleSkin: 'memento-mori',
+      rifleSkinStatus: 'ready',
+    });
+    expect(
+      context.nodes.filter(
+        (node) => node.buffer === context.decodedElimination,
+      ),
+    ).toHaveLength(1);
+    const clock = audio.playSoulRequiem();
+    expect(clock?.()).toBe(0);
+    context.currentTime = 0.17;
+    expect(clock?.()).toBeCloseTo(0.17);
+    const requiem = context.nodes.filter(
+      (node) => node.buffer === context.decodedSoulRequiem,
+    );
+    expect(requiem).toHaveLength(1);
+    expect(requiem[0]?.stop).toHaveBeenCalledWith(1.79);
   } finally {
     audio.dispose();
   }

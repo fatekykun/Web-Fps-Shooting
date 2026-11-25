@@ -62,4 +62,5 @@ export interface KillEvent {
   victimId?: string;
   /** Authoritative location of the defeated character's feet. */
   position?: Vector3Like;
+  effect?: 'soul-requiem';
 }

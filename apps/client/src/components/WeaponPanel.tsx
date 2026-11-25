@@ -7,7 +7,12 @@ import {
 } from '@breakpoint/shared';
 import { weaponStatistics } from '@breakpoint/shared/weapons/statistics';
 import { TacticalDialog } from './TacticalDialog';
-import { rifleSkins, type RifleSkin } from '../game/weapons/RifleSkins';
+import {
+  normalizeRifleSkin,
+  rifleSkinIds,
+  rifleSkins,
+  type RifleSkin,
+} from '../game/weapons/RifleSkins';
 
 const regionLabels: Record<HitRegion, string> = {
   head: 'Head',
@@ -69,15 +74,15 @@ export function WeaponPanel({
             id={`${title}-rifle-skin`}
             value={rifleSkin}
             onChange={({ target }) =>
-              onRifleSkin(
-                target.value === 'cinder-wyrm' ? 'cinder-wyrm' : 'standard',
-              )
+              onRifleSkin(normalizeRifleSkin(target.value))
             }
           >
-            <option value="standard">{rifleSkins.standard.name}</option>
-            <option value="cinder-wyrm">
-              {rifleSkins['cinder-wyrm'].name} / Mythic
-            </option>
+            {rifleSkinIds.map((id) => (
+              <option key={id} value={id}>
+                {rifleSkins[id].name}
+                {rifleSkins[id].mythic && ' / Mythic'}
+              </option>
+            ))}
           </select>
         </div>
       )}

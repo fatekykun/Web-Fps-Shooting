@@ -56,6 +56,7 @@ interface PendingShot {
   yaw: number;
   pitch: number;
   seed: number;
+  soulRequiem: boolean;
 }
 
 /** Receives validated controls, never client hits, ammo, rays, timestamps or damage. */
@@ -280,6 +281,7 @@ export class ServerCombat {
       player,
       shot: { ...shot },
       seed: loadout.seed,
+      soulRequiem: shot.config.id === 'rifle' && player.soulRequiem,
       origin: {
         x: position.x,
         y: position.y + player.movement.eyeOffset,
@@ -300,6 +302,7 @@ export class ServerCombat {
     yaw,
     pitch,
     seed,
+    soulRequiem,
   }: PendingShot): void {
     const event: ServerShot = {
       id: ++this.shotId,
@@ -413,6 +416,7 @@ export class ServerCombat {
             y: victim.state.y - standingAnchor,
             z: victim.state.z,
           },
+          ...(soulRequiem ? { effect: 'soul-requiem' as const } : {}),
         });
       }
     }

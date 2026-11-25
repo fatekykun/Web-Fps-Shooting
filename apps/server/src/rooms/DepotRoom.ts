@@ -128,6 +128,10 @@ export class DepotRoom extends Room<{ state: RoomState }> {
       const player = this.state.players.get(client.sessionId);
       if (player) player.ready = ready;
     });
+    this.onMessage('soul-requiem', (client, enabled: unknown) => {
+      const player = this.simulations.get(client.sessionId);
+      if (player && typeof enabled === 'boolean') player.soulRequiem = enabled;
+    });
     this.onMessage('loadout', (client, payload: unknown) => {
       const player = this.simulations.get(client.sessionId);
       if (

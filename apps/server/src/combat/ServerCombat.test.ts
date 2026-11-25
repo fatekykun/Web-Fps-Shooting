@@ -371,38 +371,43 @@ function fixture() {
 }
 
 describe('authoritative hitscan', () => {
-  it('casts from the server eye, damages the nearest player and records exactly one kill', () => {
-    const f = fixture(),
-      shooter = f.add('shooter', 0, 12),
-      victim = f.add('victim', 0, 8),
-      behind = f.add('behind', 0, 4);
-    for (let i = 0; i < 3; i++) {
-      f.controls(shooter);
-      f.step(6);
-    }
-    expect(victim.state.alive).toBe(false);
-    expect(victim.state.health).toBe(0);
-    expect(behind.state.health).toBe(100);
-    expect(f.kills).toHaveLength(1);
-    expect(f.kills[0]).toMatchObject({
-      killer: 'shooter',
-      victim: 'victim',
-      weapon: 'rifle',
-      headshot: true,
-      position: {
-        x: victim.state.x,
-        y: victim.state.y - standingAnchor,
-        z: victim.state.z,
-      },
-    });
-    expect(f.combat.owner(shooter).hitSequence).toBe(3);
-    expect(f.shots[0]!.origin.x).toBeCloseTo(shooter.state.x, 3);
-    expect(f.shots[0]!.origin.y).toBeCloseTo(
-      shooter.movement.physics.position.y + shooter.movement.eyeOffset,
-      3,
-    );
-    expect(shooter.state.health).toBe(100);
-  });
+  it.each([false, true])(
+    'casts from the server eye and confirms one kill (Soul Requiem equipped: %s)',
+    (soulRequiem) => {
+      const f = fixture(),
+        shooter = f.add('shooter', 0, 12),
+        victim = f.add('victim', 0, 8),
+        behind = f.add('behind', 0, 4);
+      shooter.soulRequiem = soulRequiem;
+      for (let i = 0; i < 3; i++) {
+        f.controls(shooter);
+        f.step(6);
+      }
+      expect(victim.state.alive).toBe(false);
+      expect(victim.state.health).toBe(0);
+      expect(behind.state.health).toBe(100);
+      expect(f.kills).toHaveLength(1);
+      expect(f.kills[0]?.effect).toBe(soulRequiem ? 'soul-requiem' : undefined);
+      expect(f.kills[0]).toMatchObject({
+        killer: 'shooter',
+        victim: 'victim',
+        weapon: 'rifle',
+        headshot: true,
+        position: {
+          x: victim.state.x,
+          y: victim.state.y - standingAnchor,
+          z: victim.state.z,
+        },
+      });
+      expect(f.combat.owner(shooter).hitSequence).toBe(3);
+      expect(f.shots[0]!.origin.x).toBeCloseTo(shooter.state.x, 3);
+      expect(f.shots[0]!.origin.y).toBeCloseTo(
+        shooter.movement.physics.position.y + shooter.movement.eyeOffset,
+        3,
+      );
+      expect(shooter.state.health).toBe(100);
+    },
+  );
   it('blocks shots on world cover and does not use client-reported origins or damage', () => {
     const f = fixture(),
       shooter = f.add('shooter', -7, 12),

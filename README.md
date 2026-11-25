@@ -50,6 +50,17 @@ The skin changes the equipped player's first-person model and sight. Configure
 core brightness, fragment speed, particle intensity, reticle color and animation
 timing in `apps/client/src/game/weapons/RifleSkins.ts`.
 
+Choose **Memento Mori / Mythic** in the same Rifle skin selector to use the
+imported `apps/client/public/models/memento.glb` model. It loads when selected
+and uses the file's animated fragments and rear sight. The same inspect controls
+work for both Mythic skins.
+
+**Memento Mori — Soul Requiem** plays on confirmed rifle eliminations in training
+and private matches. In **Settings → Display**, choose Low, Medium or High under
+**Elimination effect quality**. Medium is the default. High adds more fragments
+and a local light. The 1.79-second sequence uses the supplied WAV as its clock
+when audio is available. Phase timing is in `apps/client/src/game/effects/SoulRequiem.ts`.
+
 ## Run locally
 
 BP-12 adds animated barrel-origin bullet trails for all four weapons in training
