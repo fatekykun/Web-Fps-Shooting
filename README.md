@@ -624,7 +624,7 @@ For repeatable local profiling with the preview running:
 | Space again while airborne near a wall            | Wall jump; two per airtime, no consecutive reuse of the same wall           |
 | C while standing or walking                       | Toggle crouch; in prone, rise to crouch if there is clearance               |
 | Z                                                 | Toggle prone; crawl while prone and stand where there is clearance          |
-| C while carrying sprint speed with Shift held     | Slide; entry speed 10 m/s, duration 0.65 s                                  |
+| C while carrying sprint speed with Shift held     | Slide with a 1.4× speed boost for up to 0.65 s                              |
 | S + C while carrying sprint speed with Shift held | Backslide at 6 m/s without turning the camera                               |
 | Space during a slide                              | Jump cancel, retaining horizontal momentum when there is standing clearance |
 | C again during a slide                            | Cancel into a short recovery, then walk/sprint                              |
@@ -643,6 +643,19 @@ Practice low-clearance recovery in the **left-lane tunnel** and wall jumping
 between the **right-lane walls**. Recovery remains low if an overhang blocks
 standing; keep moving out, and the capsule and camera rise when space permits.
 The HUD shows movement state, speed, grounding and wall-jump usage.
+
+Head-on capsule contacts cancel a slide immediately. Shallow contacts keep
+movement along the wall. The hip-fire camera widens by up to 8° and eases back
+as momentum falls. ADS fades the FOV boost and roll, and Reduced Motion turns
+them off. The short eye dip uses the same height for the camera and shot origin.
+
+Tune the slide in `apps/shared/src/config/movement.ts`. `slideSpeedMultiplier`
+sets the burst, `slideDuration` and `slideExitSpeed` limit the coast, and
+`slideFriction` and `slideMomentumCurve` set early and late drag. Adjust
+`slideSteering` for turning and `slideCollisionThreshold` for how directly a
+contact must oppose travel before it cancels the slide. `slideFovBoost`,
+`slideCameraDip`, `slideCameraTilt`, and `slideCameraTransitionSpeed` control
+the camera effects.
 
 A browser with WebGL 2 is required. Desktop play also uses Pointer Lock; phone and
 tablet play uses Pointer Events and the touch HUD. Serve through localhost or

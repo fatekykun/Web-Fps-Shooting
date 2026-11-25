@@ -226,8 +226,17 @@ describe('BP-03 slide-jump direction and momentum with real collision', () => {
   });
 
   it('does not restore banked momentum after colliding during the completion window', () => {
+    const reference = make();
+    slide(reference);
+    complete(reference);
+    // Put the wall just past the natural slide endpoint to hit it during recovery.
+    const contact = reference.physics.position.z - 0.35;
     const wall: ArenaBox = {
-      position: [0, 3, -13.4],
+      position: [
+        0,
+        3,
+        contact - 0.25 - config.capsuleRadius - config.collisionOffset,
+      ],
       size: [10, 6, 0.5],
       color: 0,
     };

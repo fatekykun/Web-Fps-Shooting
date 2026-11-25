@@ -1,18 +1,54 @@
 import { PerspectiveCamera } from 'three';
 import type { InputController } from '../input/InputController';
 import type { MovementController } from '../movement/MovementController';
-import { combatConfig } from '@breakpoint/shared';
+import {
+  combatConfig,
+  degreesToRadians,
+  movementConfig,
+  type MovementState,
+} from '@breakpoint/shared';
+import { slideMomentum } from '@breakpoint/shared/movement/Sliding';
 
 export class FirstPersonCamera {
   readonly camera = new PerspectiveCamera(85, 1, 0.08, 90);
+  slideFovOffset = 0;
+  private slideRoll = 0;
 
   constructor() {
     this.camera.rotation.order = 'YXZ';
   }
 
+  updateSlide(
+    state: MovementState,
+    speed: number,
+    dt: number,
+    scale: number,
+  ): void {
+    const backwards = state === 'backsliding';
+    const amount =
+      backwards || state === 'sliding'
+        ? slideMomentum(speed, backwards) * scale
+        : 0;
+    const blend = -Math.expm1(
+      -movementConfig.slideCameraTransitionSpeed * Math.min(dt, 0.1),
+    );
+    const fov = amount * movementConfig.slideFovBoost;
+    const roll =
+      (backwards ? -1 : 1) *
+      amount *
+      movementConfig.slideCameraTilt *
+      degreesToRadians;
+    this.slideFovOffset += (fov - this.slideFovOffset) * blend;
+    this.slideRoll += (roll - this.slideRoll) * blend;
+  }
+
+  resetSlide(): void {
+    this.slideFovOffset = this.slideRoll = 0;
+  }
+
   update(
     player: MovementController,
-    input: InputController,
+    input: Pick<InputController, 'pitch' | 'movement'>,
     alpha: number,
     recoilPitch = 0,
     recoilYaw = 0,
@@ -32,7 +68,7 @@ export class FirstPersonCamera {
     this.camera.rotation.set(
       Math.max(-1.55, Math.min(1.55, input.pitch + recoilPitch)),
       input.movement.yaw + recoilYaw,
-      0,
+      this.slideRoll,
     );
     if (Math.abs(this.camera.fov - fov) > 0.01) {
       this.camera.fov = fov;
