@@ -13,7 +13,7 @@ import {
   WeaponController,
   type ShotEvent,
 } from '@breakpoint/shared/weapons/WeaponController';
-import { intersectAvatar } from '@breakpoint/shared/avatar';
+import { intersectAvatar, standingAnchor } from '@breakpoint/shared/avatar';
 import {
   playerCombatConfig,
   spawnProtectionByMode,
@@ -408,6 +408,11 @@ export class ServerCombat {
           headshot: result.critical,
           killerId: player.state.id,
           victimId: victim.state.id,
+          position: {
+            x: victim.state.x,
+            y: victim.state.y - standingAnchor,
+            z: victim.state.z,
+          },
         });
       }
     }

@@ -8,6 +8,22 @@ test('Molten Lava saves from the Armory, renders its ADS sight and yields inspec
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
   });
+  await page.addInitScript(() => {
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (...args) {
+      if (this.buffer) {
+        const data = document.documentElement.dataset;
+        data.playedSamples = `${data.playedSamples ?? ''},${Math.round(this.buffer.duration * 1000)}`;
+      }
+      start.apply(this, args);
+    };
+  });
+  const playedSamples = () =>
+    page.evaluate(() =>
+      (document.documentElement.dataset.playedSamples ?? '')
+        .split(',')
+        .map(Number),
+    );
   await page.addInitScript(() =>
     localStorage.setItem(
       'breakpoint.graphics.v2',
@@ -80,6 +96,8 @@ test('Molten Lava saves from the Armory, renders its ADS sight and yields inspec
   await page.mouse.up();
   await expect(hud).toHaveAttribute('data-ammo', '29');
   await expect(hud).toHaveAttribute('data-hits', '1');
+  await expect.poll(playedSamples).toContain(680);
+  expect(await playedSamples()).not.toContain(192);
   await page.mouse.up({ button: 'right' });
   await expect
     .poll(async () => Number(await hud.getAttribute('data-ads')))
@@ -107,6 +125,18 @@ test('Molten Lava saves from the Armory, renders its ADS sight and yields inspec
   await page.getByRole('button', { name: 'Close armory' }).click();
   await enter.click();
   await expect(hud).toHaveAttribute('data-rifle-skin', 'standard');
+  await expect(page.locator('.crosshair')).toBeVisible();
+  await expect(hud).not.toContainText('EQUIPPING');
+  const moltenShots = (await playedSamples()).filter(
+    (duration) => duration === 680,
+  ).length;
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(hud).toHaveAttribute('data-ammo', '28');
+  await expect.poll(playedSamples).toContain(192);
+  expect(
+    (await playedSamples()).filter((duration) => duration === 680),
+  ).toHaveLength(moltenShots);
   expect(errors).toEqual([]);
 });
 

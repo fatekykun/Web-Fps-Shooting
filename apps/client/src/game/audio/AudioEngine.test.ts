@@ -151,6 +151,8 @@ class Context {
   readonly decodedHitmarker = { duration: 0.072 };
   readonly decodedHeadshot = { duration: 0.112 };
   readonly decodedElimination = { duration: 0.164 };
+  readonly decodedMoltenLava = { duration: 0.68 };
+  readonly decodedMoltenKill = { duration: 1.38 };
   decodeAudioData = vi.fn(
     async (data: ArrayBuffer) =>
       [
@@ -161,6 +163,8 @@ class Context {
         this.decodedHitmarker,
         this.decodedHeadshot,
         this.decodedElimination,
+        this.decodedMoltenLava,
+        this.decodedMoltenKill,
       ][data.byteLength - 1]!,
   );
   resume = vi.fn(async () => {
@@ -389,6 +393,8 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     '/audio/breakpoint-hitmarker.wav',
     '/audio/breakpoint-headshot.wav',
     '/audio/breakpoint-elimination.wav',
+    '/audio/molten_lava_rifle_shot.wav',
+    '/audio/molten_lava_kill_effect.wav',
   ];
   const fetchShot = vi.fn(
     async (path: string) =>
@@ -493,6 +499,36 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     audio.configure({ ...defaultUserSettings(), effectsVolume: 0 });
     audio.feedback({ ...hit, hitSequence: 5 });
     expect(confirmations()).toHaveLength(1);
+    audio.configure(defaultUserSettings());
+    const moltenElimination = {
+      ...hit,
+      rifleSkin: 'cinder-wyrm' as const,
+      hitSequence: 6,
+      critical: true,
+      dummyResetting: true,
+    };
+    audio.feedback(moltenElimination);
+    audio.feedback(moltenElimination);
+    const moltenKills = context.nodes.filter(
+      (node) => node.buffer === context.decodedMoltenKill,
+    );
+    expect(moltenKills).toHaveLength(1);
+    expect(moltenKills[0]?.stop).toHaveBeenCalledWith(1.38);
+    expect(headshots()).toHaveLength(2);
+    audio.shot('rifle', 1, 0, 'cinder-wyrm');
+    audio.shot('rifle', 0.4, -0.6);
+    audio.shot('smg', 1, 0, 'cinder-wyrm');
+    const mythicShots = context.nodes.filter(
+      (node) => node.buffer === context.decodedMoltenLava,
+    );
+    expect(mythicShots).toHaveLength(1);
+    expect(mythicShots[0]?.stop).toHaveBeenCalledWith(0.68);
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedRifle),
+    ).toHaveLength(3);
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedSmg),
+    ).toHaveLength(3);
   } finally {
     audio.dispose();
   }

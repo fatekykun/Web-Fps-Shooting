@@ -73,6 +73,10 @@ export class PracticeCombat {
       aimYaw: number,
       aimPitch: number,
     ) => void,
+    private readonly onElimination?: (
+      weapon: WeaponId,
+      position: Vector3Like,
+    ) => void,
   ) {
     this.dummy = new TrainingDummy(physics, scene);
     this.impacts = new PooledImpacts(scene);
@@ -150,6 +154,8 @@ export class PracticeCombat {
       this.critical = critical;
       this.hitSequence++;
       this.dummy.damage(damage);
+      if (this.dummy.resetting)
+        this.onElimination?.(shot.config.id, this.dummy.position);
     }
   };
 

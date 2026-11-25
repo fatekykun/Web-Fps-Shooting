@@ -4,6 +4,7 @@ import {
   type WeaponId,
 } from '@breakpoint/shared';
 import type { WeaponController } from '../weapons/WeaponController';
+import { isMoltenLavaRifle, type RifleSkin } from '../weapons/RifleSkins';
 import type { MovementController } from '../movement/MovementController';
 import type { CombatSnapshot } from '../combat/PracticeCombat';
 import type { PublicPlayer, RoomView } from '@breakpoint/shared/network';
@@ -43,6 +44,7 @@ type Cue =
   | 'hit'
   | 'critical'
   | 'kill'
+  | 'molten-lava-kill'
   | 'hurt'
   | 'death'
   | 'respawn'
@@ -50,11 +52,24 @@ type Cue =
   | 'equip'
   | 'jump';
 type MatchCue = 'countdown' | 'match-start';
-type SampleId = WeaponId | 'hitmarker' | 'headshot' | 'elimination';
+const moltenLavaShot = 'molten-lava-shot';
+const moltenLavaKill = 'molten-lava-kill';
+type ShotSampleId = WeaponId | typeof moltenLavaShot;
+type SampleId =
+  | ShotSampleId
+  | 'hitmarker'
+  | 'headshot'
+  | 'elimination'
+  | typeof moltenLavaKill;
 const shotSamples: Partial<
-  Record<WeaponId, { file: string; gain: number; detune: number }>
+  Record<ShotSampleId, { file: string; gain: number; detune: number }>
 > = {
   rifle: { file: 'ar-01-rifle-shot.wav', gain: 0.51, detune: 10 },
+  [moltenLavaShot]: {
+    file: 'molten_lava_rifle_shot.wav',
+    gain: 0.51,
+    detune: 0,
+  },
   shotgun: { file: 'sg-03-shotgun-shot.wav', gain: 0.69, detune: 0 },
   sniper: { file: 'sr-04-sniper-shot.wav', gain: 0.72, detune: 0 },
   smg: { file: 'sm-02-smg-shot.wav', gain: 0.36, detune: 12 },
@@ -160,9 +175,9 @@ export class AudioEngine {
         }
         this.applyVolumes();
         this.footsteps.bank.preload(context);
-        for (const weapon of weaponOrder) {
-          const sample = shotSamples[weapon];
-          if (sample) void this.loadSample(context, weapon, sample.file);
+        for (const id of [...weaponOrder, moltenLavaShot] as const) {
+          const sample = shotSamples[id];
+          if (sample) void this.loadSample(context, id, sample.file);
         }
         void this.loadSample(context, 'hitmarker', 'breakpoint-hitmarker.wav');
         void this.loadSample(context, 'headshot', 'breakpoint-headshot.wav');
@@ -170,6 +185,11 @@ export class AudioEngine {
           context,
           'elimination',
           'breakpoint-elimination.wav',
+        );
+        void this.loadSample(
+          context,
+          moltenLavaKill,
+          'molten_lava_kill_effect.wav',
         );
       }
       if (this.context.state === 'suspended') await this.context.resume();
@@ -372,9 +392,14 @@ export class AudioEngine {
     return true;
   }
   /** True when a recorded sniper report plays with the bolt cycle included. */
-  shot(weapon: WeaponId, gain = 1, pan = 0): boolean {
-    const sample = shotSamples[weapon];
-    const buffer = this.sampleBuffers.get(weapon);
+  shot(weapon: WeaponId, gain = 1, pan = 0, rifleSkin?: RifleSkin): boolean {
+    const id =
+      isMoltenLavaRifle(weapon, rifleSkin) &&
+      this.sampleBuffers.has(moltenLavaShot)
+        ? moltenLavaShot
+        : weapon;
+    const sample = shotSamples[id];
+    const buffer = this.sampleBuffers.get(id);
     if (sample && buffer) {
       // A small pitch variation keeps automatic fire from sounding like a loop.
       const detune = sample.detune
@@ -433,9 +458,14 @@ export class AudioEngine {
           critical ? 210 : 0,
         );
       else this.tone(critical ? 1600 : 1050, 1900, 0.07, 0.075, 'sine');
-    } else if (cue === 'kill') {
+    } else if (cue === 'kill' || cue === moltenLavaKill) {
+      const molten =
+        cue === moltenLavaKill
+          ? this.sampleBuffers.get(moltenLavaKill)
+          : undefined;
       const elimination = this.sampleBuffers.get('elimination');
-      if (elimination) this.playSample(elimination, 0.38);
+      if (molten) this.playSample(molten, 0.48);
+      else if (elimination) this.playSample(elimination, 0.38);
       else this.tone(750, 1500, 0.16, 0.085, 'triangle');
     } else if (cue === 'death') this.tone(130, 30, 0.45, 0.13);
     else if (cue === 'hurt') this.tone(110, 45, 0.15, 0.12);
@@ -461,7 +491,12 @@ export class AudioEngine {
     const scoped = !!weapons.config.scopeMagnification && weapons.ads > 0.5;
     if (active) {
       if (weapons.shotsFired > this.lastShots)
-        this.sampledBolt = this.shot(weapons.selected);
+        this.sampledBolt = this.shot(
+          weapons.selected,
+          1,
+          0,
+          this.settings.rifleSkin,
+        );
       if (
         !this.sampledBolt &&
         boltPhase !== this.lastBoltPhase &&
@@ -516,11 +551,14 @@ export class AudioEngine {
     if (!newLife) {
       if (snapshot.hitSequence > this.hit)
         this.cue(
-          snapshot.critical
-            ? 'critical'
-            : snapshot.dummyResetting
-              ? 'kill'
-              : 'hit',
+          snapshot.dummyResetting &&
+            isMoltenLavaRifle(snapshot.weapon, snapshot.rifleSkin)
+            ? moltenLavaKill
+            : snapshot.critical
+              ? 'critical'
+              : snapshot.dummyResetting
+                ? 'kill'
+                : 'hit',
         );
       if (snapshot.player && snapshot.player.damageSequence > this.damage)
         this.cue(snapshot.player.alive ? 'hurt' : 'death');

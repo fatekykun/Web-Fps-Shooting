@@ -60,4 +60,6 @@ export interface KillEvent {
   headshot: boolean;
   killerId?: string;
   victimId?: string;
+  /** Authoritative location of the defeated character's feet. */
+  position?: Vector3Like;
 }

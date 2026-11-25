@@ -42,6 +42,7 @@ export class NetworkCombat {
   owner: OwnerCombat | null = null;
   private readonly impacts: PooledImpacts;
   private readonly seenShots = new Set<number>();
+  private lastKill = 0;
   private readonly feed: { event: KillEvent; remaining: number }[] = [];
   constructor(
     scene: Scene,
@@ -124,11 +125,13 @@ export class NetworkCombat {
     }
     return true;
   }
-  kill(event: KillEvent): void {
-    if (this.feed.some((item) => item.event.id === event.id)) return;
+  kill(event: KillEvent): boolean {
+    if (event.id <= this.lastKill) return false;
+    this.lastKill = event.id;
     this.feed.push({ event, remaining: playerCombatConfig.killFeedSeconds });
     if (this.feed.length > 5) this.feed.shift();
     this.onChange();
+    return true;
   }
   step(dt: number, input: WeaponInput, movement: MovementController): void {
     const count = this.feed.length;
@@ -180,6 +183,7 @@ export class NetworkCombat {
     this.weapons = new WeaponController(() => {});
     this.impacts.clear();
     this.seenShots.clear();
+    this.lastKill = 0;
   }
   dispose(): void {
     this.impacts.dispose();

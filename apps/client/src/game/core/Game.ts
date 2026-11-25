@@ -1,6 +1,7 @@
 import { Scene } from 'three';
 import { FirstPersonCamera } from '../camera/FirstPersonCamera';
 import type { MovementState, Vector3Like } from '@breakpoint/shared';
+import { standingAnchor } from '@breakpoint/shared/avatar';
 import { InputController } from '../input/InputController';
 import { isTouchAimOpponent, TouchAimAssist } from '../input/TouchAimAssist';
 import { readDevice, requestLandscape } from '../input/deviceCapabilities';
@@ -24,6 +25,7 @@ import {
 } from './PerformanceMonitor';
 import { PracticeCombat, type CombatSnapshot } from '../combat/PracticeCombat';
 import { WeaponViewmodel } from '../weapons/WeaponViewmodel';
+import { isMoltenLavaRifle } from '../weapons/RifleSkins';
 import {
   sniperZoom,
   sniperScopeBlend,
@@ -37,6 +39,7 @@ import {
   type RoomView,
 } from '@breakpoint/shared/network';
 import { ShotTrails, type MuzzleResolver } from '../effects/ShotTrails';
+import { MoltenLavaEliminations } from '../effects/MoltenLavaEliminations';
 import type { NetworkSession } from '../networking/NetworkSession';
 import { RemotePlayers } from '../networking/RemotePlayers';
 import { NetworkCombat } from '../combat/NetworkCombat';
@@ -122,6 +125,7 @@ export class Game {
   };
   private readonly rendering: GameRenderer;
   private readonly scene = new Scene();
+  private readonly lavaEliminations = new MoltenLavaEliminations(this.scene);
   private arena: InstanceType<(typeof arenaRenderers)[ArenaId]>;
   private arenaId: ArenaId = 'depot';
   private readonly physics: PhysicsWorld;
@@ -201,6 +205,13 @@ export class Game {
       (shot, origin, end, yaw, pitch) => {
         this.trails.spawn(shot.config.id, origin, end);
         this.shotgunRange?.record(shot, origin, end, yaw, pitch);
+      },
+      (weapon, position) => {
+        if (isMoltenLavaRifle(weapon, this.userSettings.rifleSkin))
+          this.lavaEliminations.spawn(
+            position,
+            this.userSettings.reducedMotion,
+          );
       },
     );
     this.networkCombat = new NetworkCombat(
@@ -338,6 +349,7 @@ export class Game {
             if (view && view.match.round !== this.round) {
               this.round = view.match.round;
               this.networkCombat.reset();
+              this.lavaEliminations.clear();
             }
             this.networkCombat.setAllowedWeapons(
               view?.allowedWeapons ?? weaponOrder,
@@ -414,9 +426,33 @@ export class Game {
         },
         onKill: (kill) => {
           if (!this.disposed && generation === this.networkGeneration) {
-            this.networkCombat.kill(kill);
-            if (kill.killerId === this.session?.view?.selfId)
-              this.audio.cue('kill');
+            if (!this.networkCombat.kill(kill)) return;
+            const view = this.session?.view;
+            if (!view || kill.killerId !== view.selfId) return;
+            const molten = isMoltenLavaRifle(
+              kill.weapon,
+              this.userSettings.rifleSkin,
+            );
+            this.audio.cue(molten ? 'molten-lava-kill' : 'kill');
+            if (molten) {
+              let position = kill.position;
+              if (!position) {
+                const victim = view.players.find(
+                  ({ id }) => id === kill.victimId,
+                );
+                if (victim)
+                  position = {
+                    x: victim.x,
+                    y: victim.y - standingAnchor,
+                    z: victim.z,
+                  };
+              }
+              if (position)
+                this.lavaEliminations.spawn(
+                  position,
+                  this.userSettings.reducedMotion,
+                );
+            }
           }
         },
         onLeave: () => {
@@ -431,6 +467,7 @@ export class Game {
       return;
     }
     this.session = session;
+    this.lavaEliminations.clear();
     this.combat.setOnline(true);
     this.input.clear();
     this.resetTiming();
@@ -456,6 +493,7 @@ export class Game {
   }
 
   leaveRoom(): void {
+    this.lavaEliminations.clear();
     ++this.networkGeneration;
     this.session?.leave();
     this.session = undefined;
@@ -492,6 +530,7 @@ export class Game {
 
   private switchArena(id: ArenaId): void {
     if (id === this.arenaId) return;
+    this.lavaEliminations.clear();
     this.physics.setArena(arenas[id].colliders);
     this.arena.dispose();
     const Arena = arenaRenderers[id];
@@ -794,6 +833,7 @@ export class Game {
       this.opticView.blend = sniperScopeBlend(ads);
       this.opticView.diameter = sniperScopeDiameter(ads);
     }
+    this.lavaEliminations.step(delta);
     this.rendering.render(
       this.scene,
       this.camera.camera,
@@ -906,6 +946,7 @@ export class Game {
 
   private readonly onVisibilityChange = (): void => {
     this.audio.setActive(!document.hidden);
+    if (document.hidden) this.lavaEliminations.clear();
     this.input.clear();
     this.resetTiming();
     if (document.hidden) this.input.release();
@@ -922,6 +963,7 @@ export class Game {
 
   dispose(): void {
     this.trails.dispose();
+    this.lavaEliminations.dispose();
     this.disposed = true;
     ++this.networkGeneration;
     this.session?.leave();
