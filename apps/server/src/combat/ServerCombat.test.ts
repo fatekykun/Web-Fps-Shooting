@@ -428,6 +428,33 @@ describe('authoritative hitscan', () => {
       expect(f.kills[0]?.effect).toBe(lotusLava ? 'lotus-lava' : undefined);
     },
   );
+  it.each([false, true])(
+    'only tags confirmed shotgun eliminations with Glorious Blaze equipped (%s)',
+    (gloriousBlaze) => {
+      const f = fixture();
+      const shooter = f.add('shooter', 0, 12);
+      const victim = f.add('victim', 0, 9);
+      shooter.gloriousBlaze = gloriousBlaze;
+      shooter.lotusLava = shooter.soulRequiem = true;
+      const weapons = f.combat.get('shooter')!.weapons;
+      weapons.selected = 'shotgun';
+      weapons.ads = 1;
+      f.controls(shooter, { ...trigger, aim: true }, Math.PI);
+      f.step(51);
+      expect(f.shots[0]?.shotgunSkin).toBe(
+        gloriousBlaze ? 'glorious-blaze' : undefined,
+      );
+      expect(f.shots[0]?.sniperSkin).toBeUndefined();
+      expect(f.kills).toHaveLength(0);
+      victim.state.health = 5;
+      f.controls(shooter, { ...trigger, aim: true });
+      f.step();
+      expect(f.kills).toHaveLength(1);
+      expect(f.kills[0]?.effect).toBe(
+        gloriousBlaze ? 'glorious-blaze' : undefined,
+      );
+    },
+  );
   it('blocks shots on world cover and does not use client-reported origins or damage', () => {
     const f = fixture(),
       shooter = f.add('shooter', -7, 12),

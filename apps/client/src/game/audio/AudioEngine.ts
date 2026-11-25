@@ -2,6 +2,7 @@ import type { Vector3Like, WeaponId } from '@breakpoint/shared';
 import type { WeaponController } from '../weapons/WeaponController';
 import { isMoltenLavaRifle, type RifleSkin } from '../weapons/RifleSkins';
 import type { SniperSkin } from '../weapons/SniperSkins';
+import type { ShotgunSkin } from '../weapons/ShotgunSkins';
 import type { EliminationEffect } from '@breakpoint/shared/combat';
 import type { MovementController } from '../movement/MovementController';
 import type { CombatSnapshot } from '../combat/PracticeCombat';
@@ -57,8 +58,13 @@ const rifleShotBySkin = {
 } as const satisfies Record<RifleSkin, string>;
 const moltenLavaKill = 'molten-lava-kill';
 const lotusLavaShot = 'lotus-lava-shot';
+const gloriousBlazeShot = 'glorious-blaze-shot';
 type ShotSampleId =
-  WeaponId | (typeof rifleShotBySkin)[RifleSkin] | typeof lotusLavaShot;
+  | WeaponId
+  | (typeof rifleShotBySkin)[RifleSkin]
+  | typeof lotusLavaShot
+  | typeof gloriousBlazeShot;
+type EquippedSkin = RifleSkin | SniperSkin | ShotgunSkin;
 type SampleId =
   | ShotSampleId
   | 'hitmarker'
@@ -82,6 +88,11 @@ const shotSamples: Record<
     detune: 0,
   },
   [lotusLavaShot]: { file: 'lotus_lava_gunshot.wav', gain: 0.51, detune: 0 },
+  [gloriousBlazeShot]: {
+    file: 'Glorious_Blaze_Shot_V2.wav',
+    gain: 0.65,
+    detune: 0,
+  },
   shotgun: { file: 'sg-03-shotgun-shot.wav', gain: 0.69, detune: 0 },
   sniper: { file: 'sr-04-sniper-shot.wav', gain: 0.72, detune: 0 },
   smg: { file: 'sm-02-smg-shot.wav', gain: 0.36, detune: 12 },
@@ -207,6 +218,11 @@ export class AudioEngine {
           'memento_mori_reference_kill.wav',
         );
         void this.loadSample(context, 'lotus-lava', 'lotus_lava_kill.wav');
+        void this.loadSample(
+          context,
+          'glorious-blaze',
+          'Glorious_Blaze_Kill_V4_Isolated.wav',
+        );
       }
       if (this.context.state === 'suspended') await this.context.resume();
       return this.context.state === 'running';
@@ -408,18 +424,18 @@ export class AudioEngine {
     return true;
   }
   /** True when a recorded sniper report plays with the bolt cycle included. */
-  shot(
-    weapon: WeaponId,
-    gain = 1,
-    pan = 0,
-    skin?: RifleSkin | SniperSkin,
-  ): boolean {
+  shot(weapon: WeaponId, gain = 1, pan = 0, skin?: EquippedSkin): boolean {
     const requested =
-      weapon === 'sniper' && skin === 'lotus-lava'
-        ? lotusLavaShot
-        : weapon === 'rifle' && skin && skin !== 'lotus-lava'
-          ? rifleShotBySkin[skin]
-          : weapon;
+      weapon === 'shotgun' && skin === 'glorious-blaze'
+        ? gloriousBlazeShot
+        : weapon === 'sniper' && skin === 'lotus-lava'
+          ? lotusLavaShot
+          : weapon === 'rifle' &&
+              skin &&
+              skin !== 'lotus-lava' &&
+              skin !== 'glorious-blaze'
+            ? rifleShotBySkin[skin]
+            : weapon;
     const id = this.sampleBuffers.has(requested) ? requested : weapon;
     const sample = shotSamples[id];
     const buffer = this.sampleBuffers.get(id);
@@ -517,7 +533,7 @@ export class AudioEngine {
     movement: MovementController,
     active: boolean,
     priorVerticalSpeed = 0,
-    skin: RifleSkin | SniperSkin = 'standard',
+    skin: EquippedSkin = 'standard',
   ): void {
     const boltPhase = weapons.cycling
       ? weapons.cycleProgress < 0.15
@@ -589,7 +605,10 @@ export class AudioEngine {
           snapshot.rifleSkinStatus === 'ready') ||
           (snapshot.weapon === 'sniper' &&
             snapshot.sniperSkin === 'lotus-lava' &&
-            snapshot.sniperSkinStatus === 'ready'));
+            snapshot.sniperSkinStatus === 'ready') ||
+          (snapshot.weapon === 'shotgun' &&
+            snapshot.shotgunSkin === 'glorious-blaze' &&
+            snapshot.shotgunSkinStatus === 'ready'));
       if (snapshot.hitSequence > this.hit && !customDummyElimination)
         this.cue(
           snapshot.dummyResetting &&

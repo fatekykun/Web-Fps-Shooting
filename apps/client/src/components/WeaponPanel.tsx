@@ -19,6 +19,12 @@ import {
   sniperSkins,
   type SniperSkin,
 } from '../game/weapons/SniperSkins';
+import {
+  normalizeShotgunSkin,
+  shotgunSkinIds,
+  shotgunSkins,
+  type ShotgunSkin,
+} from '../game/weapons/ShotgunSkins';
 
 const regionLabels: Record<HitRegion, string> = {
   head: 'Head',
@@ -42,6 +48,8 @@ export function WeaponPanel({
   onRifleSkin,
   sniperSkin,
   onSniperSkin,
+  shotgunSkin,
+  onShotgunSkin,
   onClose,
 }: {
   initialWeapon?: WeaponId;
@@ -50,6 +58,8 @@ export function WeaponPanel({
   onRifleSkin(skin: RifleSkin): void;
   sniperSkin: SniperSkin;
   onSniperSkin(skin: SniperSkin): void;
+  shotgunSkin: ShotgunSkin;
+  onShotgunSkin(skin: ShotgunSkin): void;
   onClose(): void;
 }) {
   const [selection, setSelection] = useState(initialWeapon);
@@ -109,6 +119,24 @@ export function WeaponPanel({
             {sniperSkinIds.map((id) => (
               <option key={id} value={id}>
                 {sniperSkins[id].name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {selected === 'shotgun' && (
+        <div className="scope-style-setting armory-finish">
+          <label htmlFor={`${title}-shotgun-skin`}>Shotgun skin</label>
+          <select
+            id={`${title}-shotgun-skin`}
+            value={shotgunSkin}
+            onChange={({ target }) =>
+              onShotgunSkin(normalizeShotgunSkin(target.value))
+            }
+          >
+            {shotgunSkinIds.map((id) => (
+              <option key={id} value={id}>
+                {shotgunSkins[id].name}
               </option>
             ))}
           </select>

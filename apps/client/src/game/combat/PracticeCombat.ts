@@ -13,6 +13,7 @@ import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { WeaponController, type ShotEvent } from '../weapons/WeaponController';
 import type { RifleSkin, WeaponSkinStatus } from '../weapons/RifleSkins';
 import type { SniperSkin } from '../weapons/SniperSkins';
+import type { ShotgunSkin } from '../weapons/ShotgunSkins';
 import { TrainingDummy } from './TrainingDummy';
 import { PooledImpacts } from '../effects/PooledImpacts';
 import type { OwnerCombat, KillEvent } from '@breakpoint/shared/combat';
@@ -22,6 +23,8 @@ export interface CombatSnapshot {
   rifleSkinStatus?: WeaponSkinStatus;
   sniperSkin?: SniperSkin;
   sniperSkinStatus?: WeaponSkinStatus;
+  shotgunSkin?: ShotgunSkin;
+  shotgunSkinStatus?: WeaponSkinStatus;
   inspecting?: boolean;
   allowedWeapons?: readonly WeaponId[];
   weapon: WeaponId;
