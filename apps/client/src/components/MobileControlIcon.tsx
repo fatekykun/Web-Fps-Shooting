@@ -61,6 +61,9 @@ const icons: Record<MobileControlIconName, ReactNode> = {
     <path d="M20 11a8 8 0 1 0-2.2 6.6M20 6v5h-5m-4.7-3-.6 6.9 3.9.6.6-7z" />
   ),
   swap: <path d="M3.5 7.5h16.7m-4-4 4 4-4 4m4.3 5H3.8m4 4-4-4 4-4" />,
+  inspect: (
+    <path d="M3 12s3.2-5.2 9-5.2 9 5.2 9 5.2-3.2 5.2-9 5.2S3 12 3 12Zm12 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+  ),
   scores: (
     <path d="M5 4h14v16H5zM8.5 8h.5m3.5 0h3m-7 4h.5m3.5 0h3m-7 4h.5m3.5 0h3" />
   ),

@@ -389,6 +389,11 @@ describe('authoritative hitscan', () => {
       victim: 'victim',
       weapon: 'rifle',
       headshot: true,
+      position: {
+        x: victim.state.x,
+        y: victim.state.y - standingAnchor,
+        z: victim.state.z,
+      },
     });
     expect(f.combat.owner(shooter).hitSequence).toBe(3);
     expect(f.shots[0]!.origin.x).toBeCloseTo(shooter.state.x, 3);

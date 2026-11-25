@@ -1,3 +1,5 @@
+import type { RifleSkin } from '../weapons/RifleSkins';
+
 export const bindingActions = [
   'forward',
   'backward',
@@ -9,6 +11,7 @@ export const bindingActions = [
   'prone',
   'dive',
   'reload',
+  'inspect',
   'rifle',
   'smg',
   'shotgun',
@@ -27,6 +30,7 @@ export const bindingLabels: Record<BindingAction, string> = {
   prone: 'Prone',
   dive: 'Dive',
   reload: 'Reload',
+  inspect: 'Inspect weapon',
   rifle: 'Equip rifle',
   smg: 'Equip SMG',
   shotgun: 'Equip shotgun',
@@ -45,6 +49,7 @@ export const defaultBindings: Readonly<Record<BindingAction, string>> =
     prone: 'KeyZ',
     dive: 'KeyX',
     reload: 'KeyR',
+    inspect: 'KeyI',
     rifle: 'Digit1',
     smg: 'Digit2',
     shotgun: 'Digit3',
@@ -72,6 +77,7 @@ export interface UserSettings {
   fov: number;
   syncAdsFov: boolean;
   scopeStyle: ScopeStyle;
+  rifleSkin: RifleSkin;
   autoReload: boolean;
   invertY: boolean;
   reducedMotion: boolean;
@@ -106,6 +112,7 @@ export function defaultUserSettings(): UserSettings {
     fov: 85,
     syncAdsFov: false,
     scopeStyle: 'classic',
+    rifleSkin: 'standard',
     autoReload: true,
     invertY: false,
     reducedMotion:
@@ -176,7 +183,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     c = object(v.crosshair),
     b = { ...object(v.bindings) };
   // Add bindings introduced after first release without resetting custom keys.
-  for (const action of ['sniper', 'prone'] as const) {
+  for (const action of ['sniper', 'prone', 'inspect'] as const) {
     if (b[action] !== undefined) continue;
     const available = [
       d.bindings[action],
@@ -209,6 +216,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     fov: number(v.fov, d.fov, 65, 110),
     syncAdsFov: bool('syncAdsFov', d.syncAdsFov),
     scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',
+    rifleSkin: v.rifleSkin === 'cinder-wyrm' ? 'cinder-wyrm' : 'standard',
     autoReload: bool('autoReload', d.autoReload),
     invertY: bool('invertY', d.invertY),
     reducedMotion: bool('reducedMotion', d.reducedMotion),

@@ -42,6 +42,13 @@ import { strideRadiansPerMeter } from '@breakpoint/shared/character';
 import { slideMomentum } from '@breakpoint/shared/movement/Sliding';
 import { weaponMuzzles } from './WeaponMuzzles';
 import { RecoilSpring } from './Recoil';
+import { CinderWyrm, cinderReticle } from './CinderWyrm';
+import { cinderTuning, type RifleSkin } from './RifleSkins';
+
+const easeUnit = (value: number) => {
+  const t = Math.max(0, Math.min(1, value));
+  return t * t * (3 - 2 * t);
+};
 
 /** Low-poly models are pooled; the active model is one instanced draw. */
 export class WeaponViewmodel {
@@ -87,6 +94,11 @@ export class WeaponViewmodel {
   private readonly boltMatrix = new Matrix4();
   private readonly boltScale = new Vector3(0.1, 0.035, 0.035);
   private boltIndex = 0;
+  private cinder?: CinderWyrm;
+  private rifleSkin: RifleSkin = 'standard';
+  private inspectRequested = false;
+  private inspectTime: number | null = null;
+  private inspectPose = 0;
 
   constructor() {
     const pixels = new Uint8Array(32 * 32 * 4);
@@ -206,10 +218,58 @@ export class WeaponViewmodel {
 
   configureTexture(quality: GraphicsSettings['textureQuality']): void {
     this.material.map = quality === 'low' ? this.lowTexture : this.texture;
+    this.cinder?.configureTexture(this.material.map);
   }
 
   get hasAimDot(): boolean {
-    return this.aimDot.visible;
+    return this.aimDot.visible || !!this.cinder?.reticle.visible;
+  }
+
+  get inspecting(): boolean {
+    return this.inspectTime !== null || this.inspectPose > 0.01;
+  }
+
+  setRifleSkin(skin: RifleSkin): void {
+    if (this.rifleSkin === skin) return;
+    this.rifleSkin = skin;
+    this.resetInspect();
+    if (skin === 'cinder-wyrm' && !this.cinder) {
+      this.cinder = new CinderWyrm(this.material.map ?? this.texture);
+      this.root.add(this.cinder.model, this.cinder.reticle);
+    }
+  }
+
+  requestInspect(): void {
+    this.inspectRequested = true;
+  }
+
+  resetInspect(): void {
+    this.inspectRequested = false;
+    this.inspectTime = null;
+    this.inspectPose = 0;
+  }
+
+  private updateInspect(
+    dt: number,
+    allowed: boolean,
+    immediate: boolean,
+  ): void {
+    if (!allowed) this.inspectTime = null;
+    if (this.inspectRequested && allowed && this.inspectTime === null)
+      this.inspectTime = 0;
+    this.inspectRequested = false;
+    const step = Math.min(dt, 0.075) * cinderTuning.animationSpeed;
+    if (this.inspectTime !== null) {
+      this.inspectTime += step;
+      const progress = this.inspectTime / cinderTuning.inspectSeconds;
+      this.inspectPose =
+        easeUnit(progress / 0.22) * easeUnit((1 - progress) / 0.24);
+      if (progress >= 1) this.inspectTime = null;
+    } else if (immediate) this.inspectPose = 0;
+    else {
+      this.inspectPose *= Math.exp(-step * 26);
+      if (this.inspectPose < 0.002) this.inspectPose = 0;
+    }
   }
 
   /** Match the barrel's screen position across the separate viewmodel/world FOVs. */
@@ -231,10 +291,19 @@ export class WeaponViewmodel {
     return out.applyMatrix4(camera.matrixWorld);
   }
 
-  private updateAimDot(weapons: WeaponController, active: boolean): void {
-    const reticle = weaponSights[weapons.selected].reticle;
+  private updateAimDot(
+    weapons: WeaponController,
+    active: boolean,
+    ads: number,
+    cinder?: CinderWyrm,
+  ): void {
+    const reticle = cinder
+      ? cinderReticle
+      : weaponSights[weapons.selected].reticle;
+    const mark = cinder?.reticle ?? this.aimDot;
     this.aimDot.visible = false;
-    if (!active || !reticle) return;
+    if (this.cinder) this.cinder.reticle.visible = false;
+    if (!active || !reticle || (cinder && ads < 0.74)) return;
     // Collimate onto the actual camera aim ray, constrained to the optic window.
     // This keeps recoil/sway from moving the dot away from the bullet's aim line.
     this.root.updateMatrix();
@@ -245,14 +314,15 @@ export class WeaponViewmodel {
     const distance =
       (reticle.center[2] - this.sightOrigin.z) / this.sightDirection.z;
     if (distance <= this.camera.near) return;
-    this.aimDot.position
+    mark.position
       .copy(this.sightOrigin)
       .addScaledVector(this.sightDirection, distance);
-    this.aimDot.visible =
-      Math.abs(this.aimDot.position.x - reticle.center[0]) + reticle.radius <
+    mark.visible =
+      Math.abs(mark.position.x - reticle.center[0]) + reticle.radius <
         reticle.halfWindow[0] &&
-      Math.abs(this.aimDot.position.y - reticle.center[1]) + reticle.radius <
+      Math.abs(mark.position.y - reticle.center[1]) + reticle.radius <
         reticle.halfWindow[1];
+    if (cinder) mark.quaternion.copy(this.root.quaternion).invert();
   }
 
   simulateRecoil(weapons: WeaponController, dt: number, fired: boolean): void {
@@ -298,6 +368,12 @@ export class WeaponViewmodel {
       if (this.recoilWeapon !== this.selected) this.resetRecoil();
       for (const [id, mesh] of this.models) mesh.visible = id === this.selected;
     }
+    const cinder =
+      this.selected === 'rifle' && this.rifleSkin === 'cinder-wyrm'
+        ? this.cinder
+        : undefined;
+    this.models.get('rifle')!.visible = this.selected === 'rifle' && !cinder;
+    if (this.cinder) this.cinder.model.visible = !!cinder;
     const recoil = this.recoil.sample(recoilTime, this.recoilSample);
     const kick = recoil.pitch * motion;
     const lateral = recoil.yaw * motion;
@@ -345,6 +421,23 @@ export class WeaponViewmodel {
     const recentlyFired =
       weapons.time - weapons.current.lastShot <
       Math.min(0.25, weapons.config.fireInterval + 0.08);
+    const busy =
+      !!input?.aim ||
+      !!input?.fire ||
+      ads > 0.02 ||
+      recentlyFired ||
+      weapons.reloading ||
+      weapons.equipping;
+    this.updateInspect(
+      dt,
+      !!cinder &&
+        active &&
+        !busy &&
+        speed < 0.4 &&
+        (movement === 'walking' || movement === 'crouching'),
+      busy || !active || !cinder,
+    );
+    const inspect = this.inspectPose * motion;
     const carrying =
       movement === 'sprinting' &&
       speed > 0.5 &&
@@ -379,6 +472,9 @@ export class WeaponViewmodel {
       : 0;
     this.reloadPose += (reloadTarget - this.reloadPose) * reloadBlend;
     const reload = this.reloadPose;
+    const cinderPresent = cinder
+      ? (1 - ads) ** 2 * (1 - carry) * (1 - reload) * (1 - this.inspectPose)
+      : 0;
     const bob =
       Math.min(1, speed / 8) * (1 - ads * 0.9) * 0.008 * motion * (1 - carry);
     this.root.position.set(
@@ -387,7 +483,9 @@ export class WeaponViewmodel {
         lateral * profile.weaponSway +
         Math.cos(weapons.time * 9) * bob +
         carry * (0.02 + sway * 0.012 * motion) +
-        brace * 0.025 * motion,
+        brace * 0.025 * motion -
+        inspect * 0.26 -
+        cinderPresent * 0.028,
       -0.25 +
         (pose.position[1] + 0.25) * raise -
         reload * 0.16 -
@@ -395,26 +493,33 @@ export class WeaponViewmodel {
         Math.sin(weapons.time * 18) * bob -
         this.stance * (1 - ads) * motion +
         carry * (-0.03 + step * 0.01 * motion) -
-        brace * 0.055 * motion,
+        brace * 0.055 * motion +
+        inspect * 0.095,
       (scoped
         ? sniperEyePosition(ads, pose.position[2])
         : -0.65 + (pose.position[2] + 0.65) * raise) +
         kick * profile.weaponKickback -
         carry * 0.22 +
-        brace * 0.035 * motion,
+        brace * 0.035 * motion -
+        inspect * 0.29 -
+        cinderPresent * 0.035,
     );
     this.root.rotation.set(
       pose.rotation[0] * raise +
         kick * profile.weaponPitch * degreesToRadians +
-        carry * (0.9 + step * 0.018 * motion),
+        carry * (0.9 + step * 0.018 * motion) +
+        inspect * 0.07,
       pose.rotation[1] * raise +
         lateral * profile.weaponYaw * degreesToRadians +
-        carry * (0.22 + Math.cos(this.stridePhase) * 0.012 * motion),
+        carry * (0.22 + Math.cos(this.stridePhase) * 0.012 * motion) +
+        inspect * 1.03 +
+        cinderPresent * 0.11,
       pose.rotation[2] * raise -
         reload * 0.65 +
         lateral * profile.weaponRoll * degreesToRadians +
         this.cant * (1 - ads) * motion +
-        carry * (-0.25 + sway * 0.018 * motion),
+        carry * (-0.25 + sway * 0.018 * motion) -
+        inspect * 0.17,
     );
     if (active)
       this.arms.update(
@@ -425,13 +530,15 @@ export class WeaponViewmodel {
         motion,
       );
     this.flash.position.set(...weaponMuzzles[weapons.selected].firstPerson);
-    this.flash.visible =
-      active && weapons.time - weapons.current.lastShot < 0.045;
-    this.updateAimDot(weapons, active);
+    const shotAge = weapons.time - weapons.current.lastShot;
+    this.flash.visible = active && !cinder && shotAge < 0.045;
+    if (active) cinder?.update(dt, reload, ads, shotAge, inspect, motion);
+    this.updateAimDot(weapons, active, ads, cinder);
   }
 
   dispose(): void {
     this.arms.dispose();
+    this.cinder?.dispose();
     for (const mesh of this.models.values()) mesh.dispose();
     this.flash.dispose();
     this.dotGeometry.dispose();

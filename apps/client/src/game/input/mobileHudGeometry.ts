@@ -36,6 +36,7 @@ const phone = {
   reload: [48, 48, 112, 0],
   dive: [48, 48, 169, 0],
   swap: [62, 48, 170, 70],
+  inspect: [44, 44, 110, 0],
   pause: [44, 44, 0, 0],
   scores: [52, 44, 52, 0],
   minimap: [100, 100, 0, 0],
@@ -58,6 +59,7 @@ const tablet = {
   reload: [60, 60, 126, 30],
   dive: [60, 60, 210, 30],
   swap: [60, 60, 240, 138],
+  inspect: phone.inspect,
   pause: phone.pause,
   scores: phone.scores,
   minimap: [138, 138, 0, 0],
@@ -119,6 +121,7 @@ export function resolveMobileHud(
   layout: MobileHudLayout,
   viewport: HudViewport,
   isTablet: boolean,
+  showInspect = false,
 ) {
   const { width, height, safe } = viewport;
   const { top: headerHeight, bottom: footerHeight } = viewport.hudClearance ?? {
@@ -169,7 +172,7 @@ export function resolveMobileHud(
   const result: Partial<Record<MobileHudControlId, ControlBox>> = {};
   // Keep Pause reachable, then give the larger controls first pick of open space.
   const priority = [...mobileHudControlIds]
-    .filter((id) => layout[id].visible)
+    .filter((id) => layout[id].visible && (id !== 'inspect' || showInspect))
     .sort((a, b) => {
       if (a === 'pause') return -1;
       if (b === 'pause') return 1;
@@ -182,7 +185,8 @@ export function resolveMobileHud(
     const control = layout[id];
     const map = id === 'minimap';
     const leftControl = map || id === 'joystick' || id === 'sprint';
-    const topControl = map || id === 'pause' || id === 'scores';
+    const topControl =
+      map || id === 'pause' || id === 'scores' || id === 'inspect';
     const itemBounds = map
       ? { ...bounds, top: Math.max(bounds.top, safe.top + 54) }
       : bounds;

@@ -67,6 +67,7 @@ export class TouchInput {
     if (control === 'prone') this.input.movement.pronePressed = true;
     if (control === 'dive') this.input.movement.divePressed = true;
     if (control === 'reload') this.input.weapon.reloadPressed = true;
+    if (control === 'inspect') this.input.inspectPressed = true;
     if (control === 'swap') this.input.cycleWeapon();
     if (control === 'scores') this.input.toggleScoreboard();
     if (control === 'pause') {

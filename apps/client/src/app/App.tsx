@@ -575,6 +575,10 @@ export function App() {
           <WeaponPanel
             initialWeapon={combat?.weapon}
             allowedWeapons={room?.allowedWeapons}
+            rifleSkin={preferences.rifleSkin}
+            onRifleSkin={(rifleSkin) =>
+              changePreferences({ ...preferences, rifleSkin })
+            }
             onClose={() => setOverlay(null)}
           />
         )}
@@ -665,6 +669,9 @@ export function App() {
         {locked && touchControls && (
           <MobileHUD
             attach={attachTouchControls}
+            showInspect={
+              combat?.rifleSkin === 'cinder-wyrm' && !choosingLoadout
+            }
             tablet={device.tablet}
             layout={mobileLayout}
             multiplayer={multiplayerHud}
@@ -684,6 +691,7 @@ export function App() {
             }
             allowedWeapons={room.allowedWeapons}
             selected={owner?.nextWeapon ?? owner?.selected}
+            rifleSkin={preferences.rifleSkin}
             onEquip={(weapon) => {
               if (loadoutLife !== undefined)
                 game.current?.selectLoadout({

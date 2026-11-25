@@ -14,6 +14,7 @@ import type { PhysicsWorld } from '../physics/PhysicsWorld';
 export class TrainingDummy {
   health: number = combatConfig.dummyHealth;
   readonly aimPoint = { x: 0, y: 0, z: 0 };
+  readonly position = { x: 0, y: 0, z: -6 };
   private resetTimer = 0;
   private flash = 0;
   private readonly regions = new Map<number, HitRegion>();
@@ -52,15 +53,16 @@ export class TrainingDummy {
     const matrix = new Matrix4();
     const color = new Color();
     parts.forEach(([x, y, z, sx, sy, sz, tint], index) => {
-      matrix.makeScale(sx, sy, sz).setPosition(x, y, z - 6);
+      const targetZ = z + this.position.z;
+      matrix.makeScale(sx, sy, sz).setPosition(x, y, targetZ);
       this.mesh.setMatrixAt(index, matrix);
       this.mesh.setColorAt(index, color.setHex(tint));
       const region = body[index]?.region;
       if (region === 'upperTorso')
-        Object.assign(this.aimPoint, { x, y, z: z - 6 });
+        Object.assign(this.aimPoint, { x, y, z: targetZ });
       if (region)
         this.regions.set(
-          physics.addSensorBox({ x, y, z: z - 6 }, { x: sx, y: sy, z: sz }),
+          physics.addSensorBox({ x, y, z: targetZ }, { x: sx, y: sy, z: sz }),
           region,
         );
     });

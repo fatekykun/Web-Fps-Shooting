@@ -11,11 +11,14 @@ import type { Scene } from 'three';
 import type { MovementController } from '../movement/MovementController';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { WeaponController, type ShotEvent } from '../weapons/WeaponController';
+import type { RifleSkin } from '../weapons/RifleSkins';
 import { TrainingDummy } from './TrainingDummy';
 import { PooledImpacts } from '../effects/PooledImpacts';
 import type { OwnerCombat, KillEvent } from '@breakpoint/shared/combat';
 
 export interface CombatSnapshot {
+  rifleSkin?: RifleSkin;
+  inspecting?: boolean;
   allowedWeapons?: readonly WeaponId[];
   weapon: WeaponId;
   name: string;
@@ -69,6 +72,10 @@ export class PracticeCombat {
       end: Vector3Like,
       aimYaw: number,
       aimPitch: number,
+    ) => void,
+    private readonly onElimination?: (
+      weapon: WeaponId,
+      position: Vector3Like,
     ) => void,
   ) {
     this.dummy = new TrainingDummy(physics, scene);
@@ -147,6 +154,8 @@ export class PracticeCombat {
       this.critical = critical;
       this.hitSequence++;
       this.dummy.damage(damage);
+      if (this.dummy.resetting)
+        this.onElimination?.(shot.config.id, this.dummy.position);
     }
   };
 

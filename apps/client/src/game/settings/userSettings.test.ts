@@ -38,6 +38,7 @@ it('sanitizes malformed storage and clamps finite controls without sharing defau
   expect(settings.invertY).toBe(false);
   expect(settings.syncAdsFov).toBe(false);
   expect(settings.touchAimAssist).toBe(true);
+  expect(settings.rifleSkin).toBe('standard');
   expect(settings.masterVolume).toBe(0);
   expect(settings.crosshair).toEqual({
     color: '#edf0e3',
@@ -82,6 +83,7 @@ it('persists preferences and tolerates blocked or corrupt browser storage', () =
       syncAdsFov: true,
       muted: true,
       touchAimAssist: false,
+      rifleSkin: 'cinder-wyrm',
     },
     'reload',
     'KeyE',

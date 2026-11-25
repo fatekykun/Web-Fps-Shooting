@@ -21,6 +21,7 @@ const labels: Record<MobileHudControlId, string> = {
   swap: 'Weapon switch',
   scores: 'Scores',
   pause: 'Pause',
+  inspect: 'Inspect weapon',
   minimap: 'Minimap',
 };
 export function MobileHudEditor({

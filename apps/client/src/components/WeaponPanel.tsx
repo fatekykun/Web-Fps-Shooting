@@ -7,6 +7,7 @@ import {
 } from '@breakpoint/shared';
 import { weaponStatistics } from '@breakpoint/shared/weapons/statistics';
 import { TacticalDialog } from './TacticalDialog';
+import { rifleSkins, type RifleSkin } from '../game/weapons/RifleSkins';
 
 const regionLabels: Record<HitRegion, string> = {
   head: 'Head',
@@ -26,10 +27,14 @@ const number = (value: number) => Number(value.toFixed(2)).toString();
 export function WeaponPanel({
   initialWeapon = 'rifle',
   allowedWeapons = weaponOrder,
+  rifleSkin,
+  onRifleSkin,
   onClose,
 }: {
   initialWeapon?: WeaponId;
   allowedWeapons?: readonly WeaponId[];
+  rifleSkin: RifleSkin;
+  onRifleSkin(skin: RifleSkin): void;
   onClose(): void;
 }) {
   const [selection, setSelection] = useState(initialWeapon);
@@ -57,6 +62,25 @@ export function WeaponPanel({
           </button>
         ))}
       </div>
+      {selected === 'rifle' && (
+        <div className="scope-style-setting armory-finish">
+          <label htmlFor={`${title}-rifle-skin`}>Rifle skin</label>
+          <select
+            id={`${title}-rifle-skin`}
+            value={rifleSkin}
+            onChange={({ target }) =>
+              onRifleSkin(
+                target.value === 'cinder-wyrm' ? 'cinder-wyrm' : 'standard',
+              )
+            }
+          >
+            <option value="standard">{rifleSkins.standard.name}</option>
+            <option value="cinder-wyrm">
+              {rifleSkins['cinder-wyrm'].name} / Mythic
+            </option>
+          </select>
+        </div>
+      )}
       <section
         className="weapon-statistics"
         aria-labelledby={title}
