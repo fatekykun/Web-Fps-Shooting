@@ -39,6 +39,7 @@ import {
 } from './SniperScope';
 import { FirstPersonArms } from '../characters/FirstPersonArms';
 import { strideRadiansPerMeter } from '@breakpoint/shared/character';
+import { slideMomentum } from '@breakpoint/shared/movement/Sliding';
 import { weaponMuzzles } from './WeaponMuzzles';
 import { RecoilSpring } from './Recoil';
 
@@ -331,16 +332,14 @@ export class WeaponViewmodel {
           : movement === 'crouching'
             ? 0.015
             : 0;
-    const targetCant =
+    const slideTarget =
       movement === 'sliding' || movement === 'backsliding'
-        ? -0.055
-        : movement === 'diving'
-          ? 0.22
-          : 0;
+        ? 0.75 + 0.25 * slideMomentum(speed, movement === 'backsliding')
+        : 0;
+    const targetCant =
+      slideTarget > 0 ? -0.055 * slideTarget : movement === 'diving' ? 0.22 : 0;
     this.stance += (targetStance - this.stance) * blend;
     this.cant += (targetCant - this.cant) * blend;
-    const slideTarget =
-      movement === 'sliding' || movement === 'backsliding' ? 1 : 0;
     this.slide += (slideTarget - this.slide) * blend;
     const brace = this.slide * (1 - ads) ** 3;
     const recentlyFired =

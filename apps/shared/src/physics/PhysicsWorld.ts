@@ -266,6 +266,34 @@ export class PhysicsWorld {
     this.grounded = displacement.y <= 0 && this.controller.computedGrounded();
   }
 
+  /** Reads the contacts from the most recent capsule sweep. */
+  blockedForwardMovement(
+    displacement: Vector3Like,
+    alignment: number,
+  ): boolean {
+    const missingX = displacement.x - this.correctedMovement.x;
+    const missingZ = displacement.z - this.correctedMovement.z;
+    const distance = Math.hypot(displacement.x, displacement.z);
+    const nudge = movementConfig.collisionNormalNudge;
+    if (distance <= nudge || Math.abs(missingX) + Math.abs(missingZ) <= nudge)
+      return false;
+    const count = this.controller.numComputedCollisions();
+    for (let i = 0; i < count; i++) {
+      const collision = this.controller.computedCollision(i, this.contact);
+      if (!collision) continue;
+      const { x, y, z } = collision.normal1;
+      if (y >= Math.SQRT1_2 || y < -0.5) continue; // Walkable slopes and head contacts.
+      const intoWall = -(displacement.x * x + displacement.z * z);
+      const lostToWall = -(missingX * x + missingZ * z);
+      if (
+        lostToWall > nudge &&
+        intoWall >= alignment * distance * Math.hypot(x, z)
+      )
+        return true;
+    }
+    return false;
+  }
+
   private preserveStairSpeed(
     displacement: Vector3Like,
     movement: Vector3Like,

@@ -281,11 +281,14 @@ export class Game {
   }
   private get displayedFov(): number {
     const weapon = (this.session ? this.networkCombat : this.combat).weapons;
-    return weapon.fieldOfView(
-      this.userSettings.fov,
-      weapon.config.scopeMagnification
-        ? sniperZoom(this.sniperSlideAim.progress)
-        : weapon.ads,
+    return (
+      this.camera.slideFovOffset +
+      weapon.fieldOfView(
+        this.userSettings.fov,
+        weapon.config.scopeMagnification
+          ? sniperZoom(this.sniperSlideAim.progress)
+          : weapon.ads,
+      )
     );
   }
   private combatSnapshot(): CombatSnapshot {
@@ -616,13 +619,26 @@ export class Game {
       );
     } else this.sniperSlideAim.reset();
     const ads = scopedWeapon ? this.sniperSlideAim.progress : interpolatedAds;
-    const fov = weapons.fieldOfView(
+    const speed = Math.hypot(
+      this.movement.velocity.x,
+      this.movement.velocity.z,
+    );
+    this.camera.updateSlide(
+      state,
+      speed,
+      delta,
+      this.input.locked && armed && !this.userSettings.reducedMotion
+        ? (1 - ads) ** 2
+        : 0,
+    );
+    const aimFov = weapons.fieldOfView(
       this.userSettings.fov,
       scopedWeapon ? sniperZoom(ads) : ads,
     );
+    const fov = aimFov + this.camera.slideFovOffset;
     const recoil = this.input.previewRecoil(weapons.recoil, recoilTime);
     this.input.lookScale =
-      Math.tan((fov * Math.PI) / 360) /
+      Math.tan((aimFov * Math.PI) / 360) /
       Math.tan((this.userSettings.fov * Math.PI) / 360);
     this.camera.update(
       this.movement,
@@ -646,10 +662,6 @@ export class Game {
         this.input.movement.yaw,
         this.session.view.players,
       );
-    const speed = Math.hypot(
-      this.movement.velocity.x,
-      this.movement.velocity.z,
-    );
     this.viewmodel.update(
       weapons,
       speed,
@@ -727,7 +739,8 @@ export class Game {
       scopedWeapon &&
       this.userSettings.scopeStyle === 'optic';
     if (hasScope) {
-      this.opticView.baseFov = this.userSettings.fov;
+      this.opticView.baseFov =
+        this.userSettings.fov + this.camera.slideFovOffset;
       this.opticView.blend = sniperScopeBlend(ads);
       this.opticView.diameter = sniperScopeDiameter(ads);
     }
@@ -789,6 +802,7 @@ export class Game {
     this.audio.resetMotion();
     this.shotgunReticle.reset();
     this.sniperSlideAim.reset();
+    this.camera.resetSlide();
     this.viewmodel.resetRecoil();
     this.reticleGap = 5;
     this.lastTime = null;
@@ -809,7 +823,7 @@ export class Game {
     const worldFov =
       weapons.config.scopeMagnification &&
       this.userSettings.scopeStyle === 'optic'
-        ? this.userSettings.fov
+        ? this.userSettings.fov + this.camera.slideFovOffset
         : this.camera.camera.fov;
     this.viewmodel.muzzleWorldPosition(
       weapon,

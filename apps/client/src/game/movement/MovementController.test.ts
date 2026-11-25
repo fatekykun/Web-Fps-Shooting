@@ -174,6 +174,82 @@ describe('movement transitions with real Rapier collision', () => {
     expect(player.state).toBe('sliding');
   });
 
+  it('ends a head-on slide on the contact tick and cannot launch off the stored speed', () => {
+    const wall: ArenaBox = {
+      position: [0, 2, -10.5],
+      size: [4, 4, 0.5],
+      color: 0,
+    };
+    const player = make([floor, wall]);
+    run(player);
+    player.step({ ...running, slidePressed: true }, dt);
+    expect(player.state).toBe('sliding');
+    let frames = 0;
+    while (player.state === 'sliding' && frames++ < 30)
+      player.step(running, dt);
+    expect(frames * dt).toBeLessThan(config.slideDuration / 2);
+    expect(player.state).toBe('recovering');
+    expect(speed(player)).toBe(0);
+    expect(player.capture().slideJumpSpeed).toBe(0);
+    expect(player.physics.position.z).toBeCloseTo(
+      -10.25 + config.capsuleRadius + config.collisionOffset,
+      2,
+    );
+    steps(player, 24, { ...idle, right: 1 });
+    expect(player.state).toBe('walking');
+    expect(player.physics.halfHeight).toBeCloseTo(config.capsuleHalfHeight);
+    expect(player.physics.position.x).toBeGreaterThan(1);
+  });
+
+  it('continues sliding along the wall after a shallow contact', () => {
+    const wall: ArenaBox = {
+      position: [1, 2, -10],
+      size: [0.3, 4, 30],
+      color: 0,
+    };
+    const player = make([floor, wall], { x: -2.2, y: 0.91, z: 0 });
+    const approach = { ...running, yaw: -Math.PI / 12 };
+    steps(player, 10);
+    steps(player, 60, approach);
+    player.step({ ...approach, slidePressed: true }, dt);
+    steps(player, 20, approach);
+    expect(player.physics.position.x).toBeCloseTo(
+      0.85 - config.capsuleRadius - config.collisionOffset,
+      2,
+    );
+    expect(player.state).toBe('sliding');
+    expect(player.velocity.z).toBeLessThan(-6);
+    const alongWall = player.physics.position.z;
+    steps(player, 5, approach);
+    expect(player.state).toBe('sliding');
+    expect(player.physics.position.z).toBeLessThan(alongWall - 0.4);
+  });
+
+  it('boosts the incoming sprint, increases drag through the slide, and ends low momentum early', () => {
+    const player = make();
+    const partialSprint = { ...running, forward: 0.82 };
+    steps(player, 10);
+    steps(player, 60, partialSprint);
+    const sprintSpeed = speed(player);
+    player.step({ ...partialSprint, slidePressed: true }, dt);
+    const boosted = speed(player);
+    expect(boosted).toBeGreaterThan(sprintSpeed * 1.33);
+    steps(player, 6, partialSprint);
+    const earlyRatio = speed(player) / boosted;
+    steps(player, 15, partialSprint);
+    const middle = speed(player);
+    steps(player, 6, partialSprint);
+    expect(speed(player) / middle).toBeLessThan(earlyRatio);
+    let elapsed = 27 * dt;
+    while (player.state === 'sliding' && elapsed < config.slideDuration) {
+      player.step(partialSprint, dt);
+      elapsed += dt;
+    }
+    expect(elapsed).toBeLessThan(config.slideDuration);
+    expect(player.state).toBe('recovering');
+    expect(speed(player)).toBeLessThanOrEqual(config.slideExitSpeed);
+  });
+
   it('backslides while keeping the camera direction unchanged', () => {
     const player = make();
     run(player);

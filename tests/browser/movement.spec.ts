@@ -213,6 +213,38 @@ test('sprint, tap slide and jump cancel retain momentum through real input', asy
   expect(errors).toEqual([]);
 });
 
+test('sprint slide widens the camera and cancels on Depot cover', async ({
+  page,
+}) => {
+  await enter(page);
+  const pose = page.getByTestId('position');
+  const readFov = async () =>
+    Number(await page.getByTestId('weapon-status').getAttribute('data-fov'));
+  const baseFov = await readFov();
+  await page.keyboard.down('Shift');
+  await page.keyboard.down('w');
+  await page.clock.runFor(2400);
+  await page.keyboard.press('c');
+  await page.clock.runFor(256);
+  await expect(pose).toHaveAttribute('data-state', 'sliding');
+  expect(await readFov()).toBeGreaterThan(baseFov + 2.5);
+  await page.clock.runFor(448);
+  await expect(pose).toHaveAttribute('data-state', /^(recovering|sprinting)$/);
+  expect(Number(await page.getByTestId('speed').textContent())).toBeLessThan(
+    0.15,
+  );
+  expect(Number(await pose.getAttribute('data-z'))).toBeCloseTo(-10.965, 1);
+  await page.clock.runFor(288);
+  await expect(pose).toHaveAttribute('data-state', 'sprinting');
+  expect(Number(await pose.getAttribute('data-half-height'))).toBeCloseTo(
+    0.55,
+    2,
+  );
+  expect(await readFov()).toBeCloseTo(baseFov, 1);
+  await page.keyboard.up('w');
+  await page.keyboard.up('Shift');
+});
+
 test('backslide and dolphin dive recover to a standing sprint', async ({
   page,
 }) => {

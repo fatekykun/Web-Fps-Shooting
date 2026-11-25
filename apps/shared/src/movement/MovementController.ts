@@ -9,7 +9,7 @@ import {
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { walk } from './Walking';
 import { sprint, wantsSprint } from './Sprinting';
-import { slide, startSlide } from './Sliding';
+import { slide, slideMomentum, startSlide } from './Sliding';
 import { startBackslide } from './Backsliding';
 import { wantsSlideCancel } from './SlideCancel';
 import { airMove, bunnyHop } from './BunnyHop';
@@ -317,7 +317,7 @@ export class MovementController {
         break;
       case 'sliding':
       case 'backsliding':
-        slide(this.velocity, input, dt, this.wish);
+        slide(this.velocity, input, dt, this.wish, this.stateTime);
         break;
       case 'diving':
         dive(this.velocity, grounded && !launched, dt);
@@ -342,6 +342,7 @@ export class MovementController {
     }
     capHorizontalSpeed(this.velocity);
 
+    const oldEyeHeight = this.stanceEyeHeight();
     let targetHalfHeight: number = movementConfig.capsuleHalfHeight;
     if (this.state === 'sliding' || this.state === 'backsliding')
       targetHalfHeight = movementConfig.slideHalfHeight;
@@ -362,10 +363,6 @@ export class MovementController {
     );
     if (Math.abs(heightDelta) > 0.00001)
       this.physics.resize(this.physics.halfHeight + heightDelta);
-    this.eyeOffset =
-      movementConfig.eyeOffset -
-      2 * (movementConfig.capsuleHalfHeight - this.physics.halfHeight);
-
     if (grounded && !launched) this.velocity.y = 0;
     this.velocity.y -= movementConfig.gravity * dt;
     this.displacement.x = this.velocity.x * dt;
@@ -378,6 +375,30 @@ export class MovementController {
     // Collision separation may add tiny tangential corrections; it must not
     // become extra movement energy on the following tick.
     capHorizontalSpeed(this.velocity, requestedSpeed);
+    const backwards = this.state === 'backsliding';
+    let slideIntensity = 0;
+    if (this.state === 'sliding' || backwards) {
+      const blocked = this.physics.blockedForwardMovement(
+        this.displacement,
+        movementConfig.slideCollisionThreshold,
+      );
+      if (blocked) {
+        // A wall stop cannot be carried into a buffered slide jump or dive.
+        this.velocity.x = this.velocity.z = 0;
+        this.slideBuffer = this.diveBuffer = 0;
+        this.recover();
+        this.clearSlideJump();
+      } else {
+        slideIntensity = slideMomentum(
+          Math.hypot(this.velocity.x, this.velocity.z),
+          backwards,
+        );
+        if (slideIntensity === 0) {
+          this.slideBuffer = 0;
+          this.recover();
+        }
+      }
+    }
     if (this.slideJumpGrace > 0 && requestedSpeed > 0.00001) {
       // Keep the bank independent of BP-02's input braking, but honor momentum
       // lost to an actual obstacle during the short transition window.
@@ -388,7 +409,27 @@ export class MovementController {
       if (this.slideJumpSpeed < 0.00001) this.clearSlideJump();
     }
     if (this.physics.grounded || this.physics.hitCeiling) this.velocity.y = 0;
+    const lowered = Math.min(
+      1,
+      (movementConfig.eyeOffset - oldEyeHeight) /
+        (2 *
+          (movementConfig.capsuleHalfHeight - movementConfig.slideHalfHeight)),
+    );
+    const dip = -movementConfig.slideCameraDip * slideIntensity * lowered;
+    // The eye and the shot origin share this small dip, including after prediction replay.
+    const remainingDip =
+      dip +
+      (this.eyeOffset - oldEyeHeight - dip) *
+        Math.exp(-movementConfig.slideCameraTransitionSpeed * dt);
+    this.eyeOffset = this.stanceEyeHeight() + remainingDip;
     this.wasGrounded = grounded;
+  }
+
+  private stanceEyeHeight(): number {
+    return (
+      movementConfig.eyeOffset -
+      2 * (movementConfig.capsuleHalfHeight - this.physics.halfHeight)
+    );
   }
 
   /** Pausing freezes state timers and velocity, while clearing interpolation and buffered actions. */

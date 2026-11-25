@@ -459,9 +459,19 @@ for (const style of ['classic', 'optic'] as const) {
       'data-state',
       'airborne',
     );
+    // The slide-to-scope easing can still be finishing as the player leaves the slide.
+    await page.clock.runFor(96);
     await expect(scope).toHaveCSS('opacity', '0');
     await page.mouse.down({ button: 'right' });
     await page.clock.runFor(256);
+    await expect(page.getByTestId('position')).toHaveAttribute(
+      'data-state',
+      'airborne',
+    );
+    expect(
+      Number(await scope.evaluate((element) => element.style.opacity)),
+    ).toBeGreaterThan(0);
+    await page.clock.runFor(160);
     await expect(scope).toHaveCSS('opacity', '1');
     await expect(scope).toHaveAttribute('data-style', style);
     await page.mouse.up({ button: 'right' });
