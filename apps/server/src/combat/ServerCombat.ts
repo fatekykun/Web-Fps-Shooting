@@ -57,6 +57,7 @@ interface PendingShot {
   pitch: number;
   seed: number;
   soulRequiem: boolean;
+  lotusLava: boolean;
 }
 
 /** Receives validated controls, never client hits, ammo, rays, timestamps or damage. */
@@ -282,6 +283,7 @@ export class ServerCombat {
       shot: { ...shot },
       seed: loadout.seed,
       soulRequiem: shot.config.id === 'rifle' && player.soulRequiem,
+      lotusLava: shot.config.id === 'sniper' && player.lotusLava,
       origin: {
         x: position.x,
         y: position.y + player.movement.eyeOffset,
@@ -303,13 +305,20 @@ export class ServerCombat {
     pitch,
     seed,
     soulRequiem,
+    lotusLava,
   }: PendingShot): void {
+    const effect = lotusLava
+      ? 'lotus-lava'
+      : soulRequiem
+        ? 'soul-requiem'
+        : undefined;
     const event: ServerShot = {
       id: ++this.shotId,
       shooter: player.state.id,
       weapon: shot.config.id,
       origin,
       traces: [],
+      ...(lotusLava ? { sniperSkin: 'lotus-lava' as const } : {}),
     };
     const damage = new Map<
       ServerPlayer,
@@ -416,7 +425,7 @@ export class ServerCombat {
             y: victim.state.y - standingAnchor,
             z: victim.state.z,
           },
-          ...(soulRequiem ? { effect: 'soul-requiem' as const } : {}),
+          ...(effect ? { effect } : {}),
         });
       }
     }

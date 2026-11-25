@@ -408,6 +408,26 @@ describe('authoritative hitscan', () => {
       expect(shooter.state.health).toBe(100);
     },
   );
+  it.each([false, true])(
+    'authoritatively tags the sniper shot and confirmed Lotus kill (skin equipped: %s)',
+    (lotusLava) => {
+      const f = fixture();
+      const shooter = f.add('shooter', 0, 12);
+      const victim = f.add('victim', 0, 8);
+      shooter.lotusLava = lotusLava;
+      shooter.soulRequiem = true;
+      const weapons = f.combat.get('shooter')!.weapons;
+      weapons.selected = 'sniper';
+      weapons.ads = 1;
+      f.controls(shooter, { ...trigger, aim: true });
+      f.step();
+      expect(f.shots).toHaveLength(1);
+      expect(f.shots[0]?.sniperSkin).toBe(lotusLava ? 'lotus-lava' : undefined);
+      expect(victim.state.alive).toBe(false);
+      expect(f.kills).toHaveLength(1);
+      expect(f.kills[0]?.effect).toBe(lotusLava ? 'lotus-lava' : undefined);
+    },
+  );
   it('blocks shots on world cover and does not use client-reported origins or damage', () => {
     const f = fixture(),
       shooter = f.add('shooter', -7, 12),

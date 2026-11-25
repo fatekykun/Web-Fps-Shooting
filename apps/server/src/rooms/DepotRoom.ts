@@ -132,6 +132,10 @@ export class DepotRoom extends Room<{ state: RoomState }> {
       const player = this.simulations.get(client.sessionId);
       if (player && typeof enabled === 'boolean') player.soulRequiem = enabled;
     });
+    this.onMessage('lotus-lava', (client, enabled: unknown) => {
+      const player = this.simulations.get(client.sessionId);
+      if (player && typeof enabled === 'boolean') player.lotusLava = enabled;
+    });
     this.onMessage('loadout', (client, payload: unknown) => {
       const player = this.simulations.get(client.sessionId);
       if (

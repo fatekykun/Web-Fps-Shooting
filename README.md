@@ -61,6 +61,16 @@ and private matches. In **Settings → Display**, choose Low, Medium or High und
 and a local light. The 1.79-second sequence uses the supplied WAV as its clock
 when audio is available. Phase timing is in `apps/client/src/game/effects/SoulRequiem.ts`.
 
+### Lotus Lava sniper skin
+
+Select **Armory → SR-04 / Sniper → Sniper skin → Lotus Lava** to equip the
+imported first-person model in training or a private match. The selection is
+saved in this browser. Press **I** or tap **Inspect weapon** on the mobile HUD.
+Lotus Lava uses the authored reticle in both sniper scope styles. The supplied
+shot recording plays with the skin equipped. A confirmed elimination blooms into
+a 3D lotus at the target's feet, synchronized to the 2.45-second kill recording.
+**Elimination effect quality** controls the number of embers and fragments.
+
 ## Run locally
 
 BP-12 adds animated barrel-origin bullet trails for all four weapons in training

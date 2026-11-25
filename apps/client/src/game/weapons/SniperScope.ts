@@ -24,11 +24,23 @@ export function sniperZoom(ads: number): number {
   return smoothRange(ads, 0.45, 0.96);
 }
 
-export function sniperScopeDiameter(ads: number): number {
+export interface ScopeAperture {
+  eye: number;
+  rear: number;
+  opening: number;
+}
+
+export function sniperScopeDiameter(
+  ads: number,
+  aperture?: ScopeAperture,
+): number {
   // Match the hollow tube's visible opening while the solid rifle is present,
   // then open the sight as the eye reaches the eyepiece. No transparent gun fade.
-  const distance = -(sniperEyePosition(ads) - 0.25);
-  const bore = (100 * 0.066) / (2 * distance * Math.tan(Math.PI / 6));
+  const distance =
+    -sniperEyePosition(ads, aperture?.eye) - (aperture?.rear ?? -0.25);
+  const bore =
+    (100 * (aperture?.opening ?? 0.066)) /
+    (2 * distance * Math.tan(Math.PI / 6));
   return bore + (86 - bore) * smoothRange(ads, 0.79, 0.96);
 }
 

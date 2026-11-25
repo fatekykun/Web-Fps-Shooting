@@ -37,6 +37,7 @@ import {
   sniperRaise,
   sniperEyePosition,
   sniperScopeBlend,
+  sniperScopeDiameter,
 } from './SniperScope';
 import { FirstPersonArms } from '../characters/FirstPersonArms';
 import { strideRadiansPerMeter } from '@breakpoint/shared/character';
@@ -47,9 +48,11 @@ import { CinderWyrm, cinderReticle } from './CinderWyrm';
 import {
   cinderTuning,
   type RifleSkin,
-  type RifleSkinStatus,
+  type WeaponSkinStatus,
 } from './RifleSkins';
 import type { MementoMori } from './MementoMori';
+import type { LotusLava } from './LotusLava';
+import type { SniperSkin } from './SniperSkins';
 
 const easeUnit = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
@@ -107,6 +110,10 @@ export class WeaponViewmodel {
   private mementoUnavailable = false;
   private mementoSightAimed = false;
   private rifleSkin: RifleSkin = 'standard';
+  private sniperSkin: SniperSkin = 'standard';
+  private lotus?: LotusLava;
+  private lotusRequest?: AbortController;
+  private lotusUnavailable = false;
   private inspectRequested = false;
   private inspectTime: number | null = null;
   private inspectPose = 0;
@@ -240,9 +247,21 @@ export class WeaponViewmodel {
     );
   }
 
-  get rifleSkinStatus(): RifleSkinStatus {
+  get rifleSkinStatus(): WeaponSkinStatus {
     if (this.rifleSkin !== 'memento-mori' || this.memento) return 'ready';
     return this.mementoUnavailable ? 'unavailable' : 'loading';
+  }
+
+  get sniperSkinStatus(): WeaponSkinStatus {
+    if (this.sniperSkin !== 'lotus-lava' || this.lotus) return 'ready';
+    return this.lotusUnavailable ? 'unavailable' : 'loading';
+  }
+
+  scopeDiameter(ads: number): number {
+    return sniperScopeDiameter(
+      ads,
+      this.sniperSkin === 'lotus-lava' ? this.lotus?.aperture : undefined,
+    );
   }
 
   get inspecting(): boolean {
@@ -278,6 +297,34 @@ export class WeaponViewmodel {
       if (!request.signal.aborted) this.mementoUnavailable = true;
     } finally {
       this.mementoRequest = undefined;
+    }
+  }
+
+  setSniperSkin(skin: SniperSkin): void {
+    if (this.sniperSkin === skin) return;
+    this.sniperSkin = skin;
+    if (this.selected === 'sniper') this.resetInspect();
+    if (skin === 'lotus-lava' && !this.lotus && !this.lotusRequest)
+      void this.loadLotus();
+  }
+
+  private async loadLotus(): Promise<void> {
+    const request = new AbortController();
+    this.lotusRequest = request;
+    this.lotusUnavailable = false;
+    try {
+      const { LotusLava } = await import('./LotusLava');
+      if (request.signal.aborted) return;
+      const skin = await LotusLava.load(request.signal);
+      if (request.signal.aborted) skin.dispose();
+      else {
+        this.lotus = skin;
+        this.root.add(skin.model);
+      }
+    } catch {
+      if (!request.signal.aborted) this.lotusUnavailable = true;
+    } finally {
+      this.lotusRequest = undefined;
     }
   }
 
@@ -432,6 +479,7 @@ export class WeaponViewmodel {
     recoilTime = 0,
   ): void {
     if (this.selected !== weapons.selected) {
+      this.resetInspect();
       this.selected = weapons.selected;
       if (this.recoilWeapon !== this.selected) this.resetRecoil();
       for (const [id, mesh] of this.models) mesh.visible = id === this.selected;
@@ -445,21 +493,29 @@ export class WeaponViewmodel {
         ? this.memento
         : undefined;
     const customRifle = cinder ?? memento;
+    const lotus =
+      this.selected === 'sniper' && this.sniperSkin === 'lotus-lava'
+        ? this.lotus
+        : undefined;
+    const customWeapon = customRifle ?? lotus;
     this.models.get('rifle')!.visible =
       this.selected === 'rifle' && !customRifle;
     if (this.cinder) this.cinder.model.visible = !!cinder;
     if (this.memento) this.memento.model.visible = !!memento;
+    if (this.lotus) this.lotus.model.visible = !!lotus;
+    this.models.get('sniper')!.visible = this.selected === 'sniper' && !lotus;
     const recoil = this.recoil.sample(recoilTime, this.recoilSample);
     const kick = recoil.pitch * motion;
     const lateral = recoil.yaw * motion;
     const profile = weapons.config.recoil;
     const scoped = !!weapons.config.scopeMagnification;
-    const pose = memento?.adsPose ?? weaponSights[weapons.selected].ads;
+    const pose =
+      lotus?.adsPose ?? memento?.adsPose ?? weaponSights[weapons.selected].ads;
     const raise = scoped ? sniperRaise(ads) : ads;
     this.root.visible =
       active &&
       (!scoped || scopeStyle === 'optic' || sniperScopeBlend(ads) < 1);
-    if (weapons.selected === 'sniper') {
+    if (weapons.selected === 'sniper' && !lotus) {
       const progress = weapons.cycleProgress;
       const pull = weapons.cycling ? Math.sin(Math.PI * progress) : 0;
       const lift = weapons.cycling
@@ -501,16 +557,17 @@ export class WeaponViewmodel {
       !!input?.fire ||
       ads > 0.02 ||
       recentlyFired ||
+      weapons.cycling ||
       weapons.reloading ||
       weapons.equipping;
     this.updateInspect(
       dt,
-      !!customRifle &&
+      !!customWeapon &&
         active &&
         !busy &&
         speed < 0.4 &&
         (movement === 'walking' || movement === 'crouching'),
-      busy || !active || !customRifle,
+      busy || !active || !customWeapon,
     );
     const inspect = this.inspectPose * motion;
     const carrying =
@@ -603,6 +660,7 @@ export class WeaponViewmodel {
         carry * (1 - reload),
         this.stridePhase,
         motion,
+        lotus?.grips,
       );
     this.flash.position.set(...weaponMuzzles[weapons.selected].firstPerson);
     const shotAge = weapons.time - weapons.current.lastShot;
@@ -610,6 +668,7 @@ export class WeaponViewmodel {
     if (active) {
       cinder?.update(dt, reload, ads, shotAge, inspect, motion);
       memento?.update(dt, reload, ads, inspect, motion);
+      lotus?.update(reload);
     }
     this.updateAimDot(weapons, active, ads, cinder, memento);
   }
@@ -619,6 +678,8 @@ export class WeaponViewmodel {
     this.cinder?.dispose();
     this.mementoRequest?.abort();
     this.memento?.dispose();
+    this.lotusRequest?.abort();
+    this.lotus?.dispose();
     for (const mesh of this.models.values()) mesh.dispose();
     this.flash.dispose();
     this.dotGeometry.dispose();

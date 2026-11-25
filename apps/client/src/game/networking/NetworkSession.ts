@@ -80,6 +80,7 @@ export class NetworkSession {
   private readonly outbox: PlayerInput[] = [];
   private life = 0;
   private soulRequiem = false;
+  private lotusLava = false;
 
   static async connect(
     mode: 'create' | 'join',
@@ -298,6 +299,11 @@ export class NetworkSession {
     if (this.leaving || enabled === this.soulRequiem) return;
     this.soulRequiem = enabled;
     this.room.send('soul-requiem', enabled);
+  }
+  setLotusLava(enabled: boolean): void {
+    if (this.leaving || enabled === this.lotusLava) return;
+    this.lotusLava = enabled;
+    this.room.send('lotus-lava', enabled);
   }
   start(): void {
     this.room.send('start');
