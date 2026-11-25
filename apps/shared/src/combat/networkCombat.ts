@@ -51,7 +51,9 @@ export interface ServerShot {
   weapon: WeaponId;
   origin: Vector3Like;
   traces: ShotTrace[];
+  sniperSkin?: 'lotus-lava';
 }
+export type EliminationEffect = 'soul-requiem' | 'lotus-lava';
 export interface KillEvent {
   id: number;
   killer: string;
@@ -62,5 +64,5 @@ export interface KillEvent {
   victimId?: string;
   /** Authoritative location of the defeated character's feet. */
   position?: Vector3Like;
-  effect?: 'soul-requiem';
+  effect?: EliminationEffect;
 }

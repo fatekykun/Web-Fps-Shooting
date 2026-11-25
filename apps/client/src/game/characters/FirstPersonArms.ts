@@ -67,7 +67,14 @@ export class FirstPersonArms {
     this.skeleton = new Skeleton(this.bones);
   }
 
-  update(reload: number, brace = 0, carry = 0, phase = 0, motion = 1): void {
+  update(
+    reload: number,
+    brace = 0,
+    carry = 0,
+    phase = 0,
+    motion = 1,
+    grips?: { firing: Vector3; support: Vector3 },
+  ): void {
     this.root.updateWorldMatrix(true, false);
     this.inverse.copy(this.root.matrixWorld).invert();
     this.root.getWorldQuaternion(this.parentRotation).invert();
@@ -78,16 +85,26 @@ export class FirstPersonArms {
       const upper = this.bones[side * 3]!,
         forearm = this.bones[side * 3 + 1]!,
         wrist = this.bones[side * 3 + 2]!;
+      const shoulderLead =
+        left && grips ? Math.min(0, grips.support.z + 0.17) : 0;
       upper.position.set(
         left ? -0.26 - brace * 0.01 : 0.26 + brace * 0.02,
         -0.35 - brace * 0.035,
-        0.35 - brace * 0.015,
+        0.35 - brace * 0.015 + shoulderLead,
       );
       this.target.set(
         left ? -0.045 + reload * 0.08 : 0.045,
         left ? -0.075 - reload * 0.18 : -0.1,
         left ? -0.17 + reload * 0.2 : 0.12,
       );
+      if (grips) {
+        const grip = left ? grips.support : grips.firing;
+        this.target.set(
+          grip.x + (left ? -0.045 + reload * 0.08 : 0.045),
+          grip.y - (left ? 0.018 + reload * 0.18 : 0),
+          grip.z + (left ? reload * 0.2 : 0),
+        );
+      }
       this.direction.copy(this.target).sub(upper.position);
       const distance = Math.min(
         upperLength + foreLength - 0.0001,

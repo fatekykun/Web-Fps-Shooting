@@ -3,6 +3,7 @@ import { weaponConfigs, weaponOrder } from '@breakpoint/shared';
 import { playerCombatConfig } from '@breakpoint/shared/combat';
 import { KillFeed } from './KillFeed';
 import { rifleSkins } from '../game/weapons/RifleSkins';
+import { sniperSkins } from '../game/weapons/SniperSkins';
 import {
   defaultBindings,
   keyLabel,
@@ -22,9 +23,15 @@ export function CombatHud({
   multiplayer?: boolean;
 }) {
   const weapon = weaponConfigs[combat.weapon];
-  const skin = rifleSkins[combat.rifleSkin ?? 'standard'];
-  const mythic = skin.mythic && combat.rifleSkinStatus === 'ready';
-  const name = mythic ? `AR-01 / ${skin.name.toUpperCase()}` : combat.name;
+  const sniper = combat.weapon === 'sniper';
+  const skin = sniper
+    ? sniperSkins[combat.sniperSkin ?? 'standard']
+    : rifleSkins[combat.rifleSkin ?? 'standard'];
+  const skinStatus = sniper ? combat.sniperSkinStatus : combat.rifleSkinStatus;
+  const mythic = skin.mythic && skinStatus === 'ready';
+  const name = mythic
+    ? `${sniper ? 'SR-04' : 'AR-01'} / ${skin.name.toUpperCase()}`
+    : combat.name;
   const healthPercent =
     ((combat.player?.health ?? 0) / playerCombatConfig.health) * 100;
   return (
@@ -36,6 +43,8 @@ export function CombatHud({
         data-weapon={combat.weapon}
         data-rifle-skin={combat.rifleSkin}
         data-rifle-skin-status={combat.rifleSkinStatus}
+        data-sniper-skin={combat.sniperSkin}
+        data-sniper-skin-status={combat.sniperSkinStatus}
         data-inspecting={!!combat.inspecting}
         data-ammo={combat.magazine}
         data-reserve={combat.reserve}
@@ -78,9 +87,9 @@ export function CombatHud({
                       ? 'AIM DOWN SIGHTS'
                       : 'HIP FIRE'}
         </div>
-        {combat.rifleSkinStatus && combat.rifleSkinStatus !== 'ready' && (
+        {skinStatus && skinStatus !== 'ready' && (
           <span className="weapon-action" role="status">
-            {combat.rifleSkinStatus === 'loading'
+            {skinStatus === 'loading'
               ? `LOADING ${skin.name.toUpperCase()}`
               : `${skin.name.toUpperCase()} UNAVAILABLE`}
           </span>

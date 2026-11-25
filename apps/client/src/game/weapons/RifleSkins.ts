@@ -7,7 +7,7 @@ export const rifleSkins = {
 } as const;
 
 export type RifleSkin = keyof typeof rifleSkins;
-export type RifleSkinStatus = 'loading' | 'ready' | 'unavailable';
+export type WeaponSkinStatus = 'loading' | 'ready' | 'unavailable';
 
 export const rifleSkinIds = Object.keys(rifleSkins) as RifleSkin[];
 

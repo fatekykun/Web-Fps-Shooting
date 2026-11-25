@@ -155,6 +155,8 @@ class Context {
   readonly decodedMoltenKill = { duration: 1.38 };
   readonly decodedMementoMori = { duration: 0.339 };
   readonly decodedSoulRequiem = { duration: 1.79 };
+  readonly decodedLotusShot = { duration: 1.3 };
+  readonly decodedLotusKill = { duration: 2.45 };
   decodeAudioData = vi.fn(
     async (data: ArrayBuffer) =>
       [
@@ -169,6 +171,8 @@ class Context {
         this.decodedMoltenKill,
         this.decodedMementoMori,
         this.decodedSoulRequiem,
+        this.decodedLotusShot,
+        this.decodedLotusKill,
       ][data.byteLength - 1]!,
   );
   resume = vi.fn(async () => {
@@ -401,6 +405,8 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     '/audio/molten_lava_kill_effect.wav',
     '/audio/memento_mori_reference_shot.wav',
     '/audio/memento_mori_reference_kill.wav',
+    '/audio/lotus_lava_gunshot.wav',
+    '/audio/lotus_lava_kill.wav',
   ];
   const fetchShot = vi.fn(
     async (path: string) =>
@@ -552,7 +558,7 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
         (node) => node.buffer === context.decodedElimination,
       ),
     ).toHaveLength(1);
-    const clock = audio.playSoulRequiem();
+    const clock = audio.playMythicElimination('soul-requiem');
     expect(clock?.()).toBe(0);
     context.currentTime = 0.17;
     expect(clock?.()).toBeCloseTo(0.17);
@@ -561,6 +567,31 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     );
     expect(requiem).toHaveLength(1);
     expect(requiem[0]?.stop).toHaveBeenCalledWith(1.79);
+    // The fake audio nodes stay active until the test reports playback ended.
+    for (const node of context.nodes) node.onended?.();
+    audio.feedback({
+      ...downedTarget,
+      weapon: 'sniper',
+      hitSequence: 8,
+      sniperSkin: 'lotus-lava',
+      sniperSkinStatus: 'ready',
+    });
+    expect(
+      context.nodes.filter(
+        (node) => node.buffer === context.decodedElimination,
+      ),
+    ).toHaveLength(1);
+    expect(audio.shot('sniper', 0.6, 0.5, 'lotus-lava')).toBe(false);
+    audio.shot('rifle', 1, 0, 'lotus-lava');
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedLotusShot),
+    ).toHaveLength(1);
+    const lotusClock = audio.playMythicElimination('lotus-lava');
+    context.currentTime = 0.59;
+    expect(lotusClock?.()).toBeCloseTo(0.42);
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedLotusKill),
+    ).toHaveLength(1);
   } finally {
     audio.dispose();
   }

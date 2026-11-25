@@ -88,9 +88,10 @@ async function aimRifle(page: Page) {
 }
 
 async function shoot(page: Page) {
-  await page.mouse.down();
-  await page.waitForTimeout(34);
-  await page.mouse.up();
+  await page.evaluate(() => {
+    document.dispatchEvent(new MouseEvent('mousedown', { button: 0 }));
+    document.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+  });
 }
 
 async function saveRupture(page: Page, path: string) {

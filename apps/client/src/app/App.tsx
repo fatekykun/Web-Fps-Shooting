@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  sniperScopeBlend,
-  sniperScopeDiameter,
-} from '../game/weapons/SniperScope';
+import { sniperScopeBlend } from '../game/weapons/SniperScope';
 import { rifleSkins } from '../game/weapons/RifleSkins';
 import type { Game, GameTelemetry } from '../game/core/Game';
 import { Telemetry } from '../components/Telemetry';
@@ -202,12 +199,12 @@ export function App() {
         ads: number,
         scoped: number,
         opticReticle: boolean,
+        diameter: number,
         shotgunRadius?: number,
       ) => {
         if (cancelled || !reticle.current) return;
         const opacity = sniperScopeBlend(scoped);
         if (scope.current) {
-          const diameter = sniperScopeDiameter(scoped);
           scope.current.style.opacity = String(opacity);
           scope.current.style.setProperty(
             '--scope-diameter',
@@ -580,6 +577,10 @@ export function App() {
             onRifleSkin={(rifleSkin) =>
               changePreferences({ ...preferences, rifleSkin })
             }
+            sniperSkin={preferences.sniperSkin}
+            onSniperSkin={(sniperSkin) =>
+              changePreferences({ ...preferences, sniperSkin })
+            }
             onClose={() => setOverlay(null)}
           />
         )}
@@ -651,6 +652,11 @@ export function App() {
             ref={scope}
             data-testid="sniper-scope"
             data-style={preferences.scopeStyle}
+            data-skin={
+              combat?.sniperSkinStatus === 'ready'
+                ? combat.sniperSkin
+                : undefined
+            }
             hidden={choosingLoadout}
             aria-hidden="true"
           >
@@ -671,10 +677,12 @@ export function App() {
           <MobileHUD
             attach={attachTouchControls}
             showInspect={
-              !!combat?.rifleSkin &&
-              rifleSkins[combat.rifleSkin].mythic &&
-              combat.rifleSkinStatus === 'ready' &&
-              !choosingLoadout
+              !choosingLoadout &&
+              ((!!combat?.rifleSkin &&
+                rifleSkins[combat.rifleSkin].mythic &&
+                combat.rifleSkinStatus === 'ready') ||
+                (combat?.sniperSkin === 'lotus-lava' &&
+                  combat.sniperSkinStatus === 'ready'))
             }
             tablet={device.tablet}
             layout={mobileLayout}
@@ -696,6 +704,7 @@ export function App() {
             allowedWeapons={room.allowedWeapons}
             selected={owner?.nextWeapon ?? owner?.selected}
             rifleSkin={preferences.rifleSkin}
+            sniperSkin={preferences.sniperSkin}
             onEquip={(weapon) => {
               if (loadoutLife !== undefined)
                 game.current?.selectLoadout({
