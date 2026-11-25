@@ -42,6 +42,7 @@ it.each(playerLimits)(
   'atomically caps a %i-player room including its host and reopens vacated seats',
   async (playerLimit) => {
     const host = await create({ ...matchDefaults.ffa, playerLimit });
+    expect(host.state.mapId).toBe('shipment');
     expect(host.state.playerLimit).toBe(playerLimit);
     expect([...host.state.allowedWeapons]).toEqual(weaponOrder);
     const attempts = await Promise.allSettled(
@@ -185,6 +186,7 @@ it.each([
 );
 it('rejects invalid creation requests instead of silently accepting unsafe limits or loadouts', async () => {
   for (const change of [
+    { mapId: 'depot' },
     { playerLimit: 3 },
     { playerLimit: '2' },
     { allowedWeapons: [] },

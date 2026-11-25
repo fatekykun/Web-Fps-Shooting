@@ -21,6 +21,7 @@ async function cyanPixels(
     position.y + movementConfig.eyeOffset,
     position.z,
   );
+  camera.rotation.y = Math.PI;
   camera.updateMatrixWorld();
   const pixels = [];
   for (const x of [-0.55, 0.55])
@@ -130,14 +131,9 @@ test('remote silhouettes remain readable at 16–24 m and disappear behind solid
     }, 1000 / 30);
     await enterStartedMatch(page);
     await expect(page.locator('.crosshair')).toBeVisible();
+    const listener = () => target!.state.players.get(target!.state.hostId)!;
     await page.keyboard.down('d');
-    await expect
-      .poll(
-        async () =>
-          Number(await page.getByTestId('position').getAttribute('data-x')),
-        movementPoll,
-      )
-      .toBeGreaterThan(-0.5);
+    await expect.poll(() => listener().x, movementPoll).toBeLessThan(-16.35);
     await page.keyboard.up('d');
     await expect
       .poll(
@@ -146,23 +142,27 @@ test('remote silhouettes remain readable at 16–24 m and disappear behind solid
       )
       .toBeLessThan(0.1);
     const peer = () => target!.state.players.get(target!.sessionId)!;
-    right = 1;
-    await expect.poll(() => peer().x, movementPoll).toBeGreaterThan(-2.2);
+    // Use Shipment's west perimeter lane to measure visibility at distance.
+    right = -1;
+    await expect.poll(() => peer().x, movementPoll).toBeLessThan(-16.35);
     right = 0;
     forward = 1;
-    await expect.poll(() => peer().z, movementPoll).toBeLessThan(-3.5);
+    await expect.poll(() => peer().z, movementPoll).toBeLessThan(1);
     forward = 0;
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'test-results/bp01-enemy-medium.png' });
     expect(await cyanPixels(page, peer())).toBeGreaterThan(30);
-    forward = 1;
-    await expect.poll(() => peer().z, movementPoll).toBeLessThan(-9.5);
+    forward = -1;
+    await expect.poll(() => peer().z, movementPoll).toBeGreaterThan(8);
     forward = 0;
     await page.waitForTimeout(500);
     expect(await cyanPixels(page, peer())).toBeGreaterThan(12);
     await page.screenshot({ path: 'test-results/bp01-enemy-distant.png' });
-    right = -1;
-    await expect.poll(() => peer().x, movementPoll).toBeLessThan(-7);
+    forward = 1;
+    await expect.poll(() => peer().z, movementPoll).toBeLessThan(4.7);
+    forward = 0;
+    right = 1;
+    await expect.poll(() => peer().x, movementPoll).toBeGreaterThan(-12.2);
     right = 0;
     await page.waitForTimeout(500);
     expect(await cyanPixels(page, peer())).toBeLessThan(5);

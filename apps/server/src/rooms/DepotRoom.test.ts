@@ -44,6 +44,7 @@ async function connect(
 
 it('runs a private eight-player room through capacity, readiness, movement, host migration and cleanup', async () => {
   const host = await connect(undefined, 'Host');
+  expect(host.state.mapId).toBe('shipment');
   const code = host.roomId;
   expect(code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
   await expect(client.join('depot', { name: 'Stranger' })).rejects.toThrow();
@@ -75,6 +76,7 @@ it('runs a private eight-player room through capacity, readiness, movement, host
     for (const step of message.footsteps ?? [])
       concurrentSources.add(step.player);
   });
+  const spawnZ = host.state.players.get(host.sessionId)!.z;
   host.send(
     'input',
     [1, 2].map((seq) => ({
@@ -82,7 +84,7 @@ it('runs a private eight-player room through capacity, readiness, movement, host
       life: host.state.players.get(host.sessionId)!.life,
       forward: 1,
       right: 0,
-      yaw: 0,
+      yaw: Math.PI,
       pitch: 0,
       sprint: true,
       jump: false,
@@ -95,10 +97,10 @@ it('runs a private eight-player room through capacity, readiness, movement, host
   await expect
     .poll(() => rooms[1]!.state.players.get(host.sessionId)?.ack)
     .toBe(2);
-  expect(correction!.snapshot.position.z).toBeLessThan(12);
+  expect(correction!.snapshot.position.z).toBeGreaterThan(spawnZ);
   const heard: RemoteFootstep[] = [],
     distant: RemoteFootstep[] = [];
-  rooms[1]!.onMessage('correction', (message: Correction) =>
+  rooms[2]!.onMessage('correction', (message: Correction) =>
     heard.push(...(message.footsteps ?? [])),
   );
   rooms[7]!.onMessage('correction', (message: Correction) =>
@@ -109,8 +111,12 @@ it('runs a private eight-player room through capacity, readiness, movement, host
     kind: 'sprint',
     surface: 'metal',
   });
-  const sprint = (room: (typeof rooms)[number], firstSequence: number) => {
-    const life = room.state.players.get(room.sessionId)!.life;
+  const sprint = (
+    room: (typeof rooms)[number],
+    firstSequence: number,
+    yaw = room.state.players.get(room.sessionId)!.yaw,
+  ) => {
+    const { life } = room.state.players.get(room.sessionId)!;
     for (let seq = firstSequence; seq < firstSequence + 48; seq += 6) {
       room.send(
         'input',
@@ -119,7 +125,7 @@ it('runs a private eight-player room through capacity, readiness, movement, host
           life,
           forward: 1,
           right: 0,
-          yaw: 0,
+          yaw,
           pitch: 0,
           sprint: true,
           jump: false,
@@ -130,7 +136,7 @@ it('runs a private eight-player room through capacity, readiness, movement, host
       );
     }
   };
-  sprint(host, 3);
+  sprint(host, 3, -Math.PI / 2);
   await expect.poll(() => correction?.ack).toBe(50);
   await expect.poll(() => heard.length).toBeGreaterThan(2);
   expect(
@@ -141,16 +147,16 @@ it('runs a private eight-player room through capacity, readiness, movement, host
         step.surface === 'concrete',
     ),
   ).toBe(true);
-  expect(new Set(heard.map(({ position }) => position.z)).size).toBe(
+  expect(new Set(heard.map(({ position }) => position.x)).size).toBe(
     heard.length,
   );
   expect(correction?.footsteps).toBeUndefined();
   expect(distant).toHaveLength(0);
 
-  sprint(host, 51);
+  sprint(host, 51, -Math.PI / 2);
   for (const room of rooms.slice(1)) sprint(room, 1);
   await expect.poll(() => correction?.ack).toBe(98);
-  await expect.poll(() => concurrentSources.size).toBeGreaterThanOrEqual(4);
+  await expect.poll(() => concurrentSources.size).toBeGreaterThanOrEqual(3);
   expect(concurrentSources.has(host.sessionId)).toBe(false);
 
   // Malformed inputs evict the sender, freeing a seat for a late join.
@@ -171,6 +177,8 @@ it('runs a private eight-player room through capacity, readiness, movement, host
 
 it('accepts weapon intent over sockets but owns damage, ammo, kills and life transitions', async () => {
   const host = await connect(undefined, 'Shooter');
+  // Shipment alternates FFA slots between sides. Reserve the opposite-side slot.
+  const filler = await connect(host.roomId, 'South slot');
   const target = await connect(host.roomId, 'Target');
   let owner: OwnerCombat | undefined, targetOwner: OwnerCombat | undefined;
   const kills: KillEvent[] = [];
@@ -181,6 +189,7 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
     targetOwner = message.combat;
   });
   host.onMessage('kill', (kill: KillEvent) => kills.push(kill));
+  filler.send('ready', true);
   target.send('ready', true);
   await expect
     .poll(() =>
@@ -207,7 +216,7 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
     forward: 0,
     right: 0,
     yaw,
-    pitch: -0.12,
+    pitch: -0.07,
     sprint: false,
     jump: false,
     jumpPressed: false,
@@ -270,8 +279,8 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
     expect(targetOwner!.health).toBe(100);
     expect(targetOwner!.protected).toBe(true);
     const respawned = target.state.players.get(target.sessionId)!;
-    expect(Math.abs(respawned.x)).toBeLessThan(19.5);
-    expect(Math.abs(respawned.z)).toBeLessThan(15.5);
+    expect(Math.abs(respawned.x)).toBeLessThan(18);
+    expect(Math.abs(respawned.z)).toBeLessThan(18);
     expect(targetOwner!.shots).toBe(0);
     expect(targetOwner!.ammo.rifle.magazine).toBe(30);
     target.send('input', [packet(3, targetLife + 1, true, 0)]);
@@ -282,6 +291,7 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
     clearInterval(stream);
     await host.leave();
     await target.leave();
+    await filler.leave();
   }
 }, 25000);
 
@@ -291,9 +301,11 @@ it('scores an actual elimination, freezes results, then rematches as four-versus
     scoreLimit: 1,
     durationSeconds: 30,
   });
+  const filler = await connect(host.roomId, 'South slot');
   const guest = await connect(host.roomId, 'Guest');
-  const roundRooms = [host, guest];
+  const roundRooms = [host, filler, guest];
   guest.send('configure', matchDefaults.tdm);
+  filler.send('ready', true);
   guest.send('ready', true);
   await expect
     .poll(() => [...host.state.players.values()].every((p) => p.ready))
@@ -318,7 +330,7 @@ it('scores an actual elimination, freezes results, then rematches as four-versus
       forward: 0,
       right: 0,
       yaw: -Math.PI / 2,
-      pitch: -0.12,
+      pitch: -0.07,
       sprint: false,
       jump: false,
       jumpPressed: false,
@@ -357,7 +369,7 @@ it('scores an actual elimination, freezes results, then rematches as four-versus
     expect(host.state.scores.size).toBe(0);
     host.send('configure', matchDefaults.tdm);
     await expect.poll(() => host.state.mode).toBe('tdm');
-    for (let i = 2; i < 8; i++)
+    for (let i = roundRooms.length; i < 8; i++)
       roundRooms.push(await connect(host.roomId, `Guest ${i}`));
     for (const room of roundRooms) room.send('ready', true);
     await expect.poll(() => host.state.players.size).toBe(8);
@@ -378,7 +390,7 @@ it('scores an actual elimination, freezes results, then rematches as four-versus
     ).toHaveLength(4);
     expect(
       [...host.state.players.values()].every((p) =>
-        p.team === 'blue' ? p.z > 0 : p.z < 0,
+        p.team === 'blue' ? p.z < 0 : p.z > 0,
       ),
     ).toBe(true);
     host.send('configure', matchDefaults.ffa);
@@ -389,7 +401,7 @@ it('scores an actual elimination, freezes results, then rematches as four-versus
     expect(host.state.scores.get(host.sessionId)!.kills).toBe(0);
     clearInterval(stream);
     await host.leave();
-    await expect.poll(() => guest.state.hostId).toBe(guest.sessionId);
+    await expect.poll(() => guest.state.hostId).toBe(filler.sessionId);
     await expect
       .poll(() => guest.state.scores.get(host.sessionId)?.connected)
       .toBe(false);

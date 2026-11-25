@@ -24,6 +24,7 @@ const player: PublicPlayer = {
   team: 'none',
 };
 const view = (tick: number, x: number): RoomView => ({
+  mapId: 'shipment',
   code: 'ABC234',
   selfId: 'self',
   hostId: 'self',

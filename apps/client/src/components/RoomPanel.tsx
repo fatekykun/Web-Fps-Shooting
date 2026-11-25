@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RoomView } from '@breakpoint/shared/network';
-import { arenas } from '@breakpoint/shared/maps';
+import { arenas, defaultMultiplayerMapId } from '@breakpoint/shared/maps';
 import {
   matchDefaults,
   parsePrivateRoomSettings,
@@ -69,6 +69,7 @@ export function RoomPanel({
   const inviteUrl = room ? roomInviteUrl(location.href, room.code) : '';
   const [settings, setSettings] = useState<PrivateRoomSettings>({
     ...matchDefaults.ffa,
+    mapId: defaultMultiplayerMapId,
   });
   useEffect(() => {
     const element = dialog.current!;
@@ -147,10 +148,8 @@ export function RoomPanel({
     >
       <div className="room-heading">
         <span className="eyebrow">
-          {room
-            ? arenas[room.mapId ?? 'depot'].name.toUpperCase()
-            : 'MULTIPLAYER'}{' '}
-          / PRIVATE SESSION
+          {room ? arenas[room.mapId].name.toUpperCase() : 'MULTIPLAYER'} /
+          PRIVATE SESSION
         </span>
         <button
           className="room-button"

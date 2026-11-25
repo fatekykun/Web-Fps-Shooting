@@ -1,4 +1,5 @@
 import { schema, t, type SchemaType } from '@colyseus/schema';
+import { defaultMultiplayerMapId } from '@breakpoint/shared/maps';
 
 export const PlayerState = schema(
   {
@@ -76,7 +77,7 @@ export const RoomState = schema(
     endReason: t.string().default(''),
     scores: t.map(ScoreState),
     countdownSeconds: t.uint8().default(0),
-    mapId: t.string().default('depot'),
+    mapId: t.string().default(defaultMultiplayerMapId),
   },
   'RoomState',
 );

@@ -5,7 +5,11 @@ import {
   footstepProfiles,
   type RemoteFootstep,
 } from '@breakpoint/shared/movement/Footsteps';
-import { arenas, type ArenaDefinition } from '@breakpoint/shared/maps';
+import {
+  arenas,
+  defaultMultiplayerMapId,
+  type ArenaDefinition,
+} from '@breakpoint/shared/maps';
 import { networkConfig, parseName } from '@breakpoint/shared/network';
 import { RoomState, PlayerState } from './RoomState';
 import { ServerPlayer } from '../players/ServerPlayer';
@@ -40,7 +44,7 @@ export class DepotRoom extends Room<{ state: RoomState }> {
   maxClients: number = networkConfig.maxPlayers;
   patchRate = networkConfig.patchRate;
   maxMessagesPerSecond = 120;
-  private arena: ArenaDefinition = arenas.depot;
+  private arena: ArenaDefinition = arenas[defaultMultiplayerMapId];
   private readonly simulations = new Map<string, ServerPlayer>();
   private readonly footsteps: RemoteFootstep[] = [];
   private readonly combat = new ServerCombat(
@@ -91,8 +95,9 @@ export class DepotRoom extends Room<{ state: RoomState }> {
         'Choose a supported arena, FFA/TDM, valid match rules, 2/4/6/8 players and one or two custom weapons.',
       );
     this.maxClients = settings.playerLimit!;
-    this.state.mapId = settings.mapId ?? 'depot';
-    this.arena = arenas[settings.mapId ?? 'depot'];
+    const mapId = settings.mapId ?? defaultMultiplayerMapId;
+    this.state.mapId = mapId;
+    this.arena = arenas[mapId];
     this.state.playerLimit = this.maxClients;
     this.state.allowedWeapons.push(...(settings.allowedWeapons ?? weaponOrder));
     this.combat.setAllowedWeapons(settings.allowedWeapons ?? weaponOrder);

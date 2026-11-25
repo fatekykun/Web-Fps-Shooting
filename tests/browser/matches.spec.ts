@@ -1,4 +1,4 @@
-import { enterStartedMatch } from './helpers/matchEntry';
+import { enterStartedMatch, reserveSpawnSlot } from './helpers/matchEntry';
 import { expectMatchHudLayout } from './helpers/matchHudLayout';
 import { expect, test, type Page } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
@@ -18,14 +18,14 @@ async function create(
   await page.getByLabel('TIME LIMIT (SECONDS)').fill(String(seconds));
   await page.getByRole('button', { name: 'CREATE PRIVATE ROOM' }).click();
   const code = await page.getByTestId('room-code').textContent();
-  const peer = await new Client('http://127.0.0.1:2567').joinById<RoomState>(
-    code!,
-    { name: 'Kestrel' },
-  );
+  const client = new Client('http://127.0.0.1:2567');
+  const filler =
+    mode === 'ffa' ? await reserveSpawnSlot(client, code!) : undefined;
+  const peer = await client.joinById<RoomState>(code!, { name: 'Kestrel' });
   for (const type of ['shot', 'kill', 'correction', 'notice'])
     peer.onMessage(type, () => {});
   peer.send('ready', true);
-  return peer;
+  return { peer, filler };
 }
 async function enter(page: Page) {
   await page.getByRole('button', { name: 'START SESSION' }).click();
@@ -36,11 +36,12 @@ async function enter(page: Page) {
 test('FFA shows server scores, a winner, frozen results and a clean rematch lobby', async ({
   page,
 }) => {
-  let peer: Room<unknown, RoomState> | undefined;
+  let peer: Room<unknown, RoomState> | undefined,
+    filler: Room<unknown, RoomState> | undefined;
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   try {
-    peer = await create(page, 'ffa', 1, 30);
+    ({ peer, filler } = await create(page, 'ffa', 1, 30));
     await enter(page);
     await expect(page.getByTestId('ffa-score')).toHaveText('0 / 1 KILLS');
     await expectMatchHudLayout(page);
@@ -61,8 +62,8 @@ test('FFA shows server scores, a winner, frozen results and a clean rematch lobb
     await page.evaluate(() =>
       document.dispatchEvent(
         new MouseEvent('mousemove', {
-          movementX: Math.PI / 2 / 0.002,
-          movementY: 60,
+          movementX: -Math.PI / 2 / 0.002,
+          movementY: 35,
         }),
       ),
     );
@@ -88,12 +89,14 @@ test('FFA shows server scores, a winner, frozen results and a clean rematch lobb
       page.getByRole('button', { name: 'START SESSION' }),
     ).toBeDisabled();
     peer.send('ready', true);
+    filler?.send('ready', true);
     await page.getByRole('button', { name: 'START SESSION' }).click();
     await expect.poll(() => peer!.state.round).toBe(round + 1);
     expect(peer.state.scores.get(peer.state.hostId)!.kills).toBe(0);
     expect(errors).toEqual([]);
   } finally {
     await peer?.leave();
+    await filler?.leave();
   }
 });
 
@@ -105,7 +108,7 @@ test('TDM displays balanced teams, opposite spawns, team scores, timer and drawn
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   try {
-    peer = await create(page, 'tdm', 40, 30);
+    ({ peer } = await create(page, 'tdm', 40, 30));
     await expect(page.getByRole('list', { name: 'Players' })).toContainText(
       'BLUE',
     );
@@ -121,7 +124,7 @@ test('TDM displays balanced teams, opposite spawns, team scores, timer and drawn
     await expect(page.getByTestId('match-timer')).toHaveText(/^0:[0-3][0-9]$/);
     await expect
       .poll(() => peer!.state.players.get(peer!.sessionId)?.z)
-      .toBeLessThan(0);
+      .toBeGreaterThan(0);
     await page.keyboard.down('Tab');
     await expect(
       page

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { Client } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
-import { enterStartedMatch } from './helpers/matchEntry';
+import { enterStartedMatch, reserveSpawnSlot } from './helpers/matchEntry';
 
 declare global {
   interface Window {
@@ -47,10 +47,9 @@ test('local movement plays footsteps and a remote player is heard in 3D', async 
   await page.getByLabel('PLAYER NAME').fill('Listener');
   await page.getByRole('button', { name: 'CREATE PRIVATE ROOM' }).click();
   const code = await page.getByTestId('room-code').textContent();
-  const guest = await new Client('http://127.0.0.1:2567').joinById<RoomState>(
-    code!,
-    { name: 'Runner' },
-  );
+  const client = new Client('http://127.0.0.1:2567');
+  const filler = await reserveSpawnSlot(client, code!);
+  const guest = await client.joinById<RoomState>(code!, { name: 'Runner' });
   for (const message of ['correction', 'notice', 'shot', 'kill'])
     guest.onMessage(message, () => {});
   let seq = 0;
@@ -75,7 +74,7 @@ test('local movement plays footsteps and a remote player is heard in 3D', async 
       life,
       forward,
       right: 0,
-      yaw: 0,
+      yaw: Math.PI,
       pitch: 0,
       sprint: false,
       jump: false,
@@ -92,14 +91,14 @@ test('local movement plays footsteps and a remote player is heard in 3D', async 
     });
     timer = setInterval(() => {
       // Keep the runner in the open lane while the listener turns around.
-      if (runner().z < 9.2) forward = -1;
-      if (runner().z > 11.4) forward = 1;
+      if (runner().z > -12.3) forward = -1;
+      if (runner().z < -14.6) forward = 1;
       guest.send('input', [packet(), packet()]);
     }, 1000 / 30);
     await expect
       .poll(() =>
         page.evaluate(() =>
-          window.footstepBearings.some(({ x, z }) => x > 2 && z < -0.15),
+          window.footstepBearings.some(({ x, z }) => x < -2 && z < -0.15),
         ),
       )
       .toBe(true);
@@ -113,12 +112,13 @@ test('local movement plays footsteps and a remote player is heard in 3D', async 
     await expect
       .poll(() =>
         page.evaluate(() =>
-          window.footstepBearings.some(({ x, z }) => x < -2 && z > 0.15),
+          window.footstepBearings.some(({ x, z }) => x > 2 && z > 0.15),
         ),
       )
       .toBe(true);
   } finally {
     clearInterval(timer);
     await guest.leave();
+    await filler.leave();
   }
 });

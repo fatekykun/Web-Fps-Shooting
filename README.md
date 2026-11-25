@@ -190,8 +190,10 @@ menu or the room dialog's **Join room** tab, enter their callsign and code, mark
 themselves **Ready**, and the host chooses **Start session**. The lobby closes
 automatically and the arena opens for the countdown. If mouse capture is denied,
 click **Click to Play**. Choose a **Player Limit** of 2, 4, 6
-or 8 when creating the room (default 8, including the host). Players can join
-until that limit, including after the session starts. Full rooms reject further
+or 8 when creating the room (default 8, including the host). Choose Shipment
+(the default) or Killhouse for private matches. The Depot is available in Training.
+Players can join until the room reaches its player limit, including after the
+session starts. Full rooms reject further
 joins, and vacated seats reopen. Rooms are hidden
 from public matchmaking, and the last player leaving disposes the room. The host
 role passes to the next player when the host leaves. A dropped connection leaves

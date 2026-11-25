@@ -17,6 +17,7 @@ test('creates and joins a private room, starts, synchronizes movement and leaves
   let observer;
   try {
     await page.goto('/');
+    const origin = new URL(page.url()).origin;
     await page.getByRole('button', { name: 'PRIVATE ROOMS' }).click();
     await page.getByLabel('PLAYER NAME').fill('Raven');
     await page.getByRole('button', { name: 'CREATE PRIVATE ROOM' }).click();
@@ -28,13 +29,13 @@ test('creates and joins a private room, starts, synchronizes movement and leaves
     );
     await page.getByRole('button', { name: 'COPY INVITE' }).click();
     await expect(page.getByLabel('Room invite link')).toHaveValue(
-      `http://127.0.0.1:4173/?room=${code}`,
+      `${origin}/?room=${code}`,
     );
     await expect(page.getByRole('status')).toContainText(
       /INVITE COPIED|INVITE SELECTED/,
     );
     await page.screenshot({ path: 'test-results/retro-lobby.png' });
-    await guest.goto('http://127.0.0.1:4173');
+    await guest.goto(origin);
     await guest.getByRole('button', { name: 'PRIVATE ROOMS' }).click();
     await guest.getByRole('tab', { name: 'JOIN ROOM', exact: true }).click();
     await guest.getByLabel('PLAYER NAME').fill('Kestrel');
@@ -66,7 +67,7 @@ test('creates and joins a private room, starts, synchronizes movement and leaves
     await page.keyboard.down('w');
     await expect
       .poll(() => observer!.state.players.get(hostId)?.z)
-      .toBeLessThan(10.5);
+      .toBeGreaterThan(-14.2);
     await page.keyboard.up('w');
     // Look back toward the other spawn slots for a visual check of real remote bodies.
     await page.evaluate(() => {
