@@ -3,6 +3,7 @@ import {
   sniperScopeBlend,
   sniperScopeDiameter,
 } from '../game/weapons/SniperScope';
+import { rifleSkins } from '../game/weapons/RifleSkins';
 import type { Game, GameTelemetry } from '../game/core/Game';
 import { Telemetry } from '../components/Telemetry';
 import { GraphicsControls } from '../components/GraphicsControls';
@@ -670,7 +671,10 @@ export function App() {
           <MobileHUD
             attach={attachTouchControls}
             showInspect={
-              combat?.rifleSkin === 'cinder-wyrm' && !choosingLoadout
+              !!combat?.rifleSkin &&
+              rifleSkins[combat.rifleSkin].mythic &&
+              combat.rifleSkinStatus === 'ready' &&
+              !choosingLoadout
             }
             tablet={device.tablet}
             layout={mobileLayout}

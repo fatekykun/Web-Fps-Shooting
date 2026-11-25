@@ -1,8 +1,4 @@
-import {
-  weaponOrder,
-  type Vector3Like,
-  type WeaponId,
-} from '@breakpoint/shared';
+import type { Vector3Like, WeaponId } from '@breakpoint/shared';
 import type { WeaponController } from '../weapons/WeaponController';
 import { isMoltenLavaRifle, type RifleSkin } from '../weapons/RifleSkins';
 import type { MovementController } from '../movement/MovementController';
@@ -52,21 +48,33 @@ type Cue =
   | 'equip'
   | 'jump';
 type MatchCue = 'countdown' | 'match-start';
-const moltenLavaShot = 'molten-lava-shot';
+const rifleShotBySkin = {
+  standard: 'rifle',
+  'cinder-wyrm': 'molten-lava-shot',
+  'memento-mori': 'memento-mori-shot',
+} as const satisfies Record<RifleSkin, string>;
 const moltenLavaKill = 'molten-lava-kill';
-type ShotSampleId = WeaponId | typeof moltenLavaShot;
+const soulRequiem = 'soul-requiem';
+type ShotSampleId = WeaponId | (typeof rifleShotBySkin)[RifleSkin];
 type SampleId =
   | ShotSampleId
   | 'hitmarker'
   | 'headshot'
   | 'elimination'
-  | typeof moltenLavaKill;
-const shotSamples: Partial<
-  Record<ShotSampleId, { file: string; gain: number; detune: number }>
+  | typeof moltenLavaKill
+  | typeof soulRequiem;
+const shotSamples: Record<
+  ShotSampleId,
+  { file: string; gain: number; detune: number }
 > = {
   rifle: { file: 'ar-01-rifle-shot.wav', gain: 0.51, detune: 10 },
-  [moltenLavaShot]: {
+  'molten-lava-shot': {
     file: 'molten_lava_rifle_shot.wav',
+    gain: 0.51,
+    detune: 0,
+  },
+  'memento-mori-shot': {
+    file: 'memento_mori_reference_shot.wav',
     gain: 0.51,
     detune: 0,
   },
@@ -175,10 +183,8 @@ export class AudioEngine {
         }
         this.applyVolumes();
         this.footsteps.bank.preload(context);
-        for (const id of [...weaponOrder, moltenLavaShot] as const) {
-          const sample = shotSamples[id];
-          if (sample) void this.loadSample(context, id, sample.file);
-        }
+        for (const id of Object.keys(shotSamples) as ShotSampleId[])
+          void this.loadSample(context, id, shotSamples[id].file);
         void this.loadSample(context, 'hitmarker', 'breakpoint-hitmarker.wav');
         void this.loadSample(context, 'headshot', 'breakpoint-headshot.wav');
         void this.loadSample(
@@ -190,6 +196,11 @@ export class AudioEngine {
           context,
           moltenLavaKill,
           'molten_lava_kill_effect.wav',
+        );
+        void this.loadSample(
+          context,
+          soulRequiem,
+          'memento_mori_reference_kill.wav',
         );
       }
       if (this.context.state === 'suspended') await this.context.resume();
@@ -393,14 +404,12 @@ export class AudioEngine {
   }
   /** True when a recorded sniper report plays with the bolt cycle included. */
   shot(weapon: WeaponId, gain = 1, pan = 0, rifleSkin?: RifleSkin): boolean {
-    const id =
-      isMoltenLavaRifle(weapon, rifleSkin) &&
-      this.sampleBuffers.has(moltenLavaShot)
-        ? moltenLavaShot
-        : weapon;
+    const requested =
+      weapon === 'rifle' && rifleSkin ? rifleShotBySkin[rifleSkin] : weapon;
+    const id = this.sampleBuffers.has(requested) ? requested : weapon;
     const sample = shotSamples[id];
     const buffer = this.sampleBuffers.get(id);
-    if (sample && buffer) {
+    if (buffer) {
       // A small pitch variation keeps automatic fire from sounding like a loop.
       const detune = sample.detune
         ? (Math.random() * 2 - 1) * sample.detune
@@ -425,6 +434,16 @@ export class AudioEngine {
       this.tone(110, 38, 0.12, 0.17 * gain, 'triangle', pan);
     }
     return false;
+  }
+
+  /** Read the same clock as the custom recording, starting at its scheduled onset. */
+  playSoulRequiem(gain = 1, pan = 0): (() => number) | undefined {
+    const context = this.context;
+    const buffer = this.sampleBuffers.get(soulRequiem);
+    if (!context || !buffer) return undefined;
+    const start = context.currentTime;
+    if (!this.playSample(buffer, gain * 0.49, pan)) return undefined;
+    return () => context.currentTime - start;
   }
   cue(cue: Cue | MatchCue): void {
     if (cue === 'countdown') {
@@ -480,6 +499,7 @@ export class AudioEngine {
     movement: MovementController,
     active: boolean,
     priorVerticalSpeed = 0,
+    rifleSkin: RifleSkin = 'standard',
   ): void {
     const boltPhase = weapons.cycling
       ? weapons.cycleProgress < 0.15
@@ -491,12 +511,7 @@ export class AudioEngine {
     const scoped = !!weapons.config.scopeMagnification && weapons.ads > 0.5;
     if (active) {
       if (weapons.shotsFired > this.lastShots)
-        this.sampledBolt = this.shot(
-          weapons.selected,
-          1,
-          0,
-          this.settings.rifleSkin,
-        );
+        this.sampledBolt = this.shot(weapons.selected, 1, 0, rifleSkin);
       if (
         !this.sampledBolt &&
         boltPhase !== this.lastBoltPhase &&
@@ -549,7 +564,12 @@ export class AudioEngine {
   feedback(snapshot: CombatSnapshot): void {
     const newLife = snapshot.player && snapshot.player.life !== this.life;
     if (!newLife) {
-      if (snapshot.hitSequence > this.hit)
+      const customDummyElimination =
+        snapshot.dummyResetting &&
+        snapshot.weapon === 'rifle' &&
+        snapshot.rifleSkin === 'memento-mori' &&
+        snapshot.rifleSkinStatus === 'ready';
+      if (snapshot.hitSequence > this.hit && !customDummyElimination)
         this.cue(
           snapshot.dummyResetting &&
             isMoltenLavaRifle(snapshot.weapon, snapshot.rifleSkin)

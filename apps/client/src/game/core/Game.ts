@@ -40,6 +40,7 @@ import {
 } from '@breakpoint/shared/network';
 import { ShotTrails, type MuzzleResolver } from '../effects/ShotTrails';
 import { MoltenLavaEliminations } from '../effects/MoltenLavaEliminations';
+import { SoulRequiem } from '../effects/SoulRequiem';
 import type { NetworkSession } from '../networking/NetworkSession';
 import { RemotePlayers } from '../networking/RemotePlayers';
 import { NetworkCombat } from '../combat/NetworkCombat';
@@ -126,6 +127,16 @@ export class Game {
   private readonly rendering: GameRenderer;
   private readonly scene = new Scene();
   private readonly lavaEliminations = new MoltenLavaEliminations(this.scene);
+  private readonly soulRequiem = new SoulRequiem(
+    this.scene,
+    (x, z, footY) =>
+      this.physics.castBullet(
+        { x, y: footY + 0.22, z },
+        { x: 0, y: -1, z: 0 },
+        3,
+        true,
+      )?.point.y,
+  );
   private arena: InstanceType<(typeof arenaRenderers)[ArenaId]>;
   private arenaId: ArenaId = 'depot';
   private readonly physics: PhysicsWorld;
@@ -192,6 +203,7 @@ export class Game {
     this.graphicsSettings = { ...settings };
     this.userSettings = preferences;
     this.audio.configure(preferences);
+    this.soulRequiem.configure(preferences.eliminationQuality);
     this.rendering = new GameRenderer(host, settings);
     this.arena = new TrainingArena(this.scene);
     this.remotes = new RemotePlayers(this.scene);
@@ -211,6 +223,14 @@ export class Game {
           this.lavaEliminations.spawn(
             position,
             this.userSettings.reducedMotion,
+          );
+        else if (weapon === 'rifle' && this.soulRequiemEquipped)
+          this.soulRequiem.spawn(
+            position,
+            this.userSettings.eliminationQuality,
+            this.userSettings.reducedMotion,
+            this.audio.playSoulRequiem(),
+            (write) => this.combat.dummy.captureEliminationPose(write),
           );
       },
     );
@@ -295,7 +315,14 @@ export class Game {
     this.userSettings = settings;
     this.input.configure(settings);
     this.audio.configure(settings);
+    this.soulRequiem.configure(settings.eliminationQuality);
     this.viewmodel.setRifleSkin(settings.rifleSkin);
+  }
+  private get soulRequiemEquipped(): boolean {
+    return (
+      this.userSettings.rifleSkin === 'memento-mori' &&
+      this.viewmodel.rifleSkinStatus === 'ready'
+    );
   }
   cancelRoomConnection(): void {
     if (!this.session) ++this.networkGeneration;
@@ -308,6 +335,10 @@ export class Game {
       rifleSkin:
         combat.weapons.selected === 'rifle'
           ? this.userSettings.rifleSkin
+          : undefined,
+      rifleSkinStatus:
+        combat.weapons.selected === 'rifle'
+          ? this.viewmodel.rifleSkinStatus
           : undefined,
       inspecting: this.viewmodel.inspecting,
       scopeMagnification: combat.weapons.scopeMagnification(
@@ -349,7 +380,7 @@ export class Game {
             if (view && view.match.round !== this.round) {
               this.round = view.match.round;
               this.networkCombat.reset();
-              this.lavaEliminations.clear();
+              this.clearEliminationEffects();
             }
             this.networkCombat.setAllowedWeapons(
               view?.allowedWeapons ?? weaponOrder,
@@ -428,7 +459,46 @@ export class Game {
           if (!this.disposed && generation === this.networkGeneration) {
             if (!this.networkCombat.kill(kill)) return;
             const view = this.session?.view;
-            if (!view || kill.killerId !== view.selfId) return;
+            if (!view) return;
+            const mine = kill.killerId === view.selfId;
+            if (kill.effect === 'soul-requiem' && kill.weapon === 'rifle') {
+              const victim = view.players.find(
+                ({ id }) => id === kill.victimId,
+              );
+              const position =
+                kill.position ??
+                (victim && {
+                  x: victim.x,
+                  y: victim.y - standingAnchor,
+                  z: victim.z,
+                });
+              if (position) {
+                const spatial = spatialAudio(
+                  position,
+                  this.camera.camera.position,
+                  this.input.movement.yaw,
+                );
+                this.soulRequiem.spawn(
+                  position,
+                  this.userSettings.eliminationQuality,
+                  this.userSettings.reducedMotion,
+                  mine
+                    ? this.audio.playSoulRequiem()
+                    : this.audio.playSoulRequiem(spatial.gain, spatial.pan),
+                  (write) => {
+                    if (victim && victim.id !== view.selfId)
+                      this.remotes.captureEliminationPose(
+                        victim,
+                        position,
+                        write,
+                      );
+                  },
+                  victim?.yaw,
+                );
+              } else if (mine) this.audio.playSoulRequiem();
+              return;
+            }
+            if (!mine) return;
             const molten = isMoltenLavaRifle(
               kill.weapon,
               this.userSettings.rifleSkin,
@@ -467,7 +537,7 @@ export class Game {
       return;
     }
     this.session = session;
-    this.lavaEliminations.clear();
+    this.clearEliminationEffects();
     this.combat.setOnline(true);
     this.input.clear();
     this.resetTiming();
@@ -493,7 +563,7 @@ export class Game {
   }
 
   leaveRoom(): void {
-    this.lavaEliminations.clear();
+    this.clearEliminationEffects();
     ++this.networkGeneration;
     this.session?.leave();
     this.session = undefined;
@@ -530,7 +600,7 @@ export class Game {
 
   private switchArena(id: ArenaId): void {
     if (id === this.arenaId) return;
-    this.lavaEliminations.clear();
+    this.clearEliminationEffects();
     this.physics.setArena(arenas[id].colliders);
     this.arena.dispose();
     const Arena = arenaRenderers[id];
@@ -660,6 +730,9 @@ export class Game {
       this.movement,
       this.input.locked && (!this.session || !!this.networkCombat.owner?.alive),
       priorVerticalSpeed,
+      this.viewmodel.rifleSkinStatus === 'ready'
+        ? this.userSettings.rifleSkin
+        : 'standard',
     );
   };
 
@@ -678,6 +751,7 @@ export class Game {
       armed &&
       (!this.session || this.session.view?.phase === 'playing') &&
       this.input.weapon.aim;
+    this.session?.setSoulRequiem(this.soulRequiemEquipped);
     const alpha =
       this.input.locked || this.session?.view?.phase === 'playing'
         ? this.clock.advance(delta, this.simulate)
@@ -834,6 +908,7 @@ export class Game {
       this.opticView.diameter = sniperScopeDiameter(ads);
     }
     this.lavaEliminations.step(delta);
+    this.soulRequiem.step(delta, this.camera.camera);
     this.rendering.render(
       this.scene,
       this.camera.camera,
@@ -944,9 +1019,15 @@ export class Game {
     );
   };
 
+  private clearEliminationEffects(): void {
+    this.lavaEliminations.clear();
+    this.soulRequiem.clear();
+    this.remotes.clearEliminations();
+  }
+
   private readonly onVisibilityChange = (): void => {
     this.audio.setActive(!document.hidden);
-    if (document.hidden) this.lavaEliminations.clear();
+    if (document.hidden) this.clearEliminationEffects();
     this.input.clear();
     this.resetTiming();
     if (document.hidden) this.input.release();
@@ -964,6 +1045,7 @@ export class Game {
   dispose(): void {
     this.trails.dispose();
     this.lavaEliminations.dispose();
+    this.soulRequiem.dispose();
     this.disposed = true;
     ++this.networkGeneration;
     this.session?.leave();

@@ -22,10 +22,9 @@ export function CombatHud({
   multiplayer?: boolean;
 }) {
   const weapon = weaponConfigs[combat.weapon];
-  const mythic = combat.rifleSkin === 'cinder-wyrm';
-  const name = mythic
-    ? `AR-01 / ${rifleSkins['cinder-wyrm'].name.toUpperCase()}`
-    : combat.name;
+  const skin = rifleSkins[combat.rifleSkin ?? 'standard'];
+  const mythic = skin.mythic && combat.rifleSkinStatus === 'ready';
+  const name = mythic ? `AR-01 / ${skin.name.toUpperCase()}` : combat.name;
   const healthPercent =
     ((combat.player?.health ?? 0) / playerCombatConfig.health) * 100;
   return (
@@ -36,6 +35,7 @@ export function CombatHud({
         data-testid="weapon-status"
         data-weapon={combat.weapon}
         data-rifle-skin={combat.rifleSkin}
+        data-rifle-skin-status={combat.rifleSkinStatus}
         data-inspecting={!!combat.inspecting}
         data-ammo={combat.magazine}
         data-reserve={combat.reserve}
@@ -78,6 +78,13 @@ export function CombatHud({
                       ? 'AIM DOWN SIGHTS'
                       : 'HIP FIRE'}
         </div>
+        {combat.rifleSkinStatus && combat.rifleSkinStatus !== 'ready' && (
+          <span className="weapon-action" role="status">
+            {combat.rifleSkinStatus === 'loading'
+              ? `LOADING ${skin.name.toUpperCase()}`
+              : `${skin.name.toUpperCase()} UNAVAILABLE`}
+          </span>
+        )}
         {multiplayer && (
           <span className="match-fire-mode">
             {weapon.burstSize ? 'BURST' : weapon.automatic ? 'AUTO' : 'SINGLE'}

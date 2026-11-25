@@ -79,6 +79,7 @@ export class NetworkSession {
   private leaving = false;
   private readonly outbox: PlayerInput[] = [];
   private life = 0;
+  private soulRequiem = false;
 
   static async connect(
     mode: 'create' | 'join',
@@ -291,6 +292,12 @@ export class NetworkSession {
 
   setReady(ready: boolean): void {
     this.room.send('ready', ready);
+  }
+
+  setSoulRequiem(enabled: boolean): void {
+    if (this.leaving || enabled === this.soulRequiem) return;
+    this.soulRequiem = enabled;
+    this.room.send('soul-requiem', enabled);
   }
   start(): void {
     this.room.send('start');

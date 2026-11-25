@@ -17,6 +17,7 @@ import {
 
 /** Each capsule collides with the shared static map. Player collisions belong to a later pass. */
 export class ServerPlayer {
+  soulRequiem = false;
   readonly animation = new CharacterAnimation();
   readonly movement: MovementController;
   private readonly footsteps = new FootstepTracker();

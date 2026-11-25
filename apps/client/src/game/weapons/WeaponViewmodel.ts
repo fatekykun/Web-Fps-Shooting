@@ -15,6 +15,7 @@ import {
   NearestMipmapNearestFilter,
   Object3D,
   PerspectiveCamera,
+  Quaternion,
   RGBAFormat,
   Scene,
   SRGBColorSpace,
@@ -43,7 +44,12 @@ import { slideMomentum } from '@breakpoint/shared/movement/Sliding';
 import { weaponMuzzles } from './WeaponMuzzles';
 import { RecoilSpring } from './Recoil';
 import { CinderWyrm, cinderReticle } from './CinderWyrm';
-import { cinderTuning, type RifleSkin } from './RifleSkins';
+import {
+  cinderTuning,
+  type RifleSkin,
+  type RifleSkinStatus,
+} from './RifleSkins';
+import type { MementoMori } from './MementoMori';
 
 const easeUnit = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
@@ -68,6 +74,7 @@ export class WeaponViewmodel {
   private readonly sightInverse = new Matrix4();
   private readonly sightOrigin = new Vector3();
   private readonly sightDirection = new Vector3();
+  private readonly sightRotation = new Quaternion();
   private readonly geometry = new BoxGeometry(1, 1, 1);
   private readonly texture: DataTexture;
   private readonly lowTexture: DataTexture;
@@ -95,6 +102,10 @@ export class WeaponViewmodel {
   private readonly boltScale = new Vector3(0.1, 0.035, 0.035);
   private boltIndex = 0;
   private cinder?: CinderWyrm;
+  private memento?: MementoMori;
+  private mementoRequest?: AbortController;
+  private mementoUnavailable = false;
+  private mementoSightAimed = false;
   private rifleSkin: RifleSkin = 'standard';
   private inspectRequested = false;
   private inspectTime: number | null = null;
@@ -222,7 +233,16 @@ export class WeaponViewmodel {
   }
 
   get hasAimDot(): boolean {
-    return this.aimDot.visible || !!this.cinder?.reticle.visible;
+    return (
+      this.aimDot.visible ||
+      !!this.cinder?.reticle.visible ||
+      this.mementoSightAimed
+    );
+  }
+
+  get rifleSkinStatus(): RifleSkinStatus {
+    if (this.rifleSkin !== 'memento-mori' || this.memento) return 'ready';
+    return this.mementoUnavailable ? 'unavailable' : 'loading';
   }
 
   get inspecting(): boolean {
@@ -236,6 +256,28 @@ export class WeaponViewmodel {
     if (skin === 'cinder-wyrm' && !this.cinder) {
       this.cinder = new CinderWyrm(this.material.map ?? this.texture);
       this.root.add(this.cinder.model, this.cinder.reticle);
+    }
+    if (skin === 'memento-mori' && !this.memento && !this.mementoRequest)
+      void this.loadMemento();
+  }
+
+  private async loadMemento(): Promise<void> {
+    const request = new AbortController();
+    this.mementoRequest = request;
+    this.mementoUnavailable = false;
+    try {
+      const { MementoMori } = await import('./MementoMori');
+      if (request.signal.aborted) return;
+      const skin = await MementoMori.load(request.signal);
+      if (request.signal.aborted) skin.dispose();
+      else {
+        this.memento = skin;
+        this.root.add(skin.model, skin.reticle);
+      }
+    } catch {
+      if (!request.signal.aborted) this.mementoUnavailable = true;
+    } finally {
+      this.mementoRequest = undefined;
     }
   }
 
@@ -296,14 +338,26 @@ export class WeaponViewmodel {
     active: boolean,
     ads: number,
     cinder?: CinderWyrm,
+    memento?: MementoMori,
   ): void {
-    const reticle = cinder
-      ? cinderReticle
-      : weaponSights[weapons.selected].reticle;
-    const mark = cinder?.reticle ?? this.aimDot;
+    const optic = memento?.reticle ?? cinder?.reticle;
+    const reticle =
+      memento?.sight ??
+      (cinder ? cinderReticle : weaponSights[weapons.selected].reticle);
+    const mark = optic ?? this.aimDot;
     this.aimDot.visible = false;
     if (this.cinder) this.cinder.reticle.visible = false;
-    if (!active || !reticle || (cinder && ads < 0.74)) return;
+    if (this.memento) this.memento.reticle.visible = false;
+    this.mementoSightAimed = false;
+    if (!active || !reticle) return;
+    if (memento) {
+      // Match the authored mount in hip-fire and inspect. The same mesh can
+      // drift onto the aim ray as the rifle is raised to the eye.
+      mark.position.set(...reticle.center);
+      mark.quaternion.identity();
+      mark.visible = true;
+    }
+    if (optic && ads < 0.74) return;
     // Collimate onto the actual camera aim ray, constrained to the optic window.
     // This keeps recoil/sway from moving the dot away from the bullet's aim line.
     this.root.updateMatrix();
@@ -314,15 +368,29 @@ export class WeaponViewmodel {
     const distance =
       (reticle.center[2] - this.sightOrigin.z) / this.sightDirection.z;
     if (distance <= this.camera.near) return;
-    mark.position
-      .copy(this.sightOrigin)
-      .addScaledVector(this.sightDirection, distance);
-    mark.visible =
-      Math.abs(mark.position.x - reticle.center[0]) + reticle.radius <
+    const aimPoint = this.sightOrigin.addScaledVector(
+      this.sightDirection,
+      distance,
+    );
+    const insideWindow =
+      Math.abs(aimPoint.x - reticle.center[0]) + reticle.radius <
         reticle.halfWindow[0] &&
-      Math.abs(mark.position.y - reticle.center[1]) + reticle.radius <
+      Math.abs(aimPoint.y - reticle.center[1]) + reticle.radius <
         reticle.halfWindow[1];
-    if (cinder) mark.quaternion.copy(this.root.quaternion).invert();
+    if (memento) {
+      if (!insideWindow) return;
+      const blend = easeUnit((ads - 0.74) / 0.21);
+      mark.position.lerp(aimPoint, blend);
+      mark.quaternion.slerp(
+        this.sightRotation.copy(this.root.quaternion).invert(),
+        blend,
+      );
+      this.mementoSightAimed = ads >= 0.95;
+    } else {
+      mark.position.copy(aimPoint);
+      mark.visible = insideWindow;
+      if (optic) mark.quaternion.copy(this.root.quaternion).invert();
+    }
   }
 
   simulateRecoil(weapons: WeaponController, dt: number, fired: boolean): void {
@@ -372,14 +440,21 @@ export class WeaponViewmodel {
       this.selected === 'rifle' && this.rifleSkin === 'cinder-wyrm'
         ? this.cinder
         : undefined;
-    this.models.get('rifle')!.visible = this.selected === 'rifle' && !cinder;
+    const memento =
+      this.selected === 'rifle' && this.rifleSkin === 'memento-mori'
+        ? this.memento
+        : undefined;
+    const customRifle = cinder ?? memento;
+    this.models.get('rifle')!.visible =
+      this.selected === 'rifle' && !customRifle;
     if (this.cinder) this.cinder.model.visible = !!cinder;
+    if (this.memento) this.memento.model.visible = !!memento;
     const recoil = this.recoil.sample(recoilTime, this.recoilSample);
     const kick = recoil.pitch * motion;
     const lateral = recoil.yaw * motion;
     const profile = weapons.config.recoil;
     const scoped = !!weapons.config.scopeMagnification;
-    const pose = weaponSights[weapons.selected].ads;
+    const pose = memento?.adsPose ?? weaponSights[weapons.selected].ads;
     const raise = scoped ? sniperRaise(ads) : ads;
     this.root.visible =
       active &&
@@ -430,12 +505,12 @@ export class WeaponViewmodel {
       weapons.equipping;
     this.updateInspect(
       dt,
-      !!cinder &&
+      !!customRifle &&
         active &&
         !busy &&
         speed < 0.4 &&
         (movement === 'walking' || movement === 'crouching'),
-      busy || !active || !cinder,
+      busy || !active || !customRifle,
     );
     const inspect = this.inspectPose * motion;
     const carrying =
@@ -472,7 +547,7 @@ export class WeaponViewmodel {
       : 0;
     this.reloadPose += (reloadTarget - this.reloadPose) * reloadBlend;
     const reload = this.reloadPose;
-    const cinderPresent = cinder
+    const riflePresentation = customRifle
       ? (1 - ads) ** 2 * (1 - carry) * (1 - reload) * (1 - this.inspectPose)
       : 0;
     const bob =
@@ -485,7 +560,7 @@ export class WeaponViewmodel {
         carry * (0.02 + sway * 0.012 * motion) +
         brace * 0.025 * motion -
         inspect * 0.26 -
-        cinderPresent * 0.028,
+        riflePresentation * 0.028,
       -0.25 +
         (pose.position[1] + 0.25) * raise -
         reload * 0.16 -
@@ -502,7 +577,7 @@ export class WeaponViewmodel {
         carry * 0.22 +
         brace * 0.035 * motion -
         inspect * 0.29 -
-        cinderPresent * 0.035,
+        riflePresentation * 0.035,
     );
     this.root.rotation.set(
       pose.rotation[0] * raise +
@@ -513,7 +588,7 @@ export class WeaponViewmodel {
         lateral * profile.weaponYaw * degreesToRadians +
         carry * (0.22 + Math.cos(this.stridePhase) * 0.012 * motion) +
         inspect * 1.03 +
-        cinderPresent * 0.11,
+        riflePresentation * 0.11,
       pose.rotation[2] * raise -
         reload * 0.65 +
         lateral * profile.weaponRoll * degreesToRadians +
@@ -532,13 +607,18 @@ export class WeaponViewmodel {
     this.flash.position.set(...weaponMuzzles[weapons.selected].firstPerson);
     const shotAge = weapons.time - weapons.current.lastShot;
     this.flash.visible = active && !cinder && shotAge < 0.045;
-    if (active) cinder?.update(dt, reload, ads, shotAge, inspect, motion);
-    this.updateAimDot(weapons, active, ads, cinder);
+    if (active) {
+      cinder?.update(dt, reload, ads, shotAge, inspect, motion);
+      memento?.update(dt, reload, ads, inspect, motion);
+    }
+    this.updateAimDot(weapons, active, ads, cinder, memento);
   }
 
   dispose(): void {
     this.arms.dispose();
     this.cinder?.dispose();
+    this.mementoRequest?.abort();
+    this.memento?.dispose();
     for (const mesh of this.models.values()) mesh.dispose();
     this.flash.dispose();
     this.dotGeometry.dispose();

@@ -1,4 +1,4 @@
-import type { RifleSkin } from '../weapons/RifleSkins';
+import { normalizeRifleSkin, type RifleSkin } from '../weapons/RifleSkins';
 
 export const bindingActions = [
   'forward',
@@ -57,6 +57,7 @@ export const defaultBindings: Readonly<Record<BindingAction, string>> =
     scoreboard: 'Tab',
   });
 export type ScopeStyle = 'optic' | 'classic';
+export type EliminationQuality = 'low' | 'medium' | 'high';
 export interface SensitivityGroup {
   steering: number;
   ads: number;
@@ -78,6 +79,7 @@ export interface UserSettings {
   syncAdsFov: boolean;
   scopeStyle: ScopeStyle;
   rifleSkin: RifleSkin;
+  eliminationQuality: EliminationQuality;
   autoReload: boolean;
   invertY: boolean;
   reducedMotion: boolean;
@@ -113,6 +115,7 @@ export function defaultUserSettings(): UserSettings {
     syncAdsFov: false,
     scopeStyle: 'classic',
     rifleSkin: 'standard',
+    eliminationQuality: 'medium',
     autoReload: true,
     invertY: false,
     reducedMotion:
@@ -216,7 +219,11 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     fov: number(v.fov, d.fov, 65, 110),
     syncAdsFov: bool('syncAdsFov', d.syncAdsFov),
     scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',
-    rifleSkin: v.rifleSkin === 'cinder-wyrm' ? 'cinder-wyrm' : 'standard',
+    rifleSkin: normalizeRifleSkin(v.rifleSkin),
+    eliminationQuality:
+      v.eliminationQuality === 'low' || v.eliminationQuality === 'high'
+        ? v.eliminationQuality
+        : 'medium',
     autoReload: bool('autoReload', d.autoReload),
     invertY: bool('invertY', d.invertY),
     reducedMotion: bool('reducedMotion', d.reducedMotion),
