@@ -69,6 +69,76 @@ class Fingers {
   }
 }
 
+for (const device of ['phone', 'tablet'] as const) {
+  test(`Touch Aim Assist slows a swipe near the training target on ${device} and saves OFF`, async ({
+    browser,
+  }) => {
+    const tablet = device === 'tablet';
+    const context = await browser.newContext(
+      tablet
+        ? {
+            ...phone,
+            viewport: { width: 1180, height: 820 },
+            screen: { width: 820, height: 1180 },
+            userAgent:
+              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15',
+          }
+        : phone,
+    );
+    try {
+      const page = await context.newPage();
+      if (tablet)
+        await page.addInitScript(() =>
+          Object.defineProperty(navigator, 'platform', { value: 'MacIntel' }),
+        );
+      await prepare(page);
+      await page.goto('/');
+      await expect(page.locator('main')).toHaveAttribute('data-device', device);
+      const marker = page.getByTestId('minimap-player');
+      const heading = () =>
+        marker.evaluate((element) => {
+          const transform = new DOMMatrix(getComputedStyle(element).transform);
+          return Math.atan2(transform.b, transform.a);
+        });
+      const fingers = new Fingers(await context.newCDPSession(page));
+      const turn = async () => {
+        await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
+        await expect(marker).toBeVisible();
+        const before = await heading();
+        const { width, height } = page.viewportSize()!;
+        const start = {
+          x: Math.round(width * 0.56),
+          y: Math.round(height * 0.32),
+        };
+        await fingers.down(1, start);
+        expect(await heading()).toBe(before);
+        await fingers.move(1, { ...start, x: start.x + 20 });
+        await fingers.up(1);
+        await expect.poll(heading).not.toBe(before);
+        return Math.abs((await heading()) - before);
+      };
+      const settings = async () => {
+        await page.getByRole('button', { name: 'SETTINGS', exact: true }).tap();
+        await page.getByRole('tab', { name: /SENSITIVITY/ }).tap();
+      };
+      const assisted = await turn();
+      await page.getByRole('button', { name: 'Pause game' }).tap();
+      await settings();
+      const toggle = page.getByRole('checkbox', { name: 'Touch Aim Assist' });
+      await expect(toggle).toBeChecked();
+      await toggle.uncheck();
+      await page.reload();
+      await settings();
+      await expect(toggle).not.toBeChecked();
+      await page.getByRole('button', { name: 'Close settings' }).tap();
+      const unassisted = await turn();
+      expect(assisted).toBeLessThan(unassisted * 0.85);
+    } finally {
+      await context.close();
+    }
+  });
+}
+
 test.describe('phone touch controls', () => {
   test.use(phone);
   test('HUD editor previews touch drag and opacity, discards a draft, and applies the saved layout after reload', async ({

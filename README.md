@@ -26,8 +26,10 @@ Drag the **left joystick** to move and the **right side** to look. **Sprint** an
 **Swap**, **Scores**, and **II** (pause) use the existing actions. Independent
 touches support moving, looking, aiming and firing together. Tablets have larger,
 more widely spaced controls. Settings → Sensitivity → **Touch camera** provides
-independent general, ADS and sniper sliders. Rotation, focus loss and pause clear
-held controls. Online matches continue while paused, as on desktop.
+independent general, ADS and sniper sliders. **Touch Aim Assist** is on by default
+for handheld touch play. It slows aiming near the training dummy or an opponent
+with a clear line of sight, with a stronger effect in ADS. Rotation, focus loss
+and pause clear held controls. Online matches continue while paused, as on desktop.
 
 See [BP-13](docs/BP-13.md) for implementation, validation, browser limitations and
 instructions for testing from a phone on the same Wi-Fi network.

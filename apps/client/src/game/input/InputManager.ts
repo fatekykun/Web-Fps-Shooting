@@ -53,7 +53,8 @@ export class InputManager {
   lookScale = 1;
   pitch = 0;
   locked = false;
-  touchMode = readDevice().handheld;
+  private readonly handheld = readDevice().handheld;
+  touchMode = this.handheld;
   private touchActive = false;
   private keyboardAxes = { forward: 0, right: 0, sprint: false, jump: false };
   private touchAxes = { forward: 0, right: 0, sprint: false, jump: false };
@@ -79,6 +80,7 @@ export class InputManager {
     private readonly getWeapon: () => WeaponController | null = () => null,
     private readonly getAllowedWeapons: () => readonly (typeof weaponOrder)[number][] = () =>
       weaponOrder,
+    private readonly touchAimScale: (ads: number) => number = () => 1,
   ) {
     this.keyboard = new KeyboardInput(this);
     this.mouse = new MouseInput(this);
@@ -289,7 +291,7 @@ export class InputManager {
     );
   }
   touchLook(dx: number, dy: number): void {
-    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    if ((!dx && !dy) || !Number.isFinite(dx) || !Number.isFinite(dy)) return;
     const weapon = this.getWeapon();
     const ads = weapon ? weapon.ads : Number(this.weapon.aim);
     const s = this.settings.touchSensitivity;
@@ -300,7 +302,11 @@ export class InputManager {
         (Math.max(1, Math.min(window.innerWidth, window.innerHeight)) * 1.2)) *
       this.lookScale *
       sensitivity;
-    this.look(dx * scale, dy * scale);
+    const assist =
+      this.touchActive && this.handheld && this.settings.touchAimAssist
+        ? this.touchAimScale(ads)
+        : 1;
+    this.look(dx * scale * assist, dy * scale * assist);
   }
   private look(x: number, y: number): void {
     const previousPitch = this.pitch;

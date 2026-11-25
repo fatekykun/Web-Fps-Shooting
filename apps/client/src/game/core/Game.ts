@@ -2,6 +2,7 @@ import { Scene } from 'three';
 import { FirstPersonCamera } from '../camera/FirstPersonCamera';
 import type { MovementState, Vector3Like } from '@breakpoint/shared';
 import { InputController } from '../input/InputController';
+import { isTouchAimOpponent, TouchAimAssist } from '../input/TouchAimAssist';
 import { readDevice, requestLandscape } from '../input/deviceCapabilities';
 import { TrainingArena } from '../maps/TrainingArena';
 import { ShipmentArena } from '../maps/ShipmentArena';
@@ -139,6 +140,12 @@ export class Game {
   private session: NetworkSession | undefined;
   private networkGeneration = 0;
   private readonly remotes: RemotePlayers;
+  private readonly touchAimAssist = new TouchAimAssist(
+    (origin, direction, range) =>
+      !!this.physics.castBullet(origin, direction, range, true),
+  );
+  private readonly touchAimOrigin: Vector3Like = { x: 0, y: 0, z: 0 };
+  private readonly touchAimTargets: Vector3Like[] = [];
   private readonly trails: ShotTrails;
   private round = 0;
   private userSettings: UserSettings;
@@ -218,6 +225,7 @@ export class Game {
       callbacks.onScoreboard,
       () => (this.session ? this.networkCombat : this.combat).weapons,
       () => this.session?.view?.allowedWeapons ?? weaponOrder,
+      this.touchAimScale,
     );
     this.input.configure(preferences);
     this.setGraphicsSettings(settings);
@@ -497,6 +505,36 @@ export class Game {
       active ? [...colliders, this.shotgunRange.collider] : colliders,
     );
   }
+
+  private readonly touchAimScale = (ads: number): number => {
+    const targets = this.touchAimTargets;
+    targets.length = 0;
+    if (this.session) {
+      const view = this.session.view;
+      if (view?.phase !== 'playing') return 1;
+      const owner = view.players.find((player) => player.id === view.selfId);
+      if (!owner?.alive) return 1;
+      for (const player of view.players) {
+        if (!isTouchAimOpponent(owner, player)) continue;
+        const point = this.remotes.aimPoint(player.id);
+        if (point) targets.push(point);
+      }
+    } else if (!this.combat.dummy.resetting) {
+      targets.push(this.combat.dummy.aimPoint);
+    }
+    const origin = this.touchAimOrigin;
+    Object.assign(origin, this.physics.position);
+    origin.y += this.movement.eyeOffset;
+    const weapons = (this.session ? this.networkCombat : this.combat).weapons;
+    const recoil = this.input.previewRecoil(weapons.recoil, 0);
+    return this.touchAimAssist.scale(
+      origin,
+      this.input.movement.yaw + recoil.yaw,
+      this.input.pitch + recoil.pitch,
+      ads,
+      targets,
+    );
+  };
 
   private readonly simulate = (dt: number): void => {
     const priorVerticalSpeed = this.movement.velocity.y;

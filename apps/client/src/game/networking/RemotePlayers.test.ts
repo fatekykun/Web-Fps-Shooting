@@ -92,6 +92,14 @@ it('keeps eight avatars in one pool and only uploads colors when their appearanc
     history.push({ ...view, tick: 12, players: [animated] }, 900);
     remotes.update(history, 1200);
     const matrix = new Matrix4();
+    const chest = characterParts.findIndex(({ name }) => name === 'chest');
+    mesh.getMatrixAt(chest, matrix);
+    expect(
+      remotes
+        .aimPoint(animated.id)
+        ?.distanceTo(new Vector3().setFromMatrixPosition(matrix)),
+    ).toBeLessThan(0.00001);
+    expect(remotes.aimPoint(peers[1]!.id)).toBeUndefined();
     for (let index = 0; index < characterParts.length; index++) {
       if (!characterParts[index]!.region) continue;
       mesh.getMatrixAt(index, matrix);
