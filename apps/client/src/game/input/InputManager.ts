@@ -53,6 +53,7 @@ export class InputManager {
   lookScale = 1;
   pitch = 0;
   locked = false;
+  inspectPressed = false;
   private readonly handheld = readDevice().handheld;
   touchMode = this.handheld;
   private touchActive = false;
@@ -376,6 +377,7 @@ export class InputManager {
     this.clearGameplay();
   }
   clearGameplay(): void {
+    this.inspectPressed = false;
     this.coveredReturn.pitch = this.coveredReturn.yaw = 0;
     this.keyboard.clear();
     this.touch?.clear();

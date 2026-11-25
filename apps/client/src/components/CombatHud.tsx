@@ -2,6 +2,7 @@ import type { CombatSnapshot } from '../game/combat/PracticeCombat';
 import { weaponConfigs, weaponOrder } from '@breakpoint/shared';
 import { playerCombatConfig } from '@breakpoint/shared/combat';
 import { KillFeed } from './KillFeed';
+import { rifleSkins } from '../game/weapons/RifleSkins';
 import {
   defaultBindings,
   keyLabel,
@@ -21,6 +22,10 @@ export function CombatHud({
   multiplayer?: boolean;
 }) {
   const weapon = weaponConfigs[combat.weapon];
+  const mythic = combat.rifleSkin === 'cinder-wyrm';
+  const name = mythic
+    ? `AR-01 / ${rifleSkins['cinder-wyrm'].name.toUpperCase()}`
+    : combat.name;
   const healthPercent =
     ((combat.player?.health ?? 0) / playerCombatConfig.health) * 100;
   return (
@@ -30,6 +35,8 @@ export function CombatHud({
         aria-label="Weapon status"
         data-testid="weapon-status"
         data-weapon={combat.weapon}
+        data-rifle-skin={combat.rifleSkin}
+        data-inspecting={!!combat.inspecting}
         data-ammo={combat.magazine}
         data-reserve={combat.reserve}
         data-ads={combat.ads}
@@ -45,10 +52,10 @@ export function CombatHud({
         {multiplayer ? (
           <div className="match-weapon-identity">
             <span className="match-weapon-icon" aria-hidden="true" />
-            <div className="weapon-name">{combat.name}</div>
+            <div className="weapon-name">{name}</div>
           </div>
         ) : (
-          <div className="weapon-name">{combat.name}</div>
+          <div className="weapon-name">{name}</div>
         )}
         <div className="ammo-line">
           <strong>{String(combat.magazine).padStart(2, '0')}</strong>
@@ -87,6 +94,7 @@ export function CombatHud({
           {(combat.allowedWeapons ?? weaponOrder)
             .map((id) => `${keyLabel(bindings[id])} ${id.toUpperCase()}`)
             .join(' · ')}
+          {mythic && ` · ${keyLabel(bindings.inspect)} INSPECT`}
         </div>
       </aside>
       {combat.player ? (

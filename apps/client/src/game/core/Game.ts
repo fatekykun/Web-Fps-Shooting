@@ -215,6 +215,7 @@ export class Game {
       },
     );
     this.viewmodel = new WeaponViewmodel();
+    this.viewmodel.setRifleSkin(preferences.rifleSkin);
     this.input = new InputController(
       this.rendering.renderer.domElement,
       (locked) => {
@@ -283,6 +284,7 @@ export class Game {
     this.userSettings = settings;
     this.input.configure(settings);
     this.audio.configure(settings);
+    this.viewmodel.setRifleSkin(settings.rifleSkin);
   }
   cancelRoomConnection(): void {
     if (!this.session) ++this.networkGeneration;
@@ -292,6 +294,11 @@ export class Game {
     return {
       ...combat.snapshot(),
       fov: this.camera.camera.fov,
+      rifleSkin:
+        combat.weapons.selected === 'rifle'
+          ? this.userSettings.rifleSkin
+          : undefined,
+      inspecting: this.viewmodel.inspecting,
       scopeMagnification: combat.weapons.scopeMagnification(
         this.userSettings.syncAdsFov,
       ),
@@ -700,6 +707,11 @@ export class Game {
         this.input.movement.yaw,
         this.session.view.players,
       );
+    if (this.input.inspectPressed) {
+      this.input.inspectPressed = false;
+      if (!this.session || this.session.view?.phase === 'playing')
+        this.viewmodel.requestInspect();
+    }
     this.viewmodel.update(
       weapons,
       speed,
@@ -836,6 +848,7 @@ export class Game {
   };
 
   private resetTiming(): void {
+    this.viewmodel.resetInspect();
     this.trails.clear();
     this.audio.resetMotion();
     this.shotgunReticle.reset();

@@ -30,6 +30,7 @@ const actions = [
   ['dive', 'Dive'],
   ['reload', 'Reload weapon'],
   ['swap', 'Switch weapon'],
+  ['inspect', 'Inspect weapon'],
   ['scores', 'Show scores'],
   ['pause', 'Pause game'],
 ] as const;
@@ -43,6 +44,7 @@ interface HudEditorInteraction {
 export function MobileHUD({
   attach,
   tablet,
+  showInspect = false,
   layout,
   editor,
   multiplayer = false,
@@ -51,6 +53,7 @@ export function MobileHUD({
 }: {
   attach?: (root: HTMLElement) => (() => void) | undefined;
   tablet: boolean;
+  showInspect?: boolean;
   layout: MobileHudLayout;
   editor?: HudEditorInteraction;
   multiplayer?: boolean;
@@ -110,8 +113,11 @@ export function MobileHUD({
 
   useLayoutEffect(() => attach?.(root.current!), [attach]);
   const boxes = useMemo(
-    () => (viewport ? resolveMobileHud(layout, viewport, tablet) : {}),
-    [layout, viewport, tablet],
+    () =>
+      viewport
+        ? resolveMobileHud(layout, viewport, tablet, !!editor || showInspect)
+        : {},
+    [layout, viewport, tablet, editor, showInspect],
   );
   const stance = movement?.movementState;
   const showSlide =
@@ -248,26 +254,28 @@ export function MobileHUD({
         <MobileControlIcon name="joystick" />
         <span data-joystick-knob className="joystick-knob" />
       </button>
-      {actions.map(([control, label]) => (
-        <button
-          key={control}
-          type="button"
-          className={`touch-button touch-${control}`}
-          data-touch-control={control}
-          data-hud-id={control}
-          data-selected={editor?.selected === control}
-          data-engaged={pressed[control]}
-          style={controlStyle(control)}
-          data-silent
-          aria-label={label}
-          aria-pressed={pressed[control]}
-          onClick={editor ? () => editor.select(control) : undefined}
-        >
-          <MobileControlIcon
-            name={control === 'slide' && !showSlide ? 'crouch' : control}
-          />
-        </button>
-      ))}
+      {actions
+        .filter(([control]) => control !== 'inspect' || editor || showInspect)
+        .map(([control, label]) => (
+          <button
+            key={control}
+            type="button"
+            className={`touch-button touch-${control}`}
+            data-touch-control={control}
+            data-hud-id={control}
+            data-selected={editor?.selected === control}
+            data-engaged={pressed[control]}
+            style={controlStyle(control)}
+            data-silent
+            aria-label={label}
+            aria-pressed={pressed[control]}
+            onClick={editor ? () => editor.select(control) : undefined}
+          >
+            <MobileControlIcon
+              name={control === 'slide' && !showSlide ? 'crouch' : control}
+            />
+          </button>
+        ))}
     </div>
   );
 }

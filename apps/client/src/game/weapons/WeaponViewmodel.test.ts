@@ -1,7 +1,64 @@
 import { expect, it } from 'vitest';
-import { InstancedMesh, Matrix4, NearestFilter } from 'three';
+import { InstancedMesh, Matrix4, NearestFilter, Vector3 } from 'three';
 import { WeaponViewmodel } from './WeaponViewmodel';
 import { WeaponController } from './WeaponController';
+
+it('animates the Cinder Wyrm using pooled geometry and collimates its optic', () => {
+  const model = new WeaponViewmodel();
+  const weapons = new WeaponController(() => {});
+  const step = (ads = 0, moving = false) =>
+    model.update(
+      weapons,
+      moving ? 3 : 0,
+      1 / 60,
+      true,
+      1,
+      'walking',
+      'classic',
+      { aim: ads > 0, fire: false },
+      ads,
+    );
+  try {
+    expect(model.scene.getObjectByName('cinder-wyrm')).toBeUndefined();
+    model.setRifleSkin('cinder-wyrm');
+    step();
+    const body = model.scene.getObjectByName('cinder-wyrm')!;
+    const mark = model.scene.getObjectByName('cinder-reticle')!;
+    const particles = model.scene.getObjectByName(
+      'cinder-embers',
+    ) as InstancedMesh;
+    expect(body.visible).toBe(true);
+    expect(mark.visible).toBe(false);
+    expect(particles.count).toBeLessThanOrEqual(16);
+    expect(model.scene.getObjectByName('weapon-rifle')!.visible).toBe(false);
+    const hipYaw = body.parent!.rotation.y;
+    model.requestInspect();
+    for (let i = 0; i < 32; i++) step();
+    expect(model.inspecting).toBe(true);
+    expect(body.parent!.rotation.y - hipYaw).toBeGreaterThan(0.9);
+    for (let i = 0; i < 20; i++) step(0, true);
+    expect(model.inspecting).toBe(false);
+    model.requestInspect();
+    step();
+    expect(model.inspecting).toBe(true);
+    step(1);
+    expect(model.inspecting).toBe(false);
+    expect(mark.visible).toBe(true);
+    model.camera.updateMatrixWorld();
+    const projected = mark
+      .getWorldPosition(new Vector3())
+      .project(model.camera);
+    expect(projected.x).toBeCloseTo(0, 9);
+    expect(projected.y).toBeCloseTo(0, 9);
+    model.setRifleSkin('standard');
+    step(1);
+    expect(body.visible).toBe(false);
+    expect(mark.visible).toBe(false);
+    expect(model.scene.getObjectByName('weapon-rifle')!.visible).toBe(true);
+  } finally {
+    model.dispose();
+  }
+});
 
 it('layers smooth kickback and rotation over the pose, with a smaller ADS impulse', () => {
   const kick = (ads: number) => {

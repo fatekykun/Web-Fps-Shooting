@@ -9,6 +9,7 @@ export const mobileHudControlIds = [
   'dive',
   'reload',
   'swap',
+  'inspect',
   'scores',
   'pause',
   'minimap',
