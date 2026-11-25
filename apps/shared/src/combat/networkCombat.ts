@@ -52,8 +52,10 @@ export interface ServerShot {
   origin: Vector3Like;
   traces: ShotTrace[];
   sniperSkin?: 'lotus-lava';
+  shotgunSkin?: 'glorious-blaze';
 }
-export type EliminationEffect = 'soul-requiem' | 'lotus-lava';
+export type EliminationEffect =
+  'soul-requiem' | 'lotus-lava' | 'glorious-blaze';
 export interface KillEvent {
   id: number;
   killer: string;

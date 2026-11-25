@@ -53,6 +53,8 @@ import {
 import type { MementoMori } from './MementoMori';
 import type { LotusLava } from './LotusLava';
 import type { SniperSkin } from './SniperSkins';
+import type { ShotgunSkin } from './ShotgunSkins';
+import type { GloriousBlaze } from './GloriousBlaze';
 
 const easeUnit = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
@@ -114,6 +116,10 @@ export class WeaponViewmodel {
   private lotus?: LotusLava;
   private lotusRequest?: AbortController;
   private lotusUnavailable = false;
+  private shotgunSkin: ShotgunSkin = 'standard';
+  private blaze?: GloriousBlaze;
+  private blazeRequest?: AbortController;
+  private blazeUnavailable = false;
   private inspectRequested = false;
   private inspectTime: number | null = null;
   private inspectPose = 0;
@@ -257,6 +263,11 @@ export class WeaponViewmodel {
     return this.lotusUnavailable ? 'unavailable' : 'loading';
   }
 
+  get shotgunSkinStatus(): WeaponSkinStatus {
+    if (this.shotgunSkin !== 'glorious-blaze' || this.blaze) return 'ready';
+    return this.blazeUnavailable ? 'unavailable' : 'loading';
+  }
+
   scopeDiameter(ads: number): number {
     return sniperScopeDiameter(
       ads,
@@ -325,6 +336,34 @@ export class WeaponViewmodel {
       if (!request.signal.aborted) this.lotusUnavailable = true;
     } finally {
       this.lotusRequest = undefined;
+    }
+  }
+
+  setShotgunSkin(skin: ShotgunSkin): void {
+    if (this.shotgunSkin === skin) return;
+    this.shotgunSkin = skin;
+    if (this.selected === 'shotgun') this.resetInspect();
+    if (skin === 'glorious-blaze' && !this.blaze && !this.blazeRequest)
+      void this.loadBlaze();
+  }
+
+  private async loadBlaze(): Promise<void> {
+    const request = new AbortController();
+    this.blazeRequest = request;
+    this.blazeUnavailable = false;
+    try {
+      const { GloriousBlaze } = await import('./GloriousBlaze');
+      if (request.signal.aborted) return;
+      const skin = await GloriousBlaze.load(request.signal);
+      if (request.signal.aborted) skin.dispose();
+      else {
+        this.blaze = skin;
+        this.root.add(skin.model);
+      }
+    } catch {
+      if (!request.signal.aborted) this.blazeUnavailable = true;
+    } finally {
+      this.blazeRequest = undefined;
     }
   }
 
@@ -497,20 +536,29 @@ export class WeaponViewmodel {
       this.selected === 'sniper' && this.sniperSkin === 'lotus-lava'
         ? this.lotus
         : undefined;
-    const customWeapon = customRifle ?? lotus;
+    const blaze =
+      this.selected === 'shotgun' && this.shotgunSkin === 'glorious-blaze'
+        ? this.blaze
+        : undefined;
+    const customWeapon = customRifle ?? lotus ?? blaze;
     this.models.get('rifle')!.visible =
       this.selected === 'rifle' && !customRifle;
     if (this.cinder) this.cinder.model.visible = !!cinder;
     if (this.memento) this.memento.model.visible = !!memento;
     if (this.lotus) this.lotus.model.visible = !!lotus;
     this.models.get('sniper')!.visible = this.selected === 'sniper' && !lotus;
+    this.models.get('shotgun')!.visible = this.selected === 'shotgun' && !blaze;
+    if (this.blaze) this.blaze.model.visible = !!blaze;
     const recoil = this.recoil.sample(recoilTime, this.recoilSample);
     const kick = recoil.pitch * motion;
     const lateral = recoil.yaw * motion;
     const profile = weapons.config.recoil;
     const scoped = !!weapons.config.scopeMagnification;
     const pose =
-      lotus?.adsPose ?? memento?.adsPose ?? weaponSights[weapons.selected].ads;
+      lotus?.adsPose ??
+      memento?.adsPose ??
+      blaze?.adsPose ??
+      weaponSights[weapons.selected].ads;
     const raise = scoped ? sniperRaise(ads) : ads;
     this.root.visible =
       active &&
@@ -653,17 +701,19 @@ export class WeaponViewmodel {
         carry * (-0.25 + sway * 0.018 * motion) -
         inspect * 0.17,
     );
-    if (active)
+    const shotAge = weapons.time - weapons.current.lastShot;
+    if (active) {
+      blaze?.update(shotAge, motion);
       this.arms.update(
         reload,
         brace * motion,
         carry * (1 - reload),
         this.stridePhase,
         motion,
-        lotus?.grips,
+        lotus?.grips ?? blaze?.grips,
       );
+    }
     this.flash.position.set(...weaponMuzzles[weapons.selected].firstPerson);
-    const shotAge = weapons.time - weapons.current.lastShot;
     this.flash.visible = active && !cinder && shotAge < 0.045;
     if (active) {
       cinder?.update(dt, reload, ads, shotAge, inspect, motion);
@@ -680,6 +730,8 @@ export class WeaponViewmodel {
     this.memento?.dispose();
     this.lotusRequest?.abort();
     this.lotus?.dispose();
+    this.blazeRequest?.abort();
+    this.blaze?.dispose();
     for (const mesh of this.models.values()) mesh.dispose();
     this.flash.dispose();
     this.dotGeometry.dispose();

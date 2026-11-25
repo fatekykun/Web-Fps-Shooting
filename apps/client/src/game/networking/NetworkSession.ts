@@ -81,6 +81,7 @@ export class NetworkSession {
   private life = 0;
   private soulRequiem = false;
   private lotusLava = false;
+  private gloriousBlaze = false;
 
   static async connect(
     mode: 'create' | 'join',
@@ -304,6 +305,11 @@ export class NetworkSession {
     if (this.leaving || enabled === this.lotusLava) return;
     this.lotusLava = enabled;
     this.room.send('lotus-lava', enabled);
+  }
+  setGloriousBlaze(enabled: boolean): void {
+    if (this.leaving || enabled === this.gloriousBlaze) return;
+    this.gloriousBlaze = enabled;
+    this.room.send('glorious-blaze', enabled);
   }
   start(): void {
     this.room.send('start');

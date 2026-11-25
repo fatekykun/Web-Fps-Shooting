@@ -4,6 +4,7 @@ import { playerCombatConfig } from '@breakpoint/shared/combat';
 import { KillFeed } from './KillFeed';
 import { rifleSkins } from '../game/weapons/RifleSkins';
 import { sniperSkins } from '../game/weapons/SniperSkins';
+import { shotgunSkins } from '../game/weapons/ShotgunSkins';
 import {
   defaultBindings,
   keyLabel,
@@ -23,14 +24,21 @@ export function CombatHud({
   multiplayer?: boolean;
 }) {
   const weapon = weaponConfigs[combat.weapon];
-  const sniper = combat.weapon === 'sniper';
-  const skin = sniper
-    ? sniperSkins[combat.sniperSkin ?? 'standard']
-    : rifleSkins[combat.rifleSkin ?? 'standard'];
-  const skinStatus = sniper ? combat.sniperSkinStatus : combat.rifleSkinStatus;
+  const skin =
+    combat.weapon === 'sniper'
+      ? sniperSkins[combat.sniperSkin ?? 'standard']
+      : combat.weapon === 'shotgun'
+        ? shotgunSkins[combat.shotgunSkin ?? 'standard']
+        : rifleSkins[combat.rifleSkin ?? 'standard'];
+  const skinStatus =
+    combat.weapon === 'sniper'
+      ? combat.sniperSkinStatus
+      : combat.weapon === 'shotgun'
+        ? combat.shotgunSkinStatus
+        : combat.rifleSkinStatus;
   const mythic = skin.mythic && skinStatus === 'ready';
   const name = mythic
-    ? `${sniper ? 'SR-04' : 'AR-01'} / ${skin.name.toUpperCase()}`
+    ? `${combat.name.split(' / ')[0]} / ${skin.name.toUpperCase()}`
     : combat.name;
   const healthPercent =
     ((combat.player?.health ?? 0) / playerCombatConfig.health) * 100;
@@ -45,6 +53,8 @@ export function CombatHud({
         data-rifle-skin-status={combat.rifleSkinStatus}
         data-sniper-skin={combat.sniperSkin}
         data-sniper-skin-status={combat.sniperSkinStatus}
+        data-shotgun-skin={combat.shotgunSkin}
+        data-shotgun-skin-status={combat.shotgunSkinStatus}
         data-inspecting={!!combat.inspecting}
         data-ammo={combat.magazine}
         data-reserve={combat.reserve}

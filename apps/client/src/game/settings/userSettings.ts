@@ -1,5 +1,9 @@
 import { normalizeRifleSkin, type RifleSkin } from '../weapons/RifleSkins';
 import { normalizeSniperSkin, type SniperSkin } from '../weapons/SniperSkins';
+import {
+  normalizeShotgunSkin,
+  type ShotgunSkin,
+} from '../weapons/ShotgunSkins';
 
 export const bindingActions = [
   'forward',
@@ -81,6 +85,7 @@ export interface UserSettings {
   scopeStyle: ScopeStyle;
   rifleSkin: RifleSkin;
   sniperSkin: SniperSkin;
+  shotgunSkin: ShotgunSkin;
   eliminationQuality: EliminationQuality;
   autoReload: boolean;
   invertY: boolean;
@@ -118,6 +123,7 @@ export function defaultUserSettings(): UserSettings {
     scopeStyle: 'classic',
     rifleSkin: 'standard',
     sniperSkin: 'standard',
+    shotgunSkin: 'standard',
     eliminationQuality: 'medium',
     autoReload: true,
     invertY: false,
@@ -224,6 +230,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',
     rifleSkin: normalizeRifleSkin(v.rifleSkin),
     sniperSkin: normalizeSniperSkin(v.sniperSkin),
+    shotgunSkin: normalizeShotgunSkin(v.shotgunSkin),
     eliminationQuality:
       v.eliminationQuality === 'low' || v.eliminationQuality === 'high'
         ? v.eliminationQuality

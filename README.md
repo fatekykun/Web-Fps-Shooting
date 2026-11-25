@@ -71,6 +71,13 @@ shot recording plays with the skin equipped. A confirmed elimination blooms into
 a 3D lotus at the target's feet, synchronized to the 2.45-second kill recording.
 **Elimination effect quality** controls the number of embers and fragments.
 
+### Glorious Blaze shotgun skin
+
+Select **Armory → SG-03 / Shotgun → Shotgun skin → Glorious Blaze**. The saved
+skin uses its own model, iron sights, pump animation and shot recording. In
+training and private rooms, a confirmed Glorious Blaze elimination plays the
+supplied 1.8-second energy pillar and ground sigil with its matching kill cue.
+
 ## Run locally
 
 BP-12 adds animated barrel-origin bullet trails for all four weapons in training

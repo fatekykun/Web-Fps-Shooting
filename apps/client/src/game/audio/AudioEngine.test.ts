@@ -157,6 +157,8 @@ class Context {
   readonly decodedSoulRequiem = { duration: 1.79 };
   readonly decodedLotusShot = { duration: 1.3 };
   readonly decodedLotusKill = { duration: 2.45 };
+  readonly decodedBlazeShot = { duration: 0.825 };
+  readonly decodedBlazeKill = { duration: 1.795 };
   decodeAudioData = vi.fn(
     async (data: ArrayBuffer) =>
       [
@@ -173,6 +175,8 @@ class Context {
         this.decodedSoulRequiem,
         this.decodedLotusShot,
         this.decodedLotusKill,
+        this.decodedBlazeShot,
+        this.decodedBlazeKill,
       ][data.byteLength - 1]!,
   );
   resume = vi.fn(async () => {
@@ -407,6 +411,8 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     '/audio/memento_mori_reference_kill.wav',
     '/audio/lotus_lava_gunshot.wav',
     '/audio/lotus_lava_kill.wav',
+    '/audio/Glorious_Blaze_Shot_V2.wav',
+    '/audio/Glorious_Blaze_Kill_V4_Isolated.wav',
   ];
   const fetchShot = vi.fn(
     async (path: string) =>
@@ -591,6 +597,29 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     expect(lotusClock?.()).toBeCloseTo(0.42);
     expect(
       context.nodes.filter((node) => node.buffer === context.decodedLotusKill),
+    ).toHaveLength(1);
+    audio.feedback({
+      ...downedTarget,
+      weapon: 'shotgun',
+      hitSequence: 9,
+      shotgunSkin: 'glorious-blaze',
+      shotgunSkinStatus: 'ready',
+    });
+    expect(
+      context.nodes.filter(
+        (node) => node.buffer === context.decodedElimination,
+      ),
+    ).toHaveLength(1);
+    audio.shot('rifle', 1, 0, 'glorious-blaze');
+    audio.shot('shotgun', 1, 0, 'glorious-blaze');
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedBlazeShot),
+    ).toHaveLength(1);
+    const blazeClock = audio.playMythicElimination('glorious-blaze');
+    context.currentTime = 0.79;
+    expect(blazeClock?.()).toBeCloseTo(0.2);
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedBlazeKill),
     ).toHaveLength(1);
   } finally {
     audio.dispose();

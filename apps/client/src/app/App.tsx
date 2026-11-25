@@ -581,6 +581,10 @@ export function App() {
             onSniperSkin={(sniperSkin) =>
               changePreferences({ ...preferences, sniperSkin })
             }
+            shotgunSkin={preferences.shotgunSkin}
+            onShotgunSkin={(shotgunSkin) =>
+              changePreferences({ ...preferences, shotgunSkin })
+            }
             onClose={() => setOverlay(null)}
           />
         )}
@@ -682,7 +686,9 @@ export function App() {
                 rifleSkins[combat.rifleSkin].mythic &&
                 combat.rifleSkinStatus === 'ready') ||
                 (combat?.sniperSkin === 'lotus-lava' &&
-                  combat.sniperSkinStatus === 'ready'))
+                  combat.sniperSkinStatus === 'ready') ||
+                (combat?.shotgunSkin === 'glorious-blaze' &&
+                  combat.shotgunSkinStatus === 'ready'))
             }
             tablet={device.tablet}
             layout={mobileLayout}
@@ -705,6 +711,7 @@ export function App() {
             selected={owner?.nextWeapon ?? owner?.selected}
             rifleSkin={preferences.rifleSkin}
             sniperSkin={preferences.sniperSkin}
+            shotgunSkin={preferences.shotgunSkin}
             onEquip={(weapon) => {
               if (loadoutLife !== undefined)
                 game.current?.selectLoadout({

@@ -1,6 +1,6 @@
 import { Scene } from 'three';
 import { FirstPersonCamera } from '../camera/FirstPersonCamera';
-import type { MovementState, Vector3Like } from '@breakpoint/shared';
+import type { MovementState, Vector3Like, WeaponId } from '@breakpoint/shared';
 import { standingAnchor } from '@breakpoint/shared/avatar';
 import { InputController } from '../input/InputController';
 import { isTouchAimOpponent, TouchAimAssist } from '../input/TouchAimAssist';
@@ -39,7 +39,11 @@ import {
 } from '@breakpoint/shared/network';
 import { ShotTrails, type MuzzleResolver } from '../effects/ShotTrails';
 import { MoltenLavaEliminations } from '../effects/MoltenLavaEliminations';
-import { LotusEliminations } from '../effects/LotusEliminations';
+import {
+  AnimatedEliminations,
+  blazeElimination,
+  lotusElimination,
+} from '../effects/AnimatedEliminations';
 import { SoulRequiem } from '../effects/SoulRequiem';
 import type { NetworkSession } from '../networking/NetworkSession';
 import { RemotePlayers } from '../networking/RemotePlayers';
@@ -128,7 +132,14 @@ export class Game {
   private readonly rendering: GameRenderer;
   private readonly scene = new Scene();
   private readonly lavaEliminations = new MoltenLavaEliminations(this.scene);
-  private readonly lotusEliminations = new LotusEliminations(this.scene);
+  private readonly lotusEliminations = new AnimatedEliminations(
+    this.scene,
+    lotusElimination,
+  );
+  private readonly blazeEliminations = new AnimatedEliminations(
+    this.scene,
+    blazeElimination,
+  );
   private readonly soulRequiem = new SoulRequiem(
     this.scene,
     (x, z, footY) =>
@@ -234,10 +245,12 @@ export class Game {
             this.audio.playMythicElimination('soul-requiem'),
             (write) => this.combat.dummy.captureEliminationPose(write),
           );
-        else if (weapon === 'sniper' && this.lotusLavaEquipped) {
-          const clock = this.audio.playMythicElimination('lotus-lava');
+        else {
+          const effect = this.groundEffectFor(weapon);
+          if (!effect) return;
+          const clock = this.audio.playMythicElimination(effect);
           if (!clock) this.audio.cue('kill');
-          this.spawnLotusElimination(position, clock);
+          this.spawnGroundElimination(effect, position, clock);
         }
       },
     );
@@ -257,6 +270,9 @@ export class Game {
     this.viewmodel.setSniperSkin(preferences.sniperSkin);
     if (preferences.sniperSkin === 'lotus-lava')
       this.lotusEliminations.prepare();
+    this.viewmodel.setShotgunSkin(preferences.shotgunSkin);
+    if (preferences.shotgunSkin === 'glorious-blaze')
+      this.blazeEliminations.prepare();
     this.input = new InputController(
       this.rendering.renderer.domElement,
       (locked) => {
@@ -329,6 +345,9 @@ export class Game {
     this.viewmodel.setRifleSkin(settings.rifleSkin);
     this.viewmodel.setSniperSkin(settings.sniperSkin);
     if (settings.sniperSkin === 'lotus-lava') this.lotusEliminations.prepare();
+    this.viewmodel.setShotgunSkin(settings.shotgunSkin);
+    if (settings.shotgunSkin === 'glorious-blaze')
+      this.blazeEliminations.prepare();
   }
   private get soulRequiemEquipped(): boolean {
     return (
@@ -343,7 +362,22 @@ export class Game {
     );
   }
 
-  private spawnLotusElimination(
+  private get gloriousBlazeEquipped(): boolean {
+    return (
+      this.userSettings.shotgunSkin === 'glorious-blaze' &&
+      this.viewmodel.shotgunSkinStatus === 'ready'
+    );
+  }
+
+  private groundEffectFor(weapon: WeaponId) {
+    if (weapon === 'sniper' && this.lotusLavaEquipped) return 'lotus-lava';
+    if (weapon === 'shotgun' && this.gloriousBlazeEquipped)
+      return 'glorious-blaze';
+    return undefined;
+  }
+
+  private spawnGroundElimination(
+    effect: 'lotus-lava' | 'glorious-blaze',
     position: Vector3Like,
     clock?: () => number,
   ): void {
@@ -353,7 +387,9 @@ export class Game {
       6,
       true,
     );
-    this.lotusEliminations.spawn(
+    const animation =
+      effect === 'lotus-lava' ? this.lotusEliminations : this.blazeEliminations;
+    animation.spawn(
       { x: position.x, y: ground?.point.y ?? position.y, z: position.z },
       this.userSettings.eliminationQuality,
       this.userSettings.reducedMotion,
@@ -383,6 +419,14 @@ export class Game {
       sniperSkinStatus:
         combat.weapons.selected === 'sniper'
           ? this.viewmodel.sniperSkinStatus
+          : undefined,
+      shotgunSkin:
+        combat.weapons.selected === 'shotgun'
+          ? this.userSettings.shotgunSkin
+          : undefined,
+      shotgunSkinStatus:
+        combat.weapons.selected === 'shotgun'
+          ? this.viewmodel.shotgunSkinStatus
           : undefined,
       inspecting: this.viewmodel.inspecting,
       scopeMagnification: combat.weapons.scopeMagnification(
@@ -471,7 +515,7 @@ export class Game {
                 shot.weapon,
                 spatial.gain,
                 spatial.pan,
-                shot.sniperSkin,
+                shot.weapon === 'shotgun' ? shot.shotgunSkin : shot.sniperSkin,
               );
             }
           }
@@ -514,8 +558,14 @@ export class Game {
               kill.effect === 'soul-requiem' && kill.weapon === 'rifle';
             const lotus =
               kill.effect === 'lotus-lava' && kill.weapon === 'sniper';
-            if (soul || lotus) {
-              const effect = lotus ? 'lotus-lava' : 'soul-requiem';
+            const blaze =
+              kill.effect === 'glorious-blaze' && kill.weapon === 'shotgun';
+            if (soul || lotus || blaze) {
+              const effect = blaze
+                ? 'glorious-blaze'
+                : lotus
+                  ? 'lotus-lava'
+                  : 'soul-requiem';
               const victim = view.players.find(
                 ({ id }) => id === kill.victimId,
               );
@@ -539,9 +589,9 @@ export class Game {
                       spatial.gain,
                       spatial.pan,
                     );
-                if (lotus) {
+                if (effect !== 'soul-requiem') {
                   if (!clock && mine) this.audio.cue('kill');
-                  this.spawnLotusElimination(position, clock);
+                  this.spawnGroundElimination(effect, position, clock);
                   return;
                 }
                 this.soulRequiem.spawn(
@@ -602,6 +652,7 @@ export class Game {
     }
     this.session = session;
     this.lotusEliminations.prepare();
+    this.blazeEliminations.prepare();
     this.clearEliminationEffects();
     this.combat.setOnline(true);
     this.input.clear();
@@ -795,11 +846,10 @@ export class Game {
       this.movement,
       this.input.locked && (!this.session || !!this.networkCombat.owner?.alive),
       priorVerticalSpeed,
-      active.weapons.selected === 'sniper' && this.lotusLavaEquipped
-        ? 'lotus-lava'
-        : this.viewmodel.rifleSkinStatus === 'ready'
+      this.groundEffectFor(active.weapons.selected) ??
+        (this.viewmodel.rifleSkinStatus === 'ready'
           ? this.userSettings.rifleSkin
-          : 'standard',
+          : 'standard'),
     );
   };
 
@@ -820,6 +870,7 @@ export class Game {
       this.input.weapon.aim;
     this.session?.setSoulRequiem(this.soulRequiemEquipped);
     this.session?.setLotusLava(this.lotusLavaEquipped);
+    this.session?.setGloriousBlaze(this.gloriousBlazeEquipped);
     const alpha =
       this.input.locked || this.session?.view?.phase === 'playing'
         ? this.clock.advance(delta, this.simulate)
@@ -980,6 +1031,7 @@ export class Game {
     this.lavaEliminations.step(delta);
     this.soulRequiem.step(delta, this.camera.camera);
     this.lotusEliminations.step(delta);
+    this.blazeEliminations.step(delta);
     this.rendering.render(
       this.scene,
       this.camera.camera,
@@ -1094,6 +1146,7 @@ export class Game {
     this.lavaEliminations.clear();
     this.soulRequiem.clear();
     this.lotusEliminations.clear();
+    this.blazeEliminations.clear();
     this.remotes.clearEliminations();
   }
 
@@ -1119,6 +1172,7 @@ export class Game {
     this.lavaEliminations.dispose();
     this.soulRequiem.dispose();
     this.lotusEliminations.dispose();
+    this.blazeEliminations.dispose();
     this.disposed = true;
     ++this.networkGeneration;
     this.session?.leave();

@@ -19,6 +19,7 @@ import {
 export class ServerPlayer {
   soulRequiem = false;
   lotusLava = false;
+  gloriousBlaze = false;
   readonly animation = new CharacterAnimation();
   readonly movement: MovementController;
   private readonly footsteps = new FootstepTracker();

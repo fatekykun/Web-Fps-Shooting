@@ -2,6 +2,7 @@ import { weaponConfigs, weaponOrder, type WeaponId } from '@breakpoint/shared';
 import { weaponStatistics } from '@breakpoint/shared/weapons/statistics';
 import { rifleSkins, type RifleSkin } from '../game/weapons/RifleSkins';
 import { sniperSkins, type SniperSkin } from '../game/weapons/SniperSkins';
+import { shotgunSkins, type ShotgunSkin } from '../game/weapons/ShotgunSkins';
 
 const categories: Record<WeaponId, string> = {
   rifle: 'Assault Rifles',
@@ -24,6 +25,7 @@ export function LoadoutPanel({
   allowedWeapons = weaponOrder,
   rifleSkin = 'standard',
   sniperSkin = 'standard',
+  shotgunSkin = 'standard',
   onEquip,
 }: {
   respawning: boolean;
@@ -32,6 +34,7 @@ export function LoadoutPanel({
   allowedWeapons?: readonly WeaponId[];
   rifleSkin?: RifleSkin;
   sniperSkin?: SniperSkin;
+  shotgunSkin?: ShotgunSkin;
   onEquip(weapon: WeaponId): void;
 }) {
   const equipped =
@@ -67,7 +70,9 @@ export function LoadoutPanel({
                   ? `${rifleSkins[rifleSkin].name} / Mythic`
                   : weapon === 'sniper' && sniperSkin !== 'standard'
                     ? sniperSkins[sniperSkin].name
-                    : categories[weapon]}
+                    : weapon === 'shotgun' && shotgunSkin !== 'standard'
+                      ? shotgunSkins[shotgunSkin].name
+                      : categories[weapon]}
               </span>
               <h3>{weaponConfigs[weapon].name}</h3>
               <span className="match-weapon-icon" aria-hidden="true" />
