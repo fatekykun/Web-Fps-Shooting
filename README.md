@@ -363,9 +363,15 @@ disabled in online rooms.
 | SR-04 sniper  | 5 / 20             | Bolt-action, 45 RPM                  | 2.8 s  | 315 ms     |
 
 ADS changes camera FOV, sight alignment and sensitivity without smoothing mouse
-look. Its reversible exponential blend updates at render frequency. Hip FOV is
-85°; ADS uses 62°/67°/60° for rifle/SMG/shotgun. A short trigger tap is retained
-until a simulation tick. Empty weapons reload automatically when reserves are
+look. Its reversible exponential blend is sampled for each rendered frame. The
+default hip FOV is 85°. With **Settings → Controls → Sync ADS FOV** set to **OFF**
+(the default), the rifle, SMG and shotgun aim at 62°, 67° and 60° respectively.
+**ON** measures low-zoom ADS from the configured camera FOV and keeps 35% of the
+usual FOV reduction. The sniper zooms at 4× with **OFF** and 2.8× with **ON**.
+Both settings use the same angular sensitivity. The preference is saved in this
+browser.
+
+A short trigger tap is retained until a simulation tick. Empty weapons reload automatically when reserves are
 available. **Settings → Controls → Auto Reload** is on by default and saved in
 this browser; turn it off to require **R**. Manual R works in either mode.
 A fresh shoot press cancels a partial reload and fires the remaining ammunition,
@@ -478,9 +484,10 @@ Choose **Settings → Display → Sniper scope style**:
 The choice is saved on this browser. Older saved settings default to Classic;
 Restore Defaults also selects Classic. Both styles keep the raise-to-eye animation
 and circular native-resolution reticle.
-Actual **4× magnification** uses `2 atan(tan(baseFov / 2) / 4)` and respects your
-custom hip FOV. ADS, camera zoom, overlay and sensitivity blend smoothly; release
-right mouse to restore your FOV. The rifle rises and centers its hollow eyepiece
+Scope magnification uses `2 atan(tan(baseFov / 2) / magnification)` and respects
+your custom hip FOV with Sync ADS FOV either ON or OFF. ADS, camera zoom, overlay
+and sensitivity blend smoothly. Release right mouse to restore your FOV. The rifle
+rises and centers its hollow eyepiece
 at the eye before the optic opens. Zoom follows the raise, and the scope view
 takes over through the tube's opening; releasing aim reverses the same path.
 The surrounding world stays visible at your normal FOV while only the glass

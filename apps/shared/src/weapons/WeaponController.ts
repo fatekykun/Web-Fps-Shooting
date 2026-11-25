@@ -11,6 +11,9 @@ import {
 } from '../index';
 import { Recoil } from './Recoil';
 
+const syncedAdsZoomFraction = 0.35;
+const syncedScopeMagnificationScale = 0.7;
+
 interface WeaponAmmo {
   magazine: number;
   reserve: number;
@@ -78,14 +81,21 @@ export class WeaponController {
     return this.fieldOfView(combatConfig.baseFov);
   }
 
-  fieldOfView(base: number, ads = this.ads): number {
-    const target = this.config.scopeMagnification
-      ? (Math.atan(
-          Math.tan((base * Math.PI) / 360) / this.config.scopeMagnification,
-        ) *
-          360) /
+  scopeMagnification(syncAdsFov = false): number | undefined {
+    const magnification = this.config.scopeMagnification;
+    return magnification && syncAdsFov
+      ? Math.max(1, magnification * syncedScopeMagnificationScale)
+      : magnification;
+  }
+
+  fieldOfView(base: number, ads = this.ads, syncAdsFov = false): number {
+    const magnification = this.scopeMagnification(syncAdsFov);
+    const target = magnification
+      ? (Math.atan(Math.tan((base * Math.PI) / 360) / magnification) * 360) /
         Math.PI
-      : this.config.adsFov;
+      : syncAdsFov
+        ? base - Math.max(0, base - this.config.adsFov) * syncedAdsZoomFraction
+        : this.config.adsFov;
     return base + (target - base) * ads;
   }
   get cycling(): boolean {

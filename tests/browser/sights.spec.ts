@@ -47,7 +47,7 @@ for (const preset of ['performance', 'quality'] as const) {
       expect(Number(await hud.getAttribute('data-fov'))).toBeLessThan(
         weaponConfigs[id].adsFov + 0.1,
       );
-      await page.screenshot({
+      const adsImage = await page.screenshot({
         path: `test-results/bp08-${preset}-${id}-ads.png`,
       });
       if (id === 'sniper') {
@@ -65,37 +65,36 @@ for (const preset of ['performance', 'quality'] as const) {
           id === 'rifle' ? 'hidden' : 'visible',
         );
         if (id === 'rifle') {
-          await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
-            canvas.dataset.redDotPixels = '';
-            requestAnimationFrame(() => {
-              const gl = canvas.getContext('webgl2')!;
-              const pixels = new Uint8Array(16 * 16 * 4);
-              gl.readPixels(
-                Math.floor(canvas.width / 2) - 8,
-                Math.floor(canvas.height / 2) - 8,
-                16,
-                16,
-                gl.RGBA,
-                gl.UNSIGNED_BYTE,
-                pixels,
-              );
-              let red = 0;
-              for (let i = 0; i < pixels.length; i += 4)
-                if (
-                  pixels[i]! > 180 &&
-                  pixels[i]! > pixels[i + 1]! * 2 &&
-                  pixels[i]! > pixels[i + 2]! * 2
-                )
-                  red++;
-              canvas.dataset.redDotPixels = String(red);
-            });
-          });
-          await page.clock.runFor(32);
-          expect(
-            Number(
-              await page.locator('canvas').getAttribute('data-red-dot-pixels'),
-            ),
-          ).toBeGreaterThan(0);
+          // Sample the composited frame because the WebGL buffer may be cleared after rendering.
+          const redDotPixels = await page.evaluate(async (encoded) => {
+            const picture = new Image();
+            picture.src = `data:image/png;base64,${encoded}`;
+            await picture.decode();
+            const scratch = new OffscreenCanvas(16, 16);
+            const context = scratch.getContext('2d')!;
+            context.drawImage(
+              picture,
+              Math.floor(picture.width / 2) - 8,
+              Math.floor(picture.height / 2) - 8,
+              16,
+              16,
+              0,
+              0,
+              16,
+              16,
+            );
+            const { data: pixels } = context.getImageData(0, 0, 16, 16);
+            let red = 0;
+            for (let i = 0; i < pixels.length; i += 4)
+              if (
+                pixels[i]! > 180 &&
+                pixels[i]! > pixels[i + 1]! * 2 &&
+                pixels[i]! > pixels[i + 2]! * 2
+              )
+                red++;
+            return red;
+          }, adsImage.toString('base64'));
+          expect(redDotPixels).toBeGreaterThan(0);
         }
         await expect(page.getByTestId('sniper-scope')).toHaveCSS(
           'opacity',

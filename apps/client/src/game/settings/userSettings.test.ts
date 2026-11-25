@@ -16,6 +16,7 @@ it('sanitizes malformed storage and clamps finite controls without sharing defau
     sensitivity: 500,
     fov: NaN,
     invertY: 'yes',
+    syncAdsFov: 'on',
     masterVolume: -1,
     crosshair: {
       color: 'red',
@@ -34,6 +35,7 @@ it('sanitizes malformed storage and clamps finite controls without sharing defau
   ]);
   expect(settings.fov).toBe(85);
   expect(settings.invertY).toBe(false);
+  expect(settings.syncAdsFov).toBe(false);
   expect(settings.masterVolume).toBe(0);
   expect(settings.crosshair).toEqual({
     color: '#edf0e3',
@@ -72,7 +74,7 @@ it('persists preferences and tolerates blocked or corrupt browser storage', () =
     setItem: (key: string, value: string) => data.set(key, value),
   });
   const settings = rebind(
-    { ...defaultUserSettings(), fov: 103, muted: true },
+    { ...defaultUserSettings(), fov: 103, syncAdsFov: true, muted: true },
     'reload',
     'KeyE',
   );

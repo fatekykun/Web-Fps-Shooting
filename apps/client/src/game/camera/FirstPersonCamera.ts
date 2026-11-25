@@ -6,6 +6,7 @@ import {
   degreesToRadians,
   movementConfig,
   type MovementState,
+  type WeaponId,
 } from '@breakpoint/shared';
 import { slideMomentum } from '@breakpoint/shared/movement/Sliding';
 
@@ -13,9 +14,38 @@ export class FirstPersonCamera {
   readonly camera = new PerspectiveCamera(85, 1, 0.08, 90);
   slideFovOffset = 0;
   private slideRoll = 0;
+  private aimFov: number = combatConfig.baseFov;
+  private aimFovTransition = 0;
+  private aimFovSource?: { weapon: WeaponId; base: number; synced: boolean };
 
   constructor() {
     this.camera.rotation.order = 'YXZ';
+  }
+
+  transitionAimFov(
+    target: number,
+    dt: number,
+    weapon: WeaponId,
+    base: number,
+    synced: boolean,
+  ): number {
+    const previous = this.aimFovSource;
+    if (
+      !previous ||
+      previous.weapon !== weapon ||
+      previous.base !== base ||
+      previous.synced !== synced
+    ) {
+      if (previous) this.aimFovTransition = this.aimFov - target;
+      this.aimFovSource = { weapon, base, synced };
+    }
+    // ADS itself is already eased. Only carry over the angle across a new weapon or policy.
+    if (this.aimFovTransition !== 0) {
+      this.aimFovTransition *= Math.exp(-Math.min(dt, 0.1) / 0.055);
+      if (Math.abs(this.aimFovTransition) < 0.001) this.aimFovTransition = 0;
+    }
+    this.aimFov = target + this.aimFovTransition;
+    return this.aimFov;
   }
 
   updateSlide(
