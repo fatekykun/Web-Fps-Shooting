@@ -279,22 +279,14 @@ export class Game {
   cancelRoomConnection(): void {
     if (!this.session) ++this.networkGeneration;
   }
-  private get displayedFov(): number {
-    const weapon = (this.session ? this.networkCombat : this.combat).weapons;
-    return (
-      this.camera.slideFovOffset +
-      weapon.fieldOfView(
-        this.userSettings.fov,
-        weapon.config.scopeMagnification
-          ? sniperZoom(this.sniperSlideAim.progress)
-          : weapon.ads,
-      )
-    );
-  }
   private combatSnapshot(): CombatSnapshot {
+    const combat = this.session ? this.networkCombat : this.combat;
     return {
-      ...(this.session ? this.networkCombat : this.combat).snapshot(),
-      fov: this.displayedFov,
+      ...combat.snapshot(),
+      fov: this.camera.camera.fov,
+      scopeMagnification: combat.weapons.scopeMagnification(
+        this.userSettings.syncAdsFov,
+      ),
     };
   }
   private publishCombat(): void {
@@ -628,18 +620,26 @@ export class Game {
       speed,
       delta,
       this.input.locked && armed && !this.userSettings.reducedMotion
-        ? (1 - ads) ** 2
+        ? (1 - Math.max(ads, interpolatedAds)) ** 2
         : 0,
     );
-    const aimFov = weapons.fieldOfView(
-      this.userSettings.fov,
-      scopedWeapon ? sniperZoom(ads) : ads,
+    const baseFov = this.userSettings.fov;
+    const zoom = scopedWeapon ? sniperZoom(ads) : ads;
+    const inputFov = weapons.fieldOfView(baseFov, zoom);
+    const synced = this.userSettings.syncAdsFov;
+    const aimFov = this.camera.transitionAimFov(
+      synced ? weapons.fieldOfView(baseFov, zoom, true) : inputFov,
+      delta,
+      weapons.selected,
+      baseFov,
+      synced,
     );
     const fov = aimFov + this.camera.slideFovOffset;
     const recoil = this.input.previewRecoil(weapons.recoil, recoilTime);
+    // A presentation preference must preserve the angular turn rate for mouse and touch.
     this.input.lookScale =
-      Math.tan((aimFov * Math.PI) / 360) /
-      Math.tan((this.userSettings.fov * Math.PI) / 360);
+      Math.tan((inputFov * Math.PI) / 360) /
+      Math.tan((baseFov * Math.PI) / 360);
     this.camera.update(
       this.movement,
       this.input,

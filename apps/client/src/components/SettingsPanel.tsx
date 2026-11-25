@@ -227,6 +227,23 @@ export function SettingsPanel({
                 onChange={(fov) => change({ fov })}
               />
             </div>
+            <div className="scope-style-setting">
+              <label htmlFor={`${id}-sync-ads-fov`}>Sync ADS FOV</label>
+              <select
+                id={`${id}-sync-ads-fov`}
+                aria-describedby={`${id}-sync-ads-fov-note`}
+                value={settings.syncAdsFov ? 'on' : 'off'}
+                onChange={(event) =>
+                  change({ syncAdsFov: event.target.value === 'on' })
+                }
+              >
+                <option value="off">OFF</option>
+                <option value="on">ON</option>
+              </select>
+            </div>
+            <p className="settings-note" id={`${id}-sync-ads-fov-note`}>
+              Synchronizes aiming field of view with your configured camera FOV.
+            </p>
             <label className="setting-toggle">
               <input
                 type="checkbox"

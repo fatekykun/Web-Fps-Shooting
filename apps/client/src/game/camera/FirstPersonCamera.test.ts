@@ -7,6 +7,29 @@ import { FirstPersonCamera } from './FirstPersonCamera';
 
 beforeAll(initializePhysics);
 
+it('eases projection changes when switching weapons or the ADS FOV preference', () => {
+  const camera = new FirstPersonCamera();
+  const dt = config.fixedStep;
+  expect(camera.transitionAimFov(62, dt, 'rifle', 100, false)).toBe(62);
+  const changed = camera.transitionAimFov(86.7, dt, 'rifle', 100, true);
+  expect(changed).toBeGreaterThan(62);
+  expect(changed).toBeLessThan(86.7);
+  let previous = changed;
+  for (let frame = 0; frame < 45; frame++) {
+    const next = camera.transitionAimFov(86.7, dt, 'rifle', 100, true);
+    expect(next).toBeGreaterThanOrEqual(previous);
+    expect(next).toBeLessThanOrEqual(86.7);
+    previous = next;
+  }
+  expect(previous).toBe(86.7);
+  const switching = camera.transitionAimFov(100, dt, 'sniper', 100, false);
+  expect(switching).toBeGreaterThan(86.7);
+  expect(switching).toBeLessThan(100);
+  for (let frame = 0; frame < 45; frame++)
+    camera.transitionAimFov(100, dt, 'sniper', 100, false);
+  expect(camera.transitionAimFov(92, dt, 'sniper', 100, false)).toBe(92);
+});
+
 it('widens and rolls through a slide, then settles without displacing the aim ray', () => {
   const physics = new PhysicsWorld([], { x: 0, y: 0.91, z: 0 });
   try {

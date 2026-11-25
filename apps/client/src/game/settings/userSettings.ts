@@ -69,6 +69,7 @@ export interface UserSettings {
   sensitivity: SensitivitySettings;
   touchSensitivity: { camera: number; ads: number; sniper: number };
   fov: number;
+  syncAdsFov: boolean;
   scopeStyle: ScopeStyle;
   autoReload: boolean;
   invertY: boolean;
@@ -101,6 +102,7 @@ export function defaultUserSettings(): UserSettings {
     },
     touchSensitivity: { camera: 100, ads: 100, sniper: 100 },
     fov: 85,
+    syncAdsFov: false,
     scopeStyle: 'classic',
     autoReload: true,
     invertY: false,
@@ -202,6 +204,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
       sniper: number(object(v.touchSensitivity).sniper, 100, 1, 300),
     },
     fov: number(v.fov, d.fov, 65, 110),
+    syncAdsFov: bool('syncAdsFov', d.syncAdsFov),
     scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',
     autoReload: bool('autoReload', d.autoReload),
     invertY: bool('invertY', d.invertY),

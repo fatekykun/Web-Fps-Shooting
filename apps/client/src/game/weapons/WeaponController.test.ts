@@ -236,6 +236,40 @@ describe('local weapon rules', () => {
     expect(controller.current.magazine).toBe(30);
   });
 
+  it.each([65, 85, 110])(
+    'projects low-zoom and sniper ADS with sync on and off at %i degrees',
+    (base) => {
+      const weapons = new WeaponController(() => {});
+      for (const id of ['rifle', 'smg', 'shotgun'] as const) {
+        weapons.switchWeapon(id);
+        const traditional = weapons.config.adsFov;
+        const synced = base - Math.max(0, base - traditional) * 0.35;
+        expect(weapons.fieldOfView(base, 0, true)).toBe(base);
+        expect(weapons.fieldOfView(base, 1)).toBe(traditional);
+        expect(weapons.fieldOfView(base, 1, true)).toBeCloseTo(synced, 6);
+        expect(weapons.fieldOfView(base, 0.5, true)).toBeCloseTo(
+          (base + synced) / 2,
+          6,
+        );
+      }
+      weapons.switchWeapon('sniper');
+      const traditional = weapons.fieldOfView(base, 1, false);
+      const synced = weapons.fieldOfView(base, 1, true);
+      expect(synced).toBeGreaterThan(traditional);
+      expect(weapons.fieldOfView(base, 0, true)).toBe(base);
+      expect(weapons.scopeMagnification(false)).toBe(4);
+      expect(weapons.scopeMagnification(true)).toBe(2.8);
+      const baseProjection = Math.tan((base * Math.PI) / 360);
+      expect(
+        baseProjection / Math.tan((traditional * Math.PI) / 360),
+      ).toBeCloseTo(4, 8);
+      expect(baseProjection / Math.tan((synced * Math.PI) / 360)).toBeCloseTo(
+        2.8,
+        8,
+      );
+    },
+  );
+
   it.each(['rifle', 'smg', 'shotgun'] as WeaponId[])(
     'uses valid nonzero %s tuning',
     (id) => {
