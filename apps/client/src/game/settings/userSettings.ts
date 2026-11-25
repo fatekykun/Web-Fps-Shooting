@@ -68,6 +68,7 @@ function defaultSensitivityGroup(): SensitivityGroup {
 export interface UserSettings {
   sensitivity: SensitivitySettings;
   touchSensitivity: { camera: number; ads: number; sniper: number };
+  touchAimAssist: boolean;
   fov: number;
   syncAdsFov: boolean;
   scopeStyle: ScopeStyle;
@@ -101,6 +102,7 @@ export function defaultUserSettings(): UserSettings {
       firing: defaultSensitivityGroup(),
     },
     touchSensitivity: { camera: 100, ads: 100, sniper: 100 },
+    touchAimAssist: true,
     fov: 85,
     syncAdsFov: false,
     scopeStyle: 'classic',
@@ -203,6 +205,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
       ads: number(object(v.touchSensitivity).ads, 100, 1, 300),
       sniper: number(object(v.touchSensitivity).sniper, 100, 1, 300),
     },
+    touchAimAssist: bool('touchAimAssist', d.touchAimAssist),
     fov: number(v.fov, d.fov, 65, 110),
     syncAdsFov: bool('syncAdsFov', d.syncAdsFov),
     scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',

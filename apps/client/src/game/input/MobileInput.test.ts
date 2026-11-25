@@ -142,6 +142,7 @@ describe('touch intentions', () => {
     doc: EventTarget,
     browser: EventTarget,
     changed: ReturnType<typeof vi.fn<(locked: boolean) => void>>;
+  const aimScale = vi.fn(() => 1);
   beforeEach(() => {
     doc = new EventTarget();
     browser = Object.assign(new EventTarget(), {
@@ -160,6 +161,7 @@ describe('touch intentions', () => {
       matches: q.includes('coarse'),
     }));
     changed = vi.fn();
+    aimScale.mockReset().mockReturnValue(1);
     input = new InputManager(
       new EventTarget() as HTMLCanvasElement,
       changed,
@@ -167,10 +169,30 @@ describe('touch intentions', () => {
       vi.fn(),
       () => null,
       () => ['sniper', 'rifle'],
+      aimScale,
     );
     root = new Root();
     input.attachTouchControls(root as unknown as HTMLElement);
     input.requestLock();
+  });
+  it('applies assistance only to active touch look when enabled', () => {
+    aimScale.mockReturnValue(0.6);
+    root.pointer('pointerdown', 'look', 1);
+    expect(aimScale).not.toHaveBeenCalled();
+    root.pointer('pointermove', 'look', 1, 72, 60);
+    const assisted = input.movement.yaw;
+    expect(aimScale).toHaveBeenCalledExactlyOnceWith(0);
+    root.pointer('pointerup', 'look', 1);
+    input.setLook(0, 0);
+    input.configure({ ...defaultUserSettings(), touchAimAssist: false });
+    root.pointer('pointerdown', 'look', 2);
+    root.pointer('pointermove', 'look', 2, 72, 60);
+    expect(assisted).toBeCloseTo(input.movement.yaw * 0.6, 9);
+    input.configure(defaultUserSettings());
+    input.mouseLook(12, 0);
+    input.release();
+    root.pointer('pointermove', 'look', 2, 80, 60);
+    expect(aimScale).toHaveBeenCalledTimes(1);
   });
   afterEach(() => {
     input.dispose();

@@ -9,7 +9,10 @@ import {
 import type { PublicPlayer } from '@breakpoint/shared/network';
 import { RemoteInterpolation } from './RemoteInterpolation';
 import { standingAnchor } from '@breakpoint/shared/avatar';
-import { characterParts as parts } from '@breakpoint/shared/character';
+import {
+  characterParts as parts,
+  rigJoints,
+} from '@breakpoint/shared/character';
 import { TacticalSkeleton } from '../characters/TacticalSkeleton';
 import { createTacticalGeometry } from '../characters/TacticalGeometry';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
@@ -20,6 +23,7 @@ const colors = [
   0x87917a, 0x6b9ca8, 0x9f9676, 0x8d9386, 0x7e9274, 0x968373, 0x80969a,
   0xa49e88,
 ];
+const chestJoint = rigJoints.findIndex(({ name }) => name === 'chest');
 
 export class RemotePlayers {
   private readonly geometry = createTacticalGeometry();
@@ -34,10 +38,11 @@ export class RemotePlayers {
     () => new TacticalSkeleton(),
   );
   private readonly part = new Object3D();
-  private readonly muzzles = Array.from({ length: 8 }, () => ({
+  private readonly poses = Array.from({ length: 8 }, () => ({
     id: '',
     weapon: 'rifle' as WeaponId,
-    position: new Vector3(),
+    muzzle: new Vector3(),
+    aimPoint: new Vector3(),
   }));
   private readonly color = new Color();
   private count = 0;
@@ -50,13 +55,24 @@ export class RemotePlayers {
 
   muzzleWorldPosition(id: string, weapon: WeaponId, out: Vector3): boolean {
     for (let i = 0; i < this.playerCount; i++) {
-      const muzzle = this.muzzles[i]!;
-      if (muzzle.id === id && muzzle.weapon === weapon) {
-        out.copy(muzzle.position);
+      const pose = this.poses[i]!;
+      if (pose.id === id && pose.weapon === weapon) {
+        out.copy(pose.muzzle);
         return true;
       }
     }
     return false;
+  }
+
+  aimPoint(id: string): Vector3 | undefined {
+    for (let i = 0; i < this.playerCount; i++) {
+      const pose = this.poses[i]!;
+      if (pose.id === id)
+        return pose.aimPoint.setFromMatrixPosition(
+          this.rigs[i]!.bones[chestJoint]!.matrixWorld,
+        );
+    }
+    return undefined;
   }
 
   constructor(private readonly scene: Scene) {
@@ -85,10 +101,10 @@ export class RemotePlayers {
     rig.root.position.set(player.x, player.y - standingAnchor, player.z);
     rig.root.rotation.y = player.yaw;
     rig.update(player);
-    const muzzle = this.muzzles[this.playerCount]!;
-    muzzle.id = player.id;
-    muzzle.weapon = player.weapon;
-    muzzle.position
+    const pose = this.poses[this.playerCount]!;
+    pose.id = player.id;
+    pose.weapon = player.weapon;
+    pose.muzzle
       .set(...weaponMuzzles[player.weapon].remote)
       .applyMatrix4(rig.bones[21]!.matrixWorld);
     const uniform =

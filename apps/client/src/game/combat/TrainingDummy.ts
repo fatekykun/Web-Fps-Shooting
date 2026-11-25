@@ -13,6 +13,7 @@ import type { PhysicsWorld } from '../physics/PhysicsWorld';
 /** Holographic local target: sensors allow movement training to pass through it. */
 export class TrainingDummy {
   health: number = combatConfig.dummyHealth;
+  readonly aimPoint = { x: 0, y: 0, z: 0 };
   private resetTimer = 0;
   private flash = 0;
   private readonly regions = new Map<number, HitRegion>();
@@ -55,6 +56,8 @@ export class TrainingDummy {
       this.mesh.setMatrixAt(index, matrix);
       this.mesh.setColorAt(index, color.setHex(tint));
       const region = body[index]?.region;
+      if (region === 'upperTorso')
+        Object.assign(this.aimPoint, { x, y, z: z - 6 });
       if (region)
         this.regions.set(
           physics.addSensorBox({ x, y, z: z - 6 }, { x: sx, y: sy, z: sz }),

@@ -348,6 +348,20 @@ export function SettingsPanel({
             </button>
             <fieldset className="sensitivity-group">
               <legend>TOUCH CAMERA</legend>
+              <label className="setting-toggle">
+                <input
+                  type="checkbox"
+                  checked={settings.touchAimAssist}
+                  aria-describedby={`${id}-touch-aim-assist-note`}
+                  onChange={(event) =>
+                    change({ touchAimAssist: event.target.checked })
+                  }
+                />{' '}
+                Touch Aim Assist
+              </label>
+              <p className="settings-note" id={`${id}-touch-aim-assist-note`}>
+                Slows touch aiming near visible targets on phones and tablets.
+              </p>
               <p className="settings-note">
                 Independent touchscreen turning. ADS and sniper values blend
                 with zoom. Sprint and ADS buttons toggle; fire and jump are
