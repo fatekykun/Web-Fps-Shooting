@@ -82,6 +82,7 @@ export class NetworkSession {
   private soulRequiem = false;
   private lotusLava = false;
   private gloriousBlaze = false;
+  private neonBlade = false;
 
   static async connect(
     mode: 'create' | 'join',
@@ -310,6 +311,11 @@ export class NetworkSession {
     if (this.leaving || enabled === this.gloriousBlaze) return;
     this.gloriousBlaze = enabled;
     this.room.send('glorious-blaze', enabled);
+  }
+  setNeonBlade(enabled: boolean): void {
+    if (this.leaving || enabled === this.neonBlade) return;
+    this.neonBlade = enabled;
+    this.room.send('neon-blade', enabled);
   }
   start(): void {
     this.room.send('start');

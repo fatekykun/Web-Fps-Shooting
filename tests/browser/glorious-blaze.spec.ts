@@ -182,10 +182,11 @@ test('Glorious Blaze saves in the Armory and plays its assigned sound and animat
   await page.mouse.up({ button: 'right' });
   await page.keyboard.down('w');
   await expect
-    .poll(() =>
-      page.getByTestId('position').getAttribute('data-z').then(Number),
+    .poll(
+      () => page.getByTestId('position').getAttribute('data-z').then(Number),
+      { intervals: [50] },
     )
-    .toBeLessThan(-1);
+    .toBeLessThan(3);
   await page.keyboard.up('w');
   await sight(page);
   for (

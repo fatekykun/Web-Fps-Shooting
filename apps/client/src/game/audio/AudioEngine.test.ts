@@ -159,6 +159,8 @@ class Context {
   readonly decodedLotusKill = { duration: 2.45 };
   readonly decodedBlazeShot = { duration: 0.825 };
   readonly decodedBlazeKill = { duration: 1.795 };
+  readonly decodedNeonShot = { duration: 0.25 };
+  readonly decodedNeonKill = { duration: 1.5 };
   decodeAudioData = vi.fn(
     async (data: ArrayBuffer) =>
       [
@@ -177,6 +179,8 @@ class Context {
         this.decodedLotusKill,
         this.decodedBlazeShot,
         this.decodedBlazeKill,
+        this.decodedNeonShot,
+        this.decodedNeonKill,
       ][data.byteLength - 1]!,
   );
   resume = vi.fn(async () => {
@@ -413,6 +417,8 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     '/audio/lotus_lava_kill.wav',
     '/audio/Glorious_Blaze_Shot_V2.wav',
     '/audio/Glorious_Blaze_Kill_V4_Isolated.wav',
+    '/audio/neon_legend_shot.wav',
+    '/audio/neon_legend_kill.wav',
   ];
   const fetchShot = vi.fn(
     async (path: string) =>
@@ -620,6 +626,29 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     expect(blazeClock?.()).toBeCloseTo(0.2);
     expect(
       context.nodes.filter((node) => node.buffer === context.decodedBlazeKill),
+    ).toHaveLength(1);
+    audio.feedback({
+      ...downedTarget,
+      weapon: 'smg',
+      hitSequence: 10,
+      smgSkin: 'neon-blade',
+      smgSkinStatus: 'ready',
+    });
+    expect(
+      context.nodes.filter(
+        (node) => node.buffer === context.decodedElimination,
+      ),
+    ).toHaveLength(1);
+    audio.shot('rifle', 1, 0, 'neon-blade');
+    audio.shot('smg', 1, 0, 'neon-blade');
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedNeonShot),
+    ).toHaveLength(1);
+    const neonClock = audio.playMythicElimination('neon-blade');
+    context.currentTime = 1.49;
+    expect(neonClock?.()).toBeCloseTo(0.7);
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedNeonKill),
     ).toHaveLength(1);
   } finally {
     audio.dispose();

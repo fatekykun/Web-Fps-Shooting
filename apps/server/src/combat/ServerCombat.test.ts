@@ -455,6 +455,24 @@ describe('authoritative hitscan', () => {
       );
     },
   );
+  it('tags only Neon Blade SMG shots and confirmed kills with its effect', () => {
+    const f = fixture();
+    const shooter = f.add('shooter', 0, 12);
+    const victim = f.add('victim', 0, 9);
+    shooter.neonBlade = true;
+    const weapons = f.combat.get('shooter')!.weapons;
+    weapons.selected = 'smg';
+    weapons.ads = 1;
+    f.controls(shooter, { ...trigger, aim: true }, Math.PI);
+    f.step(12);
+    expect(f.shots[0]?.smgSkin).toBe('neon-blade');
+    expect(f.kills).toHaveLength(0);
+    victim.state.health = 5;
+    f.controls(shooter, { ...trigger, aim: true });
+    f.step();
+    expect(f.kills).toHaveLength(1);
+    expect(f.kills[0]?.effect).toBe('neon-blade');
+  });
   it('blocks shots on world cover and does not use client-reported origins or damage', () => {
     const f = fixture(),
       shooter = f.add('shooter', -7, 12),
