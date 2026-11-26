@@ -7,6 +7,7 @@ import {
   type EliminationEffect,
 } from '@breakpoint/shared/combat';
 import { InputController } from '../input/InputController';
+import type { GyroMeasurement } from '../input/InputManager';
 import { isTouchAimOpponent, TouchAimAssist } from '../input/TouchAimAssist';
 import { readDevice, requestLandscape } from '../input/deviceCapabilities';
 import { TrainingArena } from '../maps/TrainingArena';
@@ -110,6 +111,7 @@ export interface GameTelemetry extends PerformanceStats {
   textureTileSize: number;
   cameraFar: number;
   combat: CombatSnapshot;
+  gyroMeasurement: GyroMeasurement | null;
   network: { peers: number; ack: number; tick: number } | null;
   trails: {
     active: number;
@@ -359,6 +361,9 @@ export class Game {
   }
   previewAudio(): Promise<boolean> {
     return this.audio.preview();
+  }
+  startGyroMeasurement(): void {
+    this.input.startGyroMeasurement();
   }
   setUserSettings(settings: UserSettings): void {
     const before = this.userSettings.loadouts;
@@ -1194,6 +1199,7 @@ export class Game {
         textureTileSize: this.arena.textureTileSize,
         cameraFar: this.camera.camera.far,
         combat: this.combatSnapshot(),
+        gyroMeasurement: this.input.getGyroMeasurement(),
         trails: {
           active: this.trails.activeCount,
           emitted: this.trails.emitted,

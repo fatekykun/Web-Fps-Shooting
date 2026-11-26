@@ -16,7 +16,13 @@ import {
   type MobileHudControl,
 } from '../game/input/mobileHudSettings';
 import { gyroAvailable, type GyroAccess } from '../game/input/GyroInput';
+import type { GyroMeasurement } from '../game/input/InputManager';
+import type {
+  GyroActivation,
+  GyroMapping,
+} from '../game/input/gyroSensitivity';
 import { GraphicsControls } from './GraphicsControls';
+import { GyroCalibrationPanel } from './GyroCalibrationPanel';
 import { TacticalDialog } from './TacticalDialog';
 
 const tabs = [
@@ -39,6 +45,7 @@ const gyroLabels = {
   sniper: 'Gyro Sniper Scope Sensitivity',
   vertical: 'Gyro Vertical Turning Sensitivity',
 } as const;
+const gyroModes = { off: 'Off', ads: 'ADS only', always: 'Always on' } as const;
 function Range({
   label,
   value,
@@ -93,7 +100,9 @@ export function SettingsPanel({
   ready,
   onChange,
   showGyro,
-  onGyroToggle,
+  onGyroActivation,
+  gyroMeasurement,
+  onStartGyroMeasurement,
   onGraphics,
   onReset,
   onClose,
@@ -109,7 +118,9 @@ export function SettingsPanel({
   ready: boolean;
   onChange(settings: UserSettings): void;
   showGyro: boolean;
-  onGyroToggle(enabled: boolean): Promise<GyroAccess>;
+  onGyroActivation(mode: GyroActivation): Promise<GyroAccess>;
+  gyroMeasurement: GyroMeasurement | null;
+  onStartGyroMeasurement(): void;
   onGraphics(settings: GraphicsSettings): void;
   onReset(): void;
   onClose(): void;
@@ -424,25 +435,32 @@ export function SettingsPanel({
             {showGyro && (
               <fieldset className="sensitivity-group">
                 <legend>GYROSCOPE</legend>
-                <label className="setting-toggle">
-                  <input
-                    type="checkbox"
-                    checked={settings.gyroEnabled}
-                    disabled={
-                      gyroPending || (!canUseGyro && !settings.gyroEnabled)
-                    }
-                    onChange={async ({ target }) => {
-                      setGyroPending(true);
-                      setGyroAccess(null);
-                      try {
-                        setGyroAccess(await onGyroToggle(target.checked));
-                      } finally {
-                        setGyroPending(false);
-                      }
-                    }}
-                  />{' '}
-                  Gyro aiming
-                </label>
+                <div
+                  className="gyro-activation"
+                  role="group"
+                  aria-label="Gyro aiming"
+                >
+                  {(Object.keys(gyroModes) as GyroActivation[]).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className="room-button"
+                      aria-pressed={settings.gyroActivation === mode}
+                      disabled={gyroPending || (!canUseGyro && mode !== 'off')}
+                      onClick={async () => {
+                        setGyroPending(true);
+                        setGyroAccess(null);
+                        try {
+                          setGyroAccess(await onGyroActivation(mode));
+                        } finally {
+                          setGyroPending(false);
+                        }
+                      }}
+                    >
+                      {gyroModes[mode]}
+                    </button>
+                  ))}
+                </div>
                 {canUseGyro && gyroAccess !== 'denied' ? (
                   <p className="settings-note">
                     Tilt your device to aim while using touch controls.
@@ -454,6 +472,22 @@ export function SettingsPanel({
                       : 'Gyro aiming requires a browser with motion sensors on a secure connection.'}
                   </p>
                 )}
+                <div className="scope-style-setting">
+                  <label htmlFor={`${id}-gyro-mapping`}>
+                    Gyro sensitivity mapping
+                  </label>
+                  <select
+                    id={`${id}-gyro-mapping`}
+                    value={settings.gyroMapping}
+                    onChange={({ target }) =>
+                      change({ gyroMapping: target.value as GyroMapping })
+                    }
+                  >
+                    <option value="reference">Reference (linear)</option>
+                    <option value="calibrated">Measured calibration</option>
+                    <option value="legacy">Legacy (previous response)</option>
+                  </select>
+                </div>
                 <div className="setting-grid">
                   <label className="setting-toggle">
                     <input
@@ -508,6 +542,13 @@ export function SettingsPanel({
                 >
                   RESET GYRO SENSITIVITY
                 </button>
+                <GyroCalibrationPanel
+                  settings={settings}
+                  ready={ready}
+                  measurement={gyroMeasurement}
+                  onChange={change}
+                  onStart={onStartGyroMeasurement}
+                />
               </fieldset>
             )}
           </>

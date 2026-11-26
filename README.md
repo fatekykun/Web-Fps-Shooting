@@ -49,12 +49,32 @@ for handheld touch play. It slows aiming near the training dummy or an opponent
 with a clear line of sight, with a stronger effect in ADS. Rotation, focus loss
 and pause clear held controls. Online matches continue while paused, as on desktop.
 
-In **Settings → Sensitivity → Gyroscope**, turn on **Gyro aiming** and allow
-motion sensor access if prompted. Tilt a supported phone or tablet to aim
-alongside the touch controls. Steering, ADS, and Sniper Scope set the sensitivity
-for each aim mode. Vertical Turning scales the up and down response in all three
-modes. Use **Invert Horizontal Gyroscope** or **Invert Vertical Gyroscope** to
-reverse either axis. Gyro aiming starts off and requires a secure browser connection.
+In **Settings → Sensitivity → Gyroscope**, choose **Off**, **ADS only**, or
+**Always on** and allow motion sensor access if prompted. Tilt a supported
+phone or tablet to aim alongside the touch controls. Steering, ADS, and Sniper
+Scope set the sensitivity for each aim mode. Vertical Turning applies an
+additional pitch multiplier, with 100 at 1×. Gyro inversion is independent
+of touch and mouse inversion.
+
+**Reference (linear)** uses a gain of sensitivity ÷ 100, so at 100 one degree
+of phone rotation corresponds to one degree of in-game rotation before the
+vertical multiplier. Older gyro settings carry over into **Legacy (previous
+response)** with their original zoom and gain behavior.
+
+To calibrate against COD Mobile, open **Gyro diagnostics and calibration**.
+Enter the sensitivity, aiming state, axis, reference FOV or optic, and the
+phone and camera rotation angles you measured in COD Mobile. Save the
+measurement and select **Measured calibration**. Gain is the measured
+camera rotation divided by the physical phone rotation. The game interpolates
+between measurements, uses the nearest measured gain outside the measured
+range, and uses reference gain for missing curves. Keep Vertical Turning at
+100 to compare the measured vertical gain directly.
+
+To verify the result, choose **Start gyro measurement**, enter Training,
+perform the turn, and return to the same panel. It shows physical and
+gyro-generated camera rotation separately, including yaw travel across full
+turns. The panel also shows sample timing, effective gain, calibration status,
+and the adjustable dead zone.
 
 See [BP-13](docs/BP-13.md) for implementation, validation, browser limitations and
 instructions for testing from a phone on the same Wi-Fi network.

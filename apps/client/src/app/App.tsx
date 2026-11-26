@@ -14,6 +14,7 @@ import { allowedDefault } from '@breakpoint/shared/weapons/loadouts';
 import { weaponOrder } from '@breakpoint/shared';
 import { PlayPanel, CreditsPanel } from '../components/CommandPanels';
 import { requestGyroAccess, type GyroAccess } from '../game/input/GyroInput';
+import type { GyroActivation } from '../game/input/gyroSensitivity';
 import { SettingsPanel, crosshairStyle } from '../components/SettingsPanel';
 import { MobileHUD } from '../components/MobileHUD';
 import { Minimap } from '../components/Minimap';
@@ -341,11 +342,14 @@ export function App() {
     reticleValues.current = { gap: -1, opacity: -1 };
     return stored;
   }
-  async function changeGyro(enabled: boolean): Promise<GyroAccess> {
+  async function changeGyro(activation: GyroActivation): Promise<GyroAccess> {
     const request = ++gyroRequest.current;
-    const access = enabled ? await requestGyroAccess() : 'granted';
+    const access = activation === 'off' ? 'granted' : await requestGyroAccess();
     if (request === gyroRequest.current && access === 'granted')
-      changePreferences({ ...preferencesRef.current, gyroEnabled: enabled });
+      changePreferences({
+        ...preferencesRef.current,
+        gyroActivation: activation,
+      });
     return access;
   }
   function openRooms(tab: 'create' | 'join' = 'create'): void {
@@ -617,7 +621,9 @@ export function App() {
             ready={ready}
             onChange={changePreferences}
             showGyro={device.handheld}
-            onGyroToggle={changeGyro}
+            onGyroActivation={changeGyro}
+            gyroMeasurement={stats?.gyroMeasurement ?? null}
+            onStartGyroMeasurement={() => game.current?.startGyroMeasurement()}
             onGraphics={changeGraphics}
             onClose={() => setOverlay(null)}
             onControllerSettings={

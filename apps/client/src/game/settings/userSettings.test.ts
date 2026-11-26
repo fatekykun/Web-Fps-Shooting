@@ -259,7 +259,10 @@ it('persists all eight sensitivity values independently without resetting bindin
 
 it('migrates legacy gyro camera values and persists separate axis inversion', () => {
   expect(normalizeUserSettings({ sensitivity: 1.5 })).toMatchObject({
-    gyroEnabled: false,
+    gyroVersion: 1,
+    gyroActivation: 'off',
+    gyroMapping: 'reference',
+    gyroDeadZone: 0.1,
     gyroInvertHorizontal: false,
     gyroInvertVertical: false,
     gyroSensitivity: { steering: 100, ads: 100, sniper: 100, vertical: 100 },
@@ -276,7 +279,16 @@ it('migrates legacy gyro camera values and persists separate axis inversion', ()
       vertical: Infinity,
     },
   });
-  expect(settings.gyroEnabled).toBe(true);
+  expect(settings).toMatchObject({
+    gyroVersion: 1,
+    gyroActivation: 'always',
+    gyroMapping: 'legacy',
+    gyroDeadZone: 0.5,
+  });
+  expect(normalizeUserSettings({ gyroEnabled: false })).toMatchObject({
+    gyroActivation: 'off',
+    gyroMapping: 'legacy',
+  });
   expect(settings.gyroInvertHorizontal).toBe(true);
   expect(settings.gyroInvertVertical).toBe(true);
   expect(settings.gyroSensitivity).toEqual({

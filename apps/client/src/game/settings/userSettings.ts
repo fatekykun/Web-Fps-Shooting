@@ -10,6 +10,12 @@ import {
   type ShotgunSkin,
 } from '../weapons/ShotgunSkins';
 import { normalizeSmgSkin, type SmgSkin } from '../weapons/SmgSkins';
+import {
+  normalizeGyroCalibration,
+  type GyroActivation,
+  type GyroCalibrationSample,
+  type GyroMapping,
+} from '../input/gyroSensitivity';
 
 export const bindingActions = [
   'forward',
@@ -90,7 +96,11 @@ export interface UserSettings {
   sensitivity: SensitivitySettings;
   touchSensitivity: { camera: number; ads: number; sniper: number };
   touchAimAssist: boolean;
-  gyroEnabled: boolean;
+  gyroVersion: 1;
+  gyroActivation: GyroActivation;
+  gyroMapping: GyroMapping;
+  gyroDeadZone: number;
+  gyroCalibration: GyroCalibrationSample[];
   gyroInvertHorizontal: boolean;
   gyroInvertVertical: boolean;
   gyroSensitivity: SensitivityGroup;
@@ -134,7 +144,11 @@ export function defaultUserSettings(): UserSettings {
     },
     touchSensitivity: { camera: 100, ads: 100, sniper: 100 },
     touchAimAssist: true,
-    gyroEnabled: false,
+    gyroVersion: 1,
+    gyroActivation: 'off',
+    gyroMapping: 'reference',
+    gyroDeadZone: 0.1,
+    gyroCalibration: [],
     gyroInvertHorizontal: false,
     gyroInvertVertical: false,
     gyroSensitivity: defaultSensitivityGroup(),
@@ -236,7 +250,17 @@ export function normalizeUserSettings(value: unknown): UserSettings {
   }
   const bool = (key: string, fallback: boolean) =>
     typeof v[key] === 'boolean' ? (v[key] as boolean) : fallback;
-  const gyroEnabled = bool('gyroEnabled', d.gyroEnabled);
+  const legacyGyro =
+    v.gyroVersion !== 1 &&
+    (typeof v.gyroEnabled === 'boolean' || Object.keys(gyro).length > 0);
+  const gyroActivation =
+    v.gyroActivation === 'ads' ||
+    v.gyroActivation === 'always' ||
+    v.gyroActivation === 'off'
+      ? v.gyroActivation
+      : v.gyroEnabled === true
+        ? 'always'
+        : 'off';
   const invertY = bool('invertY', d.invertY);
   const validBindings =
     bindingActions.every((key) => isBindingCode(b[key])) &&
@@ -250,10 +274,29 @@ export function normalizeUserSettings(value: unknown): UserSettings {
       sniper: number(object(v.touchSensitivity).sniper, 100, 1, 300),
     },
     touchAimAssist: bool('touchAimAssist', d.touchAimAssist),
-    gyroEnabled,
+    gyroVersion: 1,
+    gyroActivation,
+    gyroMapping:
+      v.gyroMapping === 'calibrated' ||
+      v.gyroMapping === 'reference' ||
+      v.gyroMapping === 'legacy'
+        ? v.gyroMapping
+        : legacyGyro
+          ? 'legacy'
+          : d.gyroMapping,
+    gyroDeadZone: number(
+      v.gyroDeadZone,
+      legacyGyro ? 0.5 : d.gyroDeadZone,
+      0,
+      5,
+    ),
+    gyroCalibration: normalizeGyroCalibration(v.gyroCalibration),
     gyroInvertHorizontal: bool('gyroInvertHorizontal', d.gyroInvertHorizontal),
     // Until gyro had its own switch, it shared the vertical look preference.
-    gyroInvertVertical: bool('gyroInvertVertical', gyroEnabled && invertY),
+    gyroInvertVertical: bool(
+      'gyroInvertVertical',
+      legacyGyro && gyroActivation !== 'off' && invertY,
+    ),
     gyroSensitivity: {
       steering: Math.round(
         number(
