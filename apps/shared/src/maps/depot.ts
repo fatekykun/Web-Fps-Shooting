@@ -57,7 +57,7 @@ export const arenaBoxes: readonly ArenaBox[] = [
   { position: [-14, 1.7, 0], size: [4, 1.2, 7], color: 0x626344 },
   { position: [-16.2, 1.1, 0], size: [0.4, 2.2, 7], color: 0x40483f },
   { position: [-11.8, 1.1, 0], size: [0.4, 2.2, 7], color: 0x40483f },
-  // Right lane: opposing walls for two-wall jump practice.
+  // Right lane: opposing walls form a narrow passage.
   { position: [12, 2, -1], size: [0.3, 4, 5], color: 0x4a5953 },
   { position: [15, 2, -1], size: [0.3, 4, 5], color: 0x4a5953 },
 ];

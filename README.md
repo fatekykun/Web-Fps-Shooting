@@ -677,7 +677,6 @@ For repeatable local profiling with the preview running:
 | ------------------------------------------------- | --------------------------------------------------------------------------- |
 | Shift + W                                         | Sprint, accelerating toward 8 m/s                                           |
 | Space                                             | Jump; hold to bunny hop on landing                                          |
-| Space again while airborne near a wall            | Wall jump; two per airtime, no consecutive reuse of the same wall           |
 | C while standing or walking                       | Toggle crouch; in prone, rise to crouch if there is clearance               |
 | Z                                                 | Toggle prone; crawl while prone and stand where there is clearance          |
 | C while carrying sprint speed with Shift held     | Slide with a 1.4× speed boost for up to 0.65 s                              |
@@ -692,13 +691,11 @@ actions. Jump, slide and dive
 presses are buffered for 120 ms. Backslide allows a 120 ms W-to-S grace window;
 walking off a ledge allows an 80 ms coyote jump. Slides have a 350 ms
 cooldown after exit; dives have an 800 ms cooldown after exit. Dive recovery
-cannot be skipped by holding jump. Wall jumps have a 220 ms cooldown and require
-a new Space press (or its short buffer); holding Space never climbs walls.
+cannot be skipped by holding jump.
 
-Practice low-clearance recovery in the **left-lane tunnel** and wall jumping
-between the **right-lane walls**. Recovery remains low if an overhang blocks
-standing; keep moving out, and the capsule and camera rise when space permits.
-The HUD shows movement state, speed, grounding and wall-jump usage.
+Practice low-clearance recovery in the **left-lane tunnel**. Recovery remains
+low if an overhang blocks standing. Keep moving out, and the capsule and camera
+rise when space permits. The HUD shows movement state, speed, and grounding.
 
 Head-on capsule contacts cancel a slide immediately. Shallow contacts keep
 movement along the wall. The hip-fire camera widens by up to 8° and eases back
@@ -817,8 +814,8 @@ to replace between movement states.
 
 `MovementController` owns a typed state machine: walking, sprinting, sliding,
 backsliding, airborne, diving and recovering. `Walking.ts`, `Sprinting.ts`,
-`Sliding.ts`, `Backsliding.ts`, `SlideCancel.ts`, `SlideJump.ts`, `BunnyHop.ts`, `DolphinDive.ts`
-and `WallJump.ts` implement the individual mechanics. Input, rendering and React
+`Sliding.ts`, `Backsliding.ts`, `SlideCancel.ts`, `SlideJump.ts`, `BunnyHop.ts`, and
+`DolphinDive.ts` implement the individual mechanics. Input, rendering and React
 remain independent of these rules. All prototype values live in
 `apps/shared/src/config/movement.ts`.
 
@@ -829,7 +826,6 @@ separate neutral air braking and moderate directional acceleration. Jumps retain
 air steering; all mechanics share a 12 m/s horizontal cap. A slide redirects
 gently without adding speed through steering. Backslide is an intentional retreat
 impulse that reverses the forward component while keeping bounded lateral motion.
-Wall-jump impulses act along the wall normal, preserving tangent velocity.
 
 **Slide + Jump (BP-03):** turn toward the direction you want to travel, then
 press Jump during a slide/backslide or within 150 ms of its completion/cancel.

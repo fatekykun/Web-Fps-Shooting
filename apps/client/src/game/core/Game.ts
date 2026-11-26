@@ -95,7 +95,6 @@ export interface GameTelemetry extends PerformanceStats {
   grounded: boolean;
   movementState: MovementState;
   halfHeight: number;
-  wallJumps: number;
   renderWidth: number;
   renderHeight: number;
   outputWidth: number;
@@ -1148,7 +1147,6 @@ export class Game {
         grounded: this.physics.grounded,
         movementState: this.movement.state,
         halfHeight: this.physics.halfHeight,
-        wallJumps: this.movement.wallJumps,
         renderWidth: this.rendering.renderWidth,
         renderHeight: this.rendering.renderHeight,
         outputWidth: this.rendering.renderer.domElement.width,

@@ -9,9 +9,6 @@ export function initializePhysics(): Promise<void> {
   return initialization;
 }
 
-export interface WallContact extends Vector3Like {
-  colliderHandle: number;
-}
 export interface BulletHit {
   colliderHandle: number;
   distance: number;
@@ -19,16 +16,6 @@ export interface BulletHit {
   normal: Vector3Like;
 }
 const identityRotation = { x: 0, y: 0, z: 0, w: 1 };
-const wallDirections = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-  [Math.SQRT1_2, Math.SQRT1_2],
-  [-Math.SQRT1_2, Math.SQRT1_2],
-  [Math.SQRT1_2, -Math.SQRT1_2],
-  [-Math.SQRT1_2, -Math.SQRT1_2],
-] as const;
 
 export class PhysicsWorld {
   private readonly world = new RAPIER.World({
@@ -48,16 +35,6 @@ export class PhysicsWorld {
     movementConfig.capsuleHalfHeight,
     movementConfig.capsuleRadius + 0.005,
   );
-  private readonly wallRay = new RAPIER.Ray(
-    { x: 0, y: 0, z: 0 },
-    { x: 1, y: 0, z: 0 },
-  );
-  private readonly wallContact: WallContact = {
-    x: 0,
-    y: 0,
-    z: 0,
-    colliderHandle: 0,
-  };
   private readonly contact = new RAPIER.CharacterCollision();
   private readonly bulletRay = new RAPIER.Ray(
     { x: 0, y: 0, z: 0 },
@@ -407,39 +384,6 @@ export class PhysicsWorld {
     this.collider.setTranslation(this.queryPosition);
     this.currentHalfHeight = halfHeight;
     return true;
-  }
-
-  /** Short horizontal rays, queried only for requested airborne wall jumps. */
-  findWall(): WallContact | null {
-    this.wallRay.origin.x = this.position.x;
-    this.wallRay.origin.y =
-      this.position.y +
-      this.currentHalfHeight -
-      movementConfig.capsuleHalfHeight;
-    this.wallRay.origin.z = this.position.z;
-    let closest = movementConfig.capsuleRadius + movementConfig.wallReach;
-    let found = false;
-    for (const [x, z] of wallDirections) {
-      this.wallRay.dir.x = x;
-      this.wallRay.dir.z = z;
-      const hit = this.world.castRayAndGetNormal(
-        this.wallRay,
-        closest,
-        true,
-        RAPIER.QueryFilterFlags.EXCLUDE_SENSORS,
-        undefined,
-        this.collider,
-        this.character,
-      );
-      if (!hit || Math.abs(hit.normal.y) > 0.2) continue;
-      closest = hit.timeOfImpact;
-      this.wallContact.x = hit.normal.x;
-      this.wallContact.y = 0;
-      this.wallContact.z = hit.normal.z;
-      this.wallContact.colliderHandle = hit.collider.handle;
-      found = true;
-    }
-    return found ? this.wallContact : null;
   }
 
   addSensorBox(position: Vector3Like, size: Vector3Like): number {

@@ -36,7 +36,7 @@ export const bindingLabels: Record<BindingAction, string> = {
   left: 'Strafe left',
   right: 'Strafe right',
   sprint: 'Sprint',
-  jump: 'Jump / wall jump',
+  jump: 'Jump',
   slide: 'Crouch / slide',
   prone: 'Prone',
   dive: 'Dive',

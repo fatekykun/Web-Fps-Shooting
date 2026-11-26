@@ -14,7 +14,6 @@ import { startBackslide } from './Backsliding';
 import { wantsSlideCancel } from './SlideCancel';
 import { airMove, bunnyHop } from './BunnyHop';
 import { dive, startDive } from './DolphinDive';
-import { wallJump } from './WallJump';
 import { redirectSlideMomentum } from './SlideJump';
 
 /** One velocity owner. States apply forces; the controller integrates vertical motion. */
@@ -25,12 +24,10 @@ export class MovementController {
   stateTime = 0;
   eyeOffset: number = movementConfig.eyeOffset;
   previousEyeOffset: number = movementConfig.eyeOffset;
-  wallJumps = 0;
   private readonly displacement: Vector3Like = { x: 0, y: 0, z: 0 };
   private readonly wish: Vector3Like = { x: 0, y: 0, z: 0 };
   private slideCooldown = 0;
   private diveCooldown = 0;
-  private wallCooldown = 0;
   private coyote = 0;
   private jumpBuffer = 0;
   private jumpYaw = 0;
@@ -39,8 +36,6 @@ export class MovementController {
   private slideBuffer = 0;
   private diveBuffer = 0;
   private sprintGrace = 0;
-  private lastWall: number | null = null;
-  private wasGrounded = false;
   private recoveryDuration: number = movementConfig.slideRecovery;
   private recoveryHalfHeight: number = movementConfig.slideHalfHeight;
   private recoveringFromDive = false;
@@ -93,7 +88,6 @@ export class MovementController {
     this.stateTime += dt;
     this.slideCooldown = Math.max(0, this.slideCooldown - dt);
     this.diveCooldown = Math.max(0, this.diveCooldown - dt);
-    this.wallCooldown = Math.max(0, this.wallCooldown - dt);
     this.slideJumpGrace = Math.max(0, this.slideJumpGrace - dt);
     if (this.slideJumpGrace > 0)
       this.slideJumpSpeed *= Math.exp(-movementConfig.slideFriction * dt);
@@ -129,10 +123,6 @@ export class MovementController {
     this.coyote = grounded
       ? movementConfig.coyoteTime
       : Math.max(0, this.coyote - dt);
-    if (grounded && !this.wasGrounded) {
-      this.wallJumps = 0;
-      this.lastWall = null;
-    }
     if (grounded && wantsSprint(input) && sprintSpeed) {
       this.sprintGrace = movementConfig.backslideGrace;
     }
@@ -190,24 +180,6 @@ export class MovementController {
       this.coyote = 0;
       this.jumpBuffer = 0;
       launched = true;
-    } else if (
-      this.jumpBuffer > 0 &&
-      !grounded &&
-      jumpAllowed &&
-      this.wallCooldown === 0 &&
-      this.wallJumps < movementConfig.maxWallJumps
-    ) {
-      const wall = this.physics.findWall();
-      if (wall && wall.colliderHandle !== this.lastWall) {
-        wallJump(this.velocity, wall);
-        this.wallJumps++;
-        this.lastWall = wall.colliderHandle;
-        this.wallCooldown = movementConfig.wallJumpCooldown;
-        this.jumpBuffer = 0;
-        this.coyote = 0;
-        this.transition('airborne');
-        launched = true;
-      }
     }
 
     const normalState = this.state === 'walking' || this.state === 'sprinting';
@@ -422,7 +394,6 @@ export class MovementController {
       (this.eyeOffset - oldEyeHeight - dip) *
         Math.exp(-movementConfig.slideCameraTransitionSpeed * dt);
     this.eyeOffset = this.stanceEyeHeight() + remainingDip;
-    this.wasGrounded = grounded;
   }
 
   private stanceEyeHeight(): number {
@@ -459,10 +430,8 @@ export class MovementController {
       state: this.state,
       stateTime: this.stateTime,
       eyeOffset: this.eyeOffset,
-      wallJumps: this.wallJumps,
       slideCooldown: this.slideCooldown,
       diveCooldown: this.diveCooldown,
-      wallCooldown: this.wallCooldown,
       coyote: this.coyote,
       jumpBuffer: this.jumpBuffer,
       jumpYaw: this.jumpYaw,
@@ -471,8 +440,6 @@ export class MovementController {
       slideBuffer: this.slideBuffer,
       diveBuffer: this.diveBuffer,
       sprintGrace: this.sprintGrace,
-      lastWall: this.lastWall,
-      wasGrounded: this.wasGrounded,
       recoveryDuration: this.recoveryDuration,
       recoveryHalfHeight: this.recoveryHalfHeight,
       recoveringFromDive: this.recoveringFromDive,

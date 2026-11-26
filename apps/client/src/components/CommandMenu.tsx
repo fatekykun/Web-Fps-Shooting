@@ -171,7 +171,7 @@ export function CommandMenu({
           </div>
         </div>
         <p className="movement-hint">
-          {keyLabel(b.sprint)} Sprint · {keyLabel(b.jump)} Hop / wall jump ·{' '}
+          {keyLabel(b.sprint)} Sprint · {keyLabel(b.jump)} Jump ·{' '}
           {keyLabel(b.slide)} Crouch / slide · {keyLabel(b.prone)} Prone ·{' '}
           {keyLabel(b.dive)} Dive
           <br />
