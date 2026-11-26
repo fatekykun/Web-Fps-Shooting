@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { validateServerUrl } from './src/game/networking/serverEndpoint.ts';
+import { createServiceWorker } from './pwa/createServiceWorker.ts';
 
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -14,7 +15,7 @@ export default defineConfig(({ mode, command }) => {
     );
   if (endpoint?.trim()) validateServerUrl(endpoint, publicBuild);
   return {
-    plugins: [react()],
+    plugins: [react(), createServiceWorker()],
     build: {
       target: 'es2022',
       rolldownOptions: {

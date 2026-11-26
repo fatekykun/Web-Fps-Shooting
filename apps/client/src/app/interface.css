@@ -207,6 +207,24 @@
 .command-nav button:disabled {
   opacity: 0.4;
 }
+.install-game p {
+  margin: 6px 0 10px;
+  color: #d1dac4;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.command-nav .install-button {
+  color: var(--amber);
+}
+.orientation-card .install-button {
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 0 14px;
+  border: 1px solid #aaba9260;
+  background: #17251f;
+  color: #eeeedb;
+  cursor: pointer;
+}
 .nav-footnote {
   border-left: 2px solid #d69b6a;
   padding-left: 12px;

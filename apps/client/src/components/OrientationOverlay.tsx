@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { readDevice, requestLandscape } from '../game/input/deviceCapabilities';
+import { InstallGame } from './InstallGame';
 
 export function useDeviceCapabilities() {
   const [device, setDevice] = useState(readDevice);
@@ -82,6 +83,7 @@ export function OrientationOverlay({ blocked }: { blocked: boolean }) {
         >
           ENABLE LANDSCAPE
         </button>
+        <InstallGame />
         <p className="settings-note">
           If your browser cannot lock rotation, rotate manually and turn off
           your device’s portrait lock.
