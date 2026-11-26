@@ -340,18 +340,25 @@ export class InputManager {
     const aimed = weapon?.config.scopeMagnification
       ? sensitivity.sniper
       : sensitivity.ads;
-    const horizontal = sensitivity.camera + (aimed - sensitivity.camera) * ads;
+    const modeSensitivity =
+      sensitivity.steering + (aimed - sensitivity.steering) * ads;
+    const scale = (modeSensitivity * this.lookScale) / 100;
     this.look(
-      (x * horizontal * this.lookScale) / 100,
-      (y * sensitivity.vertical * this.lookScale) / 100,
+      (this.settings.gyroInvertHorizontal ? -x : x) * scale,
+      (y * scale * sensitivity.vertical) / 100,
+      this.settings.gyroInvertVertical,
     );
   }
-  private look(x: number, y: number): void {
+  private look(
+    x: number,
+    y: number,
+    invertVertical = this.settings.invertY,
+  ): void {
     const previousPitch = this.pitch;
     this.movement.yaw = wrapYaw(this.movement.yaw - x);
     this.pitch = Math.max(
       -lookLimit,
-      Math.min(lookLimit, previousPitch - y * (this.settings.invertY ? -1 : 1)),
+      Math.min(lookLimit, previousPitch - y * (invertVertical ? -1 : 1)),
     );
     // Apply every input delta immediately. Credit only the part opposing the spring,
     // so its later recovery cannot move the sights down a second time.

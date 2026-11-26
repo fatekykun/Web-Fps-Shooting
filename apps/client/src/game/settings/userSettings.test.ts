@@ -257,24 +257,30 @@ it('persists all eight sensitivity values independently without resetting bindin
   expect(loadUserSettings()).toEqual(settings);
 });
 
-it('validates saved gyro preferences and keeps gyro off for older settings', () => {
+it('migrates legacy gyro camera values and persists separate axis inversion', () => {
   expect(normalizeUserSettings({ sensitivity: 1.5 })).toMatchObject({
     gyroEnabled: false,
-    gyroSensitivity: { camera: 100, ads: 100, sniper: 100, vertical: 100 },
+    gyroInvertHorizontal: false,
+    gyroInvertVertical: false,
+    gyroSensitivity: { steering: 100, ads: 100, sniper: 100, vertical: 100 },
     sensitivity: { camera: { steering: 150 } },
   });
   const settings = normalizeUserSettings({
     gyroEnabled: true,
+    gyroInvertHorizontal: true,
+    invertY: true,
     gyroSensitivity: {
-      camera: -20,
+      camera: 127.2,
       ads: 500,
       sniper: 84.7,
       vertical: Infinity,
     },
   });
   expect(settings.gyroEnabled).toBe(true);
+  expect(settings.gyroInvertHorizontal).toBe(true);
+  expect(settings.gyroInvertVertical).toBe(true);
   expect(settings.gyroSensitivity).toEqual({
-    camera: 1,
+    steering: 127,
     ads: 300,
     sniper: 85,
     vertical: 100,
@@ -282,4 +288,17 @@ it('validates saved gyro preferences and keeps gyro off for older settings', () 
   expect(normalizeUserSettings(JSON.parse(JSON.stringify(settings)))).toEqual(
     settings,
   );
+  expect(
+    normalizeUserSettings({
+      gyroInvertHorizontal: 'true',
+      gyroInvertVertical: false,
+      gyroEnabled: true,
+      invertY: true,
+      gyroSensitivity: { camera: 127, steering: -20 },
+    }),
+  ).toMatchObject({
+    gyroInvertHorizontal: false,
+    gyroInvertVertical: false,
+    gyroSensitivity: { steering: 1 },
+  });
 });

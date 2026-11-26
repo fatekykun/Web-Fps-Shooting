@@ -51,9 +51,10 @@ and pause clear held controls. Online matches continue while paused, as on deskt
 
 In **Settings → Sensitivity → Gyroscope**, turn on **Gyro aiming** and allow
 motion sensor access if prompted. Tilt a supported phone or tablet to aim
-alongside the touch controls. Camera, ADS, Sniper Scope, and Vertical Turning
-each have their own sensitivity value. Gyro aiming starts off and requires a
-secure browser connection.
+alongside the touch controls. Steering, ADS, and Sniper Scope set the sensitivity
+for each aim mode. Vertical Turning scales the up and down response in all three
+modes. Use **Invert Horizontal Gyroscope** or **Invert Vertical Gyroscope** to
+reverse either axis. Gyro aiming starts off and requires a secure browser connection.
 
 See [BP-13](docs/BP-13.md) for implementation, validation, browser limitations and
 instructions for testing from a phone on the same Wi-Fi network.
