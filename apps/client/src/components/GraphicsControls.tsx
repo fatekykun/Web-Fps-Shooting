@@ -29,32 +29,34 @@ export function GraphicsControls({
       <h2>
         GRAPHICS <span>CRISP RETRO</span>
       </h2>
-      <label htmlFor={`${idPrefix}-graphics-preset`}>Resolution preset</label>
-      <select
-        id={`${idPrefix}-graphics-preset`}
-        value={settings.preset}
-        onChange={(event) => {
-          if (isGraphicsPreset(event.target.value))
-            onChange({ ...settings, preset: event.target.value });
-        }}
-      >
-        {presetOrder.map((preset) => (
-          <option key={preset} value={preset}>
-            {graphicsPresets[preset].label} · {graphicsPresets[preset].width} ×{' '}
-            {graphicsPresets[preset].height}
-          </option>
-        ))}
-      </select>
-      <label className="adaptive-toggle">
-        <input
-          type="checkbox"
-          checked={settings.adaptive}
-          onChange={(event) =>
-            onChange({ ...settings, adaptive: event.target.checked })
-          }
-        />{' '}
-        Adaptive resolution
-      </label>
+      <div className="graphics-preset">
+        <label htmlFor={`${idPrefix}-graphics-preset`}>Resolution preset</label>
+        <select
+          id={`${idPrefix}-graphics-preset`}
+          value={settings.preset}
+          onChange={(event) => {
+            if (isGraphicsPreset(event.target.value))
+              onChange({ ...settings, preset: event.target.value });
+          }}
+        >
+          {presetOrder.map((preset) => (
+            <option key={preset} value={preset}>
+              {graphicsPresets[preset].label} · {graphicsPresets[preset].width}{' '}
+              × {graphicsPresets[preset].height}
+            </option>
+          ))}
+        </select>
+        <label className="adaptive-toggle">
+          <input
+            type="checkbox"
+            checked={settings.adaptive}
+            onChange={(event) =>
+              onChange({ ...settings, adaptive: event.target.checked })
+            }
+          />{' '}
+          Adaptive resolution
+        </label>
+      </div>
       {advanced && (
         <div className="graphics-detail-grid">
           {(

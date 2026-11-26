@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import {
   bindingActions,
   bindingLabels,
@@ -125,6 +125,10 @@ export function SettingsPanel({
   const [gyroAccess, setGyroAccess] = useState<GyroAccess | null>(null);
   const canUseGyro = showGyro && gyroAvailable();
   const id = useId();
+  const settingsPage = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (settingsPage.current) settingsPage.current.scrollTop = 0;
+  }, [tab]);
   useEffect(() => {
     if (!listening) return;
     const capture = (event: KeyboardEvent) => {
@@ -211,12 +215,17 @@ export function SettingsPanel({
               document.getElementById(`${id}-${tabs[next]}`)?.focus();
             }}
           >
-            {String(index + 1).padStart(2, '0')} / {name}
+            <span className="settings-tab-number" aria-hidden="true">
+              {String(index + 1).padStart(2, '0')} /{' '}
+            </span>
+            {name}
           </button>
         ))}
       </div>
       <div
         className="settings-page"
+        ref={settingsPage}
+        data-tab={tab}
         id={`${id}-panel`}
         role="tabpanel"
         aria-labelledby={`${id}-${tab}`}

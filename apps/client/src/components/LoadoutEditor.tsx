@@ -124,7 +124,7 @@ export function LoadoutEditor({
             </select>
           </label>
           <div className="equipment-commands">
-            <button type="button" onClick={onClose}>
+            <button type="button" className="equipment-back" onClick={onClose}>
               Back
             </button>
             <button

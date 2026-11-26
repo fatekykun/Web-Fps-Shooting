@@ -8,6 +8,7 @@ import './app/mobile.css';
 import './app/multiplayerHud.css';
 import './app/minimap.css';
 import './app/loadout.css';
+import './app/compactMenus.css';
 
 initializePwa();
 

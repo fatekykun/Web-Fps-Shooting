@@ -1,0 +1,567 @@
+@media (orientation: landscape) and (max-height: 540px) {
+  .command-interface[data-device='phone'] {
+    --menu-top: max(6px, env(safe-area-inset-top));
+    --menu-right: max(10px, env(safe-area-inset-right));
+    --menu-bottom: max(6px, env(safe-area-inset-bottom));
+    --menu-left: max(10px, env(safe-area-inset-left));
+    --menu-width: calc(100dvw - var(--menu-left) - var(--menu-right));
+    --menu-height: calc(100dvh - var(--menu-top) - var(--menu-bottom));
+    --menu-header-height: 46px;
+    --menu-footer-height: 28px;
+    min-height: 0;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+
+    &:has(> .command-menu) {
+      .top-bar {
+        top: var(--menu-top);
+        height: var(--menu-header-height);
+        padding-inline: var(--menu-left) var(--menu-right);
+      }
+
+      .wordmark {
+        font-size: 16px;
+        letter-spacing: 1.5px;
+      }
+
+      .brand-icon {
+        font-size: 24px;
+      }
+
+      .session-label {
+        font-size: 0;
+        gap: 0;
+        letter-spacing: 0;
+      }
+
+      .session-label > :not(.room-button),
+      > .graphics-controls {
+        display: none;
+      }
+
+      .top-bar .room-button {
+        min-height: 44px;
+        padding: 0 10px;
+      }
+
+      .bottom-bar {
+        height: calc(var(--menu-footer-height) + var(--menu-bottom));
+        padding: 0 var(--menu-right) var(--menu-bottom) var(--menu-left);
+      }
+
+      .bottom-bar .map-label strong {
+        font-size: 12px;
+      }
+
+      .bottom-bar .eyebrow,
+      .bottom-bar
+        :is(.map-number, .map-divider, .map-description, .footer-right) {
+        display: none;
+      }
+
+      &.diagnostics-compact {
+        .telemetry {
+          inset: auto var(--menu-right) var(--menu-bottom) auto;
+          width: auto;
+          padding: 0;
+          background: transparent;
+          border: 0;
+        }
+
+        .fps-line {
+          margin: 0;
+          gap: 5px;
+        }
+
+        .fps-line strong {
+          font-size: 15px;
+        }
+      }
+    }
+
+    .command-menu {
+      position: absolute;
+      inset: calc(var(--menu-top) + var(--menu-header-height) + 8px)
+        var(--menu-right)
+        calc(var(--menu-bottom) + var(--menu-footer-height) + 8px)
+        var(--menu-left);
+      display: grid;
+      grid-template-columns: clamp(170px, 31%, 265px) minmax(0, 1fr);
+      gap: clamp(14px, 4vw, 38px);
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .command-menu :is(.command-nav, .entry-panel) {
+      position: static;
+      width: auto;
+      max-height: 100%;
+      min-width: 0;
+      transform: none;
+      animation: none;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      pointer-events: auto;
+    }
+
+    .command-menu .command-nav {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-rows: minmax(44px, auto);
+      align-content: start;
+      gap: 4px;
+      padding: 3px;
+    }
+
+    .command-nav button {
+      width: 100%;
+      min-height: 44px;
+      justify-content: center;
+      padding-inline: 3px;
+      white-space: normal;
+      text-align: center;
+      font: 11px var(--mono);
+      background-color: #14221dd9;
+      border: 1px solid var(--line);
+    }
+
+    .command-nav .nav-active {
+      background-color: #beca8d;
+    }
+
+    .command-nav :is(.nav-heading, .nav-footnote, button > span, button > i) {
+      display: none;
+    }
+
+    .command-nav .install-game {
+      display: contents;
+    }
+
+    .command-nav .install-game p {
+      grid-column: 1 / -1;
+      margin: 0;
+      padding: 6px;
+      background: #14221d;
+    }
+
+    .entry-panel {
+      padding: 3px;
+    }
+
+    .entry-panel h1 {
+      margin: 3px 0 10px;
+      font-size: clamp(26px, 10dvh, 48px);
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .entry-panel .intro {
+      margin: 6px 0 10px;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .entry-panel[data-session='training'] :is(.eyebrow, .intro),
+    .entry-panel .enter-button > [aria-hidden='true'] {
+      display: none;
+    }
+
+    .entry-panel .enter-button {
+      width: min(100%, 300px);
+      min-height: 44px;
+      padding: 8px 12px;
+    }
+
+    .entry-panel .capture-note {
+      margin: 7px 0 0;
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
+    :is(.tactical-dialog, .room-panel) {
+      position: fixed;
+      inset: var(--menu-top) var(--menu-right) var(--menu-bottom)
+        var(--menu-left);
+      margin: auto;
+      max-height: var(--menu-height);
+      width: min(790px, var(--menu-width));
+    }
+
+    .dialog-header {
+      align-items: center;
+      padding: 0 10px;
+    }
+
+    :is(.dialog-header, .room-heading) .eyebrow {
+      display: none;
+    }
+
+    .dialog-header h2,
+    .room-panel h2 {
+      font-size: 19px;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+
+    :is(.dialog-header .icon-button, .room-heading .room-button) {
+      width: 44px;
+      height: 44px;
+    }
+
+    .dialog-footer {
+      flex-wrap: nowrap;
+      gap: 8px;
+      padding: 0 10px;
+    }
+
+    :is(.dialog-footer .text-button, .settings-tabs button, .room-tabs button) {
+      min-height: 44px;
+      padding: 4px;
+      font-size: 11px;
+    }
+
+    .settings-panel {
+      height: var(--menu-height);
+    }
+
+    .settings-panel .dialog-content {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .settings-tab-number {
+      display: none;
+    }
+
+    .settings-page {
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 8px 12px;
+    }
+
+    .settings-page :is(.setting-grid, .binding-grid) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 16px;
+    }
+
+    .settings-page[data-tab='AUDIO'] .setting-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .settings-page .controller-settings-button {
+      width: min(100%, 350px);
+      min-height: 44px;
+      margin: 0 0 8px;
+      padding: 6px 10px;
+      letter-spacing: 0.5px;
+    }
+
+    .settings-page .setting-range input {
+      min-height: 22px;
+      margin: 1px 0 3px;
+    }
+
+    .settings-page .setting-toggle {
+      min-height: 38px;
+      margin: 0;
+    }
+
+    :is(.settings-page, .room-panel) .section-heading {
+      margin: 12px 0 8px;
+      padding-bottom: 5px;
+    }
+
+    .settings-page .sensitivity-group {
+      margin: 10px 0;
+      padding-top: 8px;
+    }
+
+    .settings-panel .graphics-controls {
+      display: grid;
+      grid-template-columns: minmax(145px, 1fr) minmax(0, 2fr);
+      gap: 6px 12px;
+      width: 100%;
+      padding: 8px;
+    }
+
+    .graphics-controls > p {
+      grid-column: 1 / -1;
+      margin: 0;
+    }
+
+    .graphics-controls > h2 {
+      display: none;
+    }
+
+    .graphics-preset {
+      min-width: 0;
+    }
+
+    .graphics-controls :is(select, .adaptive-toggle) {
+      min-height: 44px;
+    }
+
+    .graphics-controls select {
+      margin: 4px 0 0;
+    }
+
+    .graphics-detail-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 12px;
+      margin: 0;
+    }
+
+    .room-panel {
+      width: min(720px, var(--menu-width));
+      padding: 0 10px 8px;
+      overscroll-behavior: contain;
+      scroll-padding-top: 48px;
+    }
+
+    .room-panel-header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      flex-direction: row-reverse;
+      justify-content: space-between;
+      align-items: center;
+      background: #17231f;
+    }
+
+    .room-tabs {
+      margin: 0 0 6px;
+    }
+
+    .room-note {
+      margin: 6px 0;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .room-connect-fields {
+      display: grid;
+      gap: 8px;
+    }
+
+    .room-connect-fields[data-mode='join'] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .room-connect-fields[data-mode='create'] {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .room-connect-fields > :is(.full-width, .private-room-fields) {
+      grid-column: 1 / -1;
+    }
+
+    .room-connect-fields .match-fields {
+      display: contents;
+    }
+
+    .room-connect-fields .room-field {
+      grid-column: auto;
+      margin: 0;
+    }
+
+    .room-panel .room-field :is(input, select) {
+      min-height: 44px;
+      margin-top: 4px;
+      padding: 6px;
+    }
+
+    .room-connect-fields .private-room-fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px 8px;
+      margin: 0;
+    }
+
+    .private-room-fields > :not(.room-field) {
+      grid-column: 1 / -1;
+    }
+
+    .tactical-dialog.loadout-editor {
+      width: var(--menu-width);
+      height: var(--menu-height);
+      margin: auto;
+    }
+
+    .loadout-editor .dialog-content {
+      container-type: inline-size;
+      grid-template-rows: auto auto auto;
+      align-content: start;
+      gap: 6px;
+      padding: 6px 8px;
+      scrollbar-gutter: stable;
+    }
+
+    .loadout-editor .equipment-slots {
+      gap: 5px;
+    }
+
+    .equipment-slots button {
+      min-height: 44px;
+      gap: 2px;
+      padding: 3px 5px;
+    }
+
+    .equipment-grid {
+      grid-template-columns: minmax(182px, 0.8fr) minmax(0, 2fr);
+      grid-template-rows: auto auto;
+      align-content: start;
+      gap: 6px;
+    }
+
+    .equipment-identity,
+    .equipment-statistics {
+      max-height: none;
+      overflow: visible;
+      padding: 6px;
+    }
+
+    .loadout-editor:not(.inspecting) .equipment-identity {
+      display: block;
+      grid-column: auto;
+      padding-block: 3px;
+    }
+
+    .equipment-identity > :is(h3, p, span) {
+      display: none;
+    }
+
+    .equipment-character {
+      gap: 2px;
+      margin-top: 0;
+    }
+
+    .equipment-preview-mode {
+      margin-top: 3px;
+    }
+
+    .equipment-preview-mode button {
+      flex: 1;
+      min-height: 44px;
+      padding: 3px;
+    }
+
+    .loadout-editor :is(select, .equipment-character select) {
+      width: 100%;
+      min-width: 0;
+      min-height: 44px;
+      padding: 4px 5px;
+      text-overflow: ellipsis;
+    }
+
+    .equipment-statistics {
+      grid-column: 1 / -1;
+    }
+
+    .equipment-statistics dl {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 16px;
+    }
+
+    .loadout-editor .weapon-showcase {
+      align-self: start;
+      height: clamp(110px, calc(var(--menu-height) - 180px), 260px);
+      min-height: 0;
+    }
+
+    .showcase-actions {
+      inset: auto 4px 4px;
+      justify-content: space-between;
+      gap: 4px;
+      pointer-events: none;
+    }
+
+    .showcase-actions button {
+      pointer-events: auto;
+    }
+
+    .loadout-editor :is(.showcase-actions, .equipment-commands) button {
+      min-height: 44px;
+      padding: 4px 6px;
+    }
+
+    .loadout-editor .dialog-footer {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+      gap: 5px;
+      padding: 4px 8px;
+    }
+
+    .loadout-editor .equipment-commands {
+      grid-column: auto;
+      flex-wrap: nowrap;
+      gap: 4px;
+    }
+
+    .equipment-back {
+      display: none;
+    }
+
+    .equipment-message:empty {
+      display: none;
+    }
+
+    .equipment-message {
+      position: sticky;
+      bottom: 0;
+      justify-self: end;
+      padding: 4px 8px;
+      background: #1b251f;
+      pointer-events: none;
+    }
+
+    .loadout-editor.inspecting .dialog-content,
+    .loadout-editor.inspecting .equipment-grid {
+      grid-template-rows: minmax(0, 1fr);
+      align-content: stretch;
+    }
+
+    .loadout-editor.inspecting .weapon-showcase {
+      align-self: stretch;
+      height: auto;
+    }
+
+    .loadout-editor.inspecting .equipment-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    @media (max-height: 300px) {
+      .command-menu {
+        grid-template-columns: clamp(200px, 34%, 265px) minmax(0, 1fr);
+      }
+
+      .command-menu .command-nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @container (min-width: 680px) {
+      .loadout-editor:not(.inspecting) .equipment-grid {
+        grid-template-columns: minmax(182px, 1fr) minmax(0, 2fr) minmax(
+            175px,
+            1fr
+          );
+        grid-template-rows: auto;
+      }
+
+      .equipment-statistics {
+        grid-column: auto;
+      }
+
+      .equipment-statistics dl {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .equipment-statistics dl > div {
+        font-size: 0.63rem;
+      }
+    }
+  }
+}

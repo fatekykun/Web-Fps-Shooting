@@ -82,7 +82,11 @@ export function CommandMenu({
           <span>PRIVATE FREQUENCIES ONLY</span>
         </div>
       </nav>
-      <section className="entry-panel" aria-labelledby="entry-title">
+      <section
+        className="entry-panel"
+        aria-labelledby="entry-title"
+        data-session={room ? 'room' : entered ? 'paused' : 'training'}
+      >
         <div className="eyebrow">
           <span />
           {room
