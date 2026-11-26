@@ -420,12 +420,12 @@ seconds. It is a holographic sensor, so the movement course can pass through it.
 Cover blocks shots before the target. This dummy remains local practice and is
 disabled in online rooms.
 
-| Weapon        | Magazine / reserve | Fire                                 | Reload          | ADS to 90% |
-| ------------- | ------------------ | ------------------------------------ | --------------- | ---------- |
-| AR-01 rifle   | 30 / 120           | Automatic, 600 RPM                   | 2.0 s           | 140 ms     |
-| SM-02 SMG     | 35 / 140           | Automatic, 900 RPM                   | 1.6 s           | 100 ms     |
-| SG-03 shotgun | 8 / 40             | Semi-auto, 0.8 s interval, 8 pellets | 0.8 s per shell | 180 ms     |
-| SR-04 sniper  | 5 / 20             | Bolt-action, 45 RPM                  | 2.8 s           | 315 ms     |
+| Weapon        | Magazine / reserve | Fire                                  | Reload          | ADS to 90% |
+| ------------- | ------------------ | ------------------------------------- | --------------- | ---------- |
+| AR-01 rifle   | 30 / 120           | Automatic, 600 RPM                    | 2.0 s           | 140 ms     |
+| SM-02 SMG     | 35 / 140           | Automatic, 900 RPM                    | 1.6 s           | 100 ms     |
+| SG-03 shotgun | 8 / 40             | Semi-auto, 0.8 s interval, 15 pellets | 0.8 s per shell | 180 ms     |
+| SR-04 sniper  | 5 / 20             | Bolt-action, 45 RPM                   | 2.8 s           | 315 ms     |
 
 ADS changes camera FOV, sight alignment and sensitivity without smoothing mouse
 look. Its reversible exponential blend is sampled for each rendered frame. The

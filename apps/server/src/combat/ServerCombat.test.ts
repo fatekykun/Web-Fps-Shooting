@@ -213,8 +213,10 @@ it.each(weaponOrder)(
       expect(victim.state.health).toBeCloseTo(100 - expected, 8);
       expect(f.combat.owner(shooter).lastDamage).toBeCloseTo(expected, 8);
     } else {
-      expect(victim.state.health).toBeGreaterThan(
-        100 - weaponConfigs.shotgun.damage * weaponConfigs.shotgun.pellets,
+      const config = weaponConfigs.shotgun;
+      const maxPelletDamage = calculateDamage(config, 'head', 34);
+      expect(victim.state.health).toBeGreaterThanOrEqual(
+        100 - maxPelletDamage * config.pellets,
       );
     }
   },

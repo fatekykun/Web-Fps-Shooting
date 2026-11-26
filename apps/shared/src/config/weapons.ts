@@ -214,7 +214,7 @@ export const weaponConfigs: Readonly<Record<WeaponId, Readonly<WeaponConfig>>> =
       maxBloom: 3,
       bloomRecovery: 2,
       recoil: recoilProfiles.shotgun,
-      pellets: 8,
+      pellets: 15,
       damage: 12,
       bodyMultipliers: {
         head: 1.5,
