@@ -351,7 +351,7 @@ describe('touch intentions', () => {
     browser.dispatchEvent(event);
   }
 
-  it('preserves the legacy gain and FOV behavior while blending gyro aim modes', () => {
+  it('blends gyro sensitivity and FOV scaling across aim modes', () => {
     Object.assign(browser, {
       isSecureContext: true,
       DeviceMotionEvent: Event,
@@ -359,7 +359,6 @@ describe('touch intentions', () => {
     });
     const settings = defaultUserSettings();
     settings.gyroActivation = 'always';
-    settings.gyroMapping = 'legacy';
     settings.gyroSensitivity = {
       steering: 100,
       ads: 200,
@@ -399,7 +398,7 @@ describe('touch intentions', () => {
     { mode: 'ads', weaponId: 'rifle', ads: 1, fovScale: 0.75, scale: 11.25 },
     { mode: 'sniper', weaponId: 'sniper', ads: 1, fovScale: 0.25, scale: 9.75 },
   ] as const)(
-    'preserves the previous maximum gyro gain in $mode legacy mode',
+    'uses the faster maximum gyro gain in $mode mode',
     ({ mode, weaponId, ads, fovScale, scale }) => {
       Object.assign(browser, {
         isSecureContext: true,
@@ -408,7 +407,6 @@ describe('touch intentions', () => {
       });
       const settings = defaultUserSettings();
       settings.gyroActivation = 'always';
-      settings.gyroMapping = 'legacy';
       settings.gyroSensitivity[mode] = 300;
       input.configure(settings);
       input.lookScale = fovScale;
@@ -507,12 +505,47 @@ describe('touch intentions', () => {
     },
   );
 
+  it.each([90, 270])(
+    'reads Chromium device X/Y rates before rotating the axes at %i degrees',
+    (angle) => {
+      Object.assign(navigator, {
+        userAgent:
+          'Mozilla/5.0 (Linux; Android 14; RMX3663) Chrome/131.0.0.0 Mobile Safari/537.36',
+      });
+      Object.assign(browser, {
+        isSecureContext: true,
+        DeviceMotionEvent: Event,
+        screen: { orientation: { angle } },
+      });
+      input.configure({ ...defaultUserSettings(), gyroActivation: 'always' });
+      const side = angle === 90 ? 1 : -1;
+      const gravity = { x: 8.55 * side, y: 4.8, z: 0 };
+      const pitch = {
+        rotationRate: { alpha: 0, beta: -60 * side, gamma: 0 },
+        accelerationIncludingGravity: gravity,
+      };
+      motion(1000, 0, 0, pitch);
+      motion(1020, 0, 0, pitch);
+      const delta = (60 * 0.02 * Math.PI) / 180;
+      expect(input.pitch).toBeCloseTo(delta, 10);
+      expect(input.movement.yaw).toBeCloseTo(0, 10);
+
+      const yaw = {
+        rotationRate: { alpha: 60 * side, beta: 0, gamma: 0 },
+        accelerationIncludingGravity: gravity,
+      };
+      motion(1040, 0, 0, yaw);
+      expect(input.movement.yaw).toBeCloseTo(delta, 10);
+      expect(input.pitch).toBeCloseTo(delta, 10);
+    },
+  );
+
   it.each([
     { sampleMs: 10, renderMs: 16 },
     { sampleMs: 20, renderMs: 33 },
     { sampleMs: 50, renderMs: 8 },
   ])(
-    'integrates 180 degrees at gain 2 with $sampleMs ms sensor and $renderMs ms render intervals',
+    'records one full gyro turn with $sampleMs ms sensor and $renderMs ms render intervals',
     ({ sampleMs, renderMs }) => {
       Object.assign(browser, {
         isSecureContext: true,
@@ -521,59 +554,45 @@ describe('touch intentions', () => {
       });
       const settings = defaultUserSettings();
       settings.gyroActivation = 'always';
-      settings.gyroSensitivity.steering = 200;
       input.configure(settings);
       input.setLook(Math.PI - 0.1, 0);
       input.startGyroMeasurement();
       let nextFrame = 0;
       for (let elapsed = 0; elapsed <= 1000; elapsed += sampleMs) {
         while (nextFrame <= elapsed) {
-          input.lookScale = nextFrame % 3 === 0 ? 0.25 : 0.75;
           input.consumeActions();
           nextFrame += renderMs;
         }
-        motion(1000 + elapsed, 90, 0);
+        motion(1000 + elapsed, 360, 0);
       }
       expect(input.getGyroMeasurement()?.physicalYaw).toBeCloseTo(
-        Math.PI / 2,
+        2 * Math.PI,
         9,
       );
-      expect(input.getGyroMeasurement()?.cameraYaw).toBeCloseTo(Math.PI, 9);
+      expect(input.getGyroMeasurement()?.cameraYaw).toBeCloseTo(2 * Math.PI, 9);
       expect(input.getGyroMeasurement()?.cameraYawTravel).toBeCloseTo(
-        Math.PI,
+        2 * Math.PI,
         9,
       );
-      expect(input.movement.yaw).toBeCloseTo(-0.1, 9);
+      expect(input.movement.yaw).toBeCloseTo(Math.PI - 0.1, 9);
       motion(2000, 90, 0);
       motion(1980, 90, 0);
-      expect(input.getGyroMeasurement()?.cameraYaw).toBeCloseTo(Math.PI, 9);
+      expect(input.getGyroMeasurement()?.cameraYaw).toBeCloseTo(2 * Math.PI, 9);
     },
   );
 
-  it('only applies ADS-only gyro while aiming and blends calibrated gains by axis', () => {
+  it('only applies ADS-only gyro while aiming and scales vertical independently', () => {
     Object.assign(browser, {
       isSecureContext: true,
       DeviceMotionEvent: Event,
       screen: { orientation: { angle: 90 } },
     });
-    const calibration = {
-      sensitivity: 100,
-      aim: 'ads',
-      firing: false,
-      phoneDegrees: 10,
-      referenceFov: 'COD Mobile FOV 80',
-      notes: '',
-    } as const;
-    input.configure({
-      ...defaultUserSettings(),
-      gyroActivation: 'ads',
-      gyroMapping: 'calibrated',
-      gyroCalibration: [
-        { ...calibration, axis: 'yaw', cameraDegrees: 30 },
-        { ...calibration, axis: 'pitch', cameraDegrees: 50 },
-      ],
-    });
-    input.lookScale = 0.25;
+    const settings = defaultUserSettings();
+    settings.gyroActivation = 'ads';
+    settings.gyroSensitivity.ads = 200;
+    settings.gyroSensitivity.vertical = 150;
+    input.configure(settings);
+    input.lookScale = 0.5;
     weapon = new WeaponController(() => {});
     input.startGyroMeasurement();
     motion(1000, 50, -25);
@@ -584,18 +603,16 @@ describe('touch intentions', () => {
     input.setTouchWeapons(false, true);
     weapon.ads = 0.5;
     motion(1040, 50, -25);
-    expect(input.movement.yaw).toBeCloseTo((2 * Math.PI) / 180, 9);
-    expect(input.pitch).toBeCloseTo((1.5 * Math.PI) / 180, 9);
+    expect(input.movement.yaw).toBeCloseTo((1.875 * Math.PI) / 180, 9);
+    expect(input.pitch).toBeCloseTo((1.40625 * Math.PI) / 180, 9);
     expect(input.getGyroMeasurement()?.aim).toMatchObject({
       mode: 'ads',
-      yawGain: 2,
-      pitchGain: 3,
-      yawSource: 'uncalibrated → measured',
-      pitchSource: 'uncalibrated → measured',
+      yawGain: 1.875,
+      pitchGain: 2.8125,
     });
     input.setTouchWeapons(false, false);
     motion(1060, 50, -25);
-    expect(input.movement.yaw).toBeCloseTo((2 * Math.PI) / 180, 9);
+    expect(input.movement.yaw).toBeCloseTo((1.875 * Math.PI) / 180, 9);
   });
 
   it('resets gyro timing on rotation, ignores stale events and stops when disabled or paused', () => {

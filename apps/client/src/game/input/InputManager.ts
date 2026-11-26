@@ -16,12 +16,7 @@ import { KeyboardInput } from './KeyboardInput';
 import { MouseInput } from './MouseInput';
 import { TouchInput } from './TouchInput';
 import { GyroInput, requestGyroAccess, type GyroSample } from './GyroInput';
-import {
-  createGyroGainResolver,
-  type GyroAimMode,
-  type GyroAxis,
-  type GyroMapping,
-} from './gyroSensitivity';
+import { gyroTurnScale, type GyroAimMode } from './gyroSensitivity';
 import { readDevice } from './deviceCapabilities';
 
 const lookLimit = Math.PI / 2 - 0.02;
@@ -58,15 +53,12 @@ export interface GyroMeasurement {
     ads: number;
     firing: boolean;
     active: boolean;
-    mapping: GyroMapping;
     baseFov: number;
     fovScale: number;
     steeringSensitivity: number;
     aimedSensitivity: number;
     yawGain: number;
     pitchGain: number;
-    yawSource: string;
-    pitchSource: string;
   } | null;
 }
 
@@ -99,7 +91,6 @@ export class InputManager {
   private readonly keyboard: KeyboardInput;
   private readonly mouse: MouseInput;
   private readonly gyro = new GyroInput((sample) => this.gyroLook(sample));
-  private resolveGyroGain = createGyroGainResolver('reference', []);
   private gyroMeasurement: GyroMeasurement | null = null;
   private touch: TouchInput | null = null;
   private readonly controlClicks = new Set<number>();
@@ -171,10 +162,6 @@ export class InputManager {
       (action) => this.settings.bindings[action] !== settings.bindings[action],
     );
     this.settings = settings;
-    this.resolveGyroGain = createGyroGainResolver(
-      settings.gyroMapping,
-      settings.gyroCalibration,
-    );
     this.weapon.autoReload = settings.autoReload;
     if (changed) this.clear();
     this.syncGyro();
@@ -399,37 +386,15 @@ export class InputManager {
     const mode = ads > 0 ? aimingMode : 'hip';
     const active =
       this.settings.gyroActivation === 'always' || (this.weapon.aim && ads > 0);
-    const firing = this.isFiring(weapon);
     const sensitivity = this.settings.gyroSensitivity;
-    const getGain = (axis: GyroAxis) => {
-      const context = { axis, firing, fovScale: this.lookScale };
-      const aimed = this.resolveGyroGain({
-        ...context,
-        sensitivity:
-          mode === 'hip' ? sensitivity.steering : sensitivity[aimingMode],
-        aim: mode,
-      });
-      if (ads === 0 || ads === 1) return aimed;
-      const steering = this.resolveGyroGain({
-        ...context,
-        sensitivity: sensitivity.steering,
-        aim: 'hip',
-      });
-      return {
-        gain: steering.gain + (aimed.gain - steering.gain) * ads,
-        source:
-          steering.source === aimed.source
-            ? aimed.source
-            : `${steering.source} → ${aimed.source}`,
-      };
-    };
-    const yaw = getGain('yaw');
-    const pitch = getGain('pitch');
-    const pitchGain = (pitch.gain * sensitivity.vertical) / 100;
+    const steeringGain = gyroTurnScale(sensitivity.steering, this.lookScale);
+    const aimedGain = gyroTurnScale(sensitivity[aimingMode], this.lookScale);
+    const yawGain = steeringGain + (aimedGain - steeringGain) * ads;
+    const pitchGain = (yawGain * sensitivity.vertical) / 100;
     const deadZone = this.settings.gyroDeadZone;
     const deltaYaw =
       active && Math.abs(sample.yawRate) >= deadZone
-        ? sample.yaw * yaw.gain * (this.settings.gyroInvertHorizontal ? -1 : 1)
+        ? sample.yaw * yawGain * (this.settings.gyroInvertHorizontal ? -1 : 1)
         : 0;
     const deltaPitch =
       active && Math.abs(sample.pitchRate) >= deadZone
@@ -450,18 +415,15 @@ export class InputManager {
       measurement.aim = {
         mode,
         ads,
-        firing,
+        firing: this.isFiring(weapon),
         active,
-        mapping: this.settings.gyroMapping,
         baseFov: this.settings.fov,
-        fovScale: this.settings.gyroMapping === 'legacy' ? this.lookScale : 1,
+        fovScale: this.lookScale,
         steeringSensitivity: sensitivity.steering,
         aimedSensitivity:
           mode === 'hip' ? sensitivity.steering : sensitivity[aimingMode],
-        yawGain: yaw.gain,
+        yawGain,
         pitchGain,
-        yawSource: yaw.source,
-        pitchSource: pitch.source,
       };
     }
   }

@@ -58,9 +58,7 @@ test('requests permission, saves gyro settings, and applies horizontal inversion
   await page.evaluate(() => sessionStorage.setItem('allowMotion', 'yes'));
   await alwaysOn.tap();
   await expect(alwaysOn).toHaveAttribute('aria-pressed', 'true');
-  const mapping = page.getByLabel('Gyro sensitivity mapping');
-  await expect(mapping).toHaveValue('reference');
-  await mapping.selectOption('legacy');
+  await expect(page.getByLabel('Gyro sensitivity mapping')).toHaveCount(0);
   await expect(invertHorizontal).not.toBeChecked();
   await expect(invertVertical).not.toBeChecked();
   await invertHorizontal.tap();
@@ -89,7 +87,6 @@ test('requests permission, saves gyro settings, and applies horizontal inversion
   await page.reload();
   await openSensitivity(page);
   await expect(alwaysOn).toHaveAttribute('aria-pressed', 'true');
-  await expect(mapping).toHaveValue('legacy');
   await expect(invertHorizontal).toBeChecked();
   await expect(invertVertical).toBeChecked();
   for (const [index, label] of labels.entries())
@@ -137,61 +134,76 @@ test('requests permission, saves gyro settings, and applies horizontal inversion
   expect(await heading()).toBeCloseTo(before);
 });
 
-test('saves a measured profile and applies vertical-only gyro with a tilted grip', async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(screen.orientation, 'angle', { get: () => 90 });
-    Element.prototype.requestFullscreen = () =>
-      Promise.reject(new Error('Fullscreen denied'));
-    localStorage.setItem(
-      'breakpoint.graphics.v2',
-      JSON.stringify({ preset: 'performance', adaptive: false }),
-    );
+test.describe('Android gyro', () => {
+  test.use({
+    userAgent:
+      'Mozilla/5.0 (Linux; Android 14; RMX3663) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36',
   });
-  await page.goto('/');
-  await openSensitivity(page);
-  await page.getByRole('button', { name: 'Always on' }).tap();
-  const diagnostics = page.getByText('Gyro diagnostics and calibration', {
-    exact: true,
-  });
-  await diagnostics.tap();
-  await page
-    .getByRole('combobox', { name: 'Axis', exact: true })
-    .selectOption('pitch');
-  await page.getByLabel('COD Mobile FOV', { exact: true }).fill('Test FOV 75');
-  await page.getByLabel('Physical phone rotation (degrees)').fill('10');
-  await page.getByLabel('COD Mobile camera rotation (degrees)').fill('20');
-  await page.getByRole('button', { name: 'Save measurement' }).tap();
-  await expect(page.getByText(/Measurement saved/)).toBeVisible();
-  await page.getByLabel('Gyro sensitivity mapping').selectOption('calibrated');
 
-  await page.reload();
-  await openSensitivity(page);
-  await expect(page.getByLabel('Gyro sensitivity mapping')).toHaveValue(
-    'calibrated',
-  );
-  await diagnostics.tap();
-  await expect(page.getByText('Saved measurements (1)')).toBeVisible();
-  await page.getByRole('button', { name: 'Start gyro measurement' }).tap();
-  await page.getByRole('button', { name: 'Close settings' }).tap();
-  await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
-  await expect(page.getByTestId('minimap-player')).toBeVisible();
-  await page.evaluate(() => {
-    for (const time of [1000, 1020, 1040, 1060]) {
-      const event = new DeviceMotionEvent('devicemotion', {
-        rotationRate: { alpha: 0, beta: 0, gamma: -60 },
-        accelerationIncludingGravity: { x: 7.8, y: 4.8, z: 3.5 },
-      });
-      Object.defineProperty(event, 'timeStamp', { value: time });
-      window.dispatchEvent(event);
-    }
-  });
-  await page.getByRole('button', { name: 'Pause game' }).tap();
-  await openSensitivity(page);
-  await diagnostics.tap();
-  await expect(page.getByTestId('gyro-camera-rotation')).toHaveText(
-    '0.0° / 7.2°',
-  );
-  await expect(page.getByText('uncalibrated / measured')).toBeVisible();
+  for (const angle of [90, 270]) {
+    test(`uses vertical-only motion on Android at ${angle} degrees`, async ({
+      page,
+    }) => {
+      await page.addInitScript((screenAngle) => {
+        Object.defineProperty(screen.orientation, 'angle', {
+          get: () => screenAngle,
+        });
+        Element.prototype.requestFullscreen = () =>
+          Promise.reject(new Error('Fullscreen denied'));
+        localStorage.setItem(
+          'breakpoint.graphics.v2',
+          JSON.stringify({ preset: 'performance', adaptive: false }),
+        );
+        localStorage.setItem(
+          'breakpoint.settings.v1',
+          JSON.stringify({
+            gyroVersion: 1,
+            gyroMapping: 'calibrated',
+            gyroCalibration: [
+              {
+                sensitivity: 100,
+                aim: 'hip',
+                axis: 'pitch',
+                firing: false,
+                phoneDegrees: 10,
+                cameraDegrees: 20,
+                referenceFov: 'FOV 75',
+                notes: '',
+              },
+            ],
+          }),
+        );
+      }, angle);
+      await page.goto('/');
+      await openSensitivity(page);
+      await expect(page.getByLabel('Gyro sensitivity mapping')).toHaveCount(0);
+      await page.getByRole('button', { name: 'Always on' }).tap();
+      const diagnostics = page.getByText('Gyro diagnostics', { exact: true });
+      await diagnostics.tap();
+      await expect(
+        page.getByText('Saved reference measurements (1)'),
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Start gyro measurement' }).tap();
+      await page.getByRole('button', { name: 'Close settings' }).tap();
+      await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
+      await expect(page.getByTestId('minimap-player')).toBeVisible();
+      await page.evaluate((screenAngle) => {
+        const side = screenAngle === 90 ? 1 : -1;
+        for (const time of [1000, 1020, 1040, 1060]) {
+          const event = new DeviceMotionEvent('devicemotion', {
+            rotationRate: { alpha: 0, beta: -60 * side, gamma: 0 },
+            accelerationIncludingGravity: { x: 7.8 * side, y: 4.8, z: 3.5 },
+          });
+          Object.defineProperty(event, 'timeStamp', { value: time });
+          window.dispatchEvent(event);
+        }
+      }, angle);
+      await page.getByRole('button', { name: 'Pause game' }).tap();
+      await openSensitivity(page);
+      await diagnostics.tap();
+      await expect(page.getByTestId('gyro-camera-rotation')).toHaveText(
+        '0.0° / 3.6°',
+      );
+    });
+  }
 });

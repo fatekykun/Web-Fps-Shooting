@@ -259,9 +259,8 @@ it('persists all eight sensitivity values independently without resetting bindin
 
 it('migrates legacy gyro camera values and persists separate axis inversion', () => {
   expect(normalizeUserSettings({ sensitivity: 1.5 })).toMatchObject({
-    gyroVersion: 1,
+    gyroVersion: 2,
     gyroActivation: 'off',
-    gyroMapping: 'reference',
     gyroDeadZone: 0.1,
     gyroInvertHorizontal: false,
     gyroInvertVertical: false,
@@ -280,14 +279,12 @@ it('migrates legacy gyro camera values and persists separate axis inversion', ()
     },
   });
   expect(settings).toMatchObject({
-    gyroVersion: 1,
+    gyroVersion: 2,
     gyroActivation: 'always',
-    gyroMapping: 'legacy',
     gyroDeadZone: 0.5,
   });
   expect(normalizeUserSettings({ gyroEnabled: false })).toMatchObject({
     gyroActivation: 'off',
-    gyroMapping: 'legacy',
   });
   expect(settings.gyroInvertHorizontal).toBe(true);
   expect(settings.gyroInvertVertical).toBe(true);
@@ -313,4 +310,40 @@ it('migrates legacy gyro camera values and persists separate axis inversion', ()
     gyroInvertVertical: false,
     gyroSensitivity: { steering: 1 },
   });
+});
+
+it('removes the old mapping choice and preserves saved gyro controls and measurements', () => {
+  const data = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => data.set(key, value),
+  });
+  const measurement = {
+    sensitivity: 115,
+    aim: 'hip',
+    axis: 'pitch',
+    firing: false,
+    phoneDegrees: 10,
+    cameraDegrees: 20,
+    referenceFov: 'FOV 75',
+    notes: '',
+  };
+  const settings = normalizeUserSettings({
+    gyroVersion: 1,
+    gyroActivation: 'ads',
+    gyroMapping: 'calibrated',
+    gyroSensitivity: { steering: 115 },
+    gyroInvertVertical: true,
+    gyroCalibration: [measurement],
+  });
+  expect(settings).not.toHaveProperty('gyroMapping');
+  expect(settings).toMatchObject({
+    gyroVersion: 2,
+    gyroActivation: 'ads',
+    gyroSensitivity: { steering: 115 },
+    gyroInvertVertical: true,
+    gyroCalibration: [measurement],
+  });
+  expect(saveUserSettings(settings)).toBe(true);
+  expect(loadUserSettings()).toEqual(settings);
 });
