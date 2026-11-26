@@ -3,6 +3,7 @@ import {
   type WeaponSkin,
 } from '@breakpoint/shared/weapons/loadouts';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const cache = new Map<string, Promise<GLTF>>();
 type ModelSkin = {
@@ -27,7 +28,11 @@ export function weaponAsset(skin: WeaponSkin): Promise<GLTF> | undefined {
           throw new Error(`${model} returned HTTP ${response.status}`);
         return response.arrayBuffer();
       })
-      .then((bytes) => new GLTFLoader().parseAsync(bytes, folder))
+      .then((bytes) =>
+        new GLTFLoader()
+          .setMeshoptDecoder(MeshoptDecoder)
+          .parseAsync(bytes, folder),
+      )
       .catch((error: unknown) => {
         cache.delete(model);
         throw error;

@@ -7,6 +7,7 @@ import {
   type BufferGeometry,
 } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { operators, type ImportedOperator } from '@breakpoint/shared/operators';
 
@@ -192,6 +193,7 @@ export function operatorAsset(id: ImportedOperator): Promise<GLTF | undefined> {
   let asset = assets.get(id);
   if (!asset) {
     asset = new GLTFLoader()
+      .setMeshoptDecoder(MeshoptDecoder)
       .loadAsync(`${import.meta.env.BASE_URL}models/${operators[id].model}`)
       .then(prepareOperatorAsset)
       .catch(() => {
