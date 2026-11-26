@@ -217,6 +217,13 @@ test('sprint slide widens the camera and cancels on Depot cover', async ({
   page,
 }) => {
   await enter(page);
+  // Keep the fixed approach to cover at full sprint speed.
+  await page.keyboard.press('q');
+  await page.clock.runFor(250);
+  await expect(page.getByTestId('weapon-status')).toHaveAttribute(
+    'data-weapon',
+    'melee',
+  );
   const pose = page.getByTestId('position');
   const readFov = async () =>
     Number(await page.getByTestId('weapon-status').getAttribute('data-fov'));
