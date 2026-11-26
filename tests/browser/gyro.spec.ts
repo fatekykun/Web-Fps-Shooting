@@ -9,7 +9,7 @@ test.use({
 });
 
 const labels = [
-  'Gyro Camera Sensitivity',
+  'Steering Gyro Sensitivity',
   'Gyro ADS Sensitivity',
   'Gyro Sniper Scope Sensitivity',
   'Gyro Vertical Turning Sensitivity',
@@ -20,7 +20,7 @@ async function openSensitivity(page: Page) {
   await page.getByRole('tab', { name: /SENSITIVITY/ }).tap();
 }
 
-test('requests permission, saves four gyro values, and uses motion only when enabled', async ({
+test('requests permission, saves gyro settings, and applies horizontal inversion during play', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -42,6 +42,12 @@ test('requests permission, saves four gyro values, and uses motion only when ena
   });
   await page.goto('/');
   const gyro = page.getByRole('checkbox', { name: 'Gyro aiming' });
+  const invertHorizontal = page.getByRole('switch', {
+    name: 'Invert Horizontal Gyroscope',
+  });
+  const invertVertical = page.getByRole('switch', {
+    name: 'Invert Vertical Gyroscope',
+  });
   await openSensitivity(page);
   await expect(gyro).not.toBeChecked();
   await gyro.tap();
@@ -50,6 +56,10 @@ test('requests permission, saves four gyro values, and uses motion only when ena
   await page.evaluate(() => sessionStorage.setItem('allowMotion', 'yes'));
   await gyro.tap();
   await expect(gyro).toBeChecked();
+  await expect(invertHorizontal).not.toBeChecked();
+  await expect(invertVertical).not.toBeChecked();
+  await invertHorizontal.tap();
+  await invertVertical.tap();
 
   const values = ['150', '55', '83', '180'];
   for (const [index, label] of labels.entries()) {
@@ -74,6 +84,8 @@ test('requests permission, saves four gyro values, and uses motion only when ena
   await page.reload();
   await openSensitivity(page);
   await expect(gyro).toBeChecked();
+  await expect(invertHorizontal).toBeChecked();
+  await expect(invertVertical).toBeChecked();
   for (const [index, label] of labels.entries())
     await expect(
       page.getByRole('slider', { name: label, exact: true }),
@@ -103,7 +115,7 @@ test('requests permission, saves four gyro values, and uses motion only when ena
       }
     });
   await tilt();
-  await expect.poll(heading).toBeCloseTo(-(90 * Math.PI * 0.04 * 1.5) / 180);
+  await expect.poll(heading).toBeCloseTo((90 * Math.PI * 0.04 * 1.5) / 180);
 
   await page.getByRole('button', { name: 'Pause game' }).tap();
   await openSensitivity(page);

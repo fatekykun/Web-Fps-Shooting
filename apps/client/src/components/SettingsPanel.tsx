@@ -34,7 +34,7 @@ const sensitivityLabels = {
   vertical: 'Vertical Turning Sensitivity',
 } as const;
 const gyroLabels = {
-  camera: 'Gyro Camera Sensitivity',
+  steering: 'Steering Gyro Sensitivity',
   ads: 'Gyro ADS Sensitivity',
   sniper: 'Gyro Sniper Scope Sensitivity',
   vertical: 'Gyro Vertical Turning Sensitivity',
@@ -273,7 +273,7 @@ export function SettingsPanel({
                 checked={settings.invertY}
                 onChange={(event) => change({ invertY: event.target.checked })}
               />{' '}
-              Invert vertical look
+              Invert vertical look (mouse and touch)
             </label>
             <label className="setting-toggle">
               <input
@@ -455,6 +455,28 @@ export function SettingsPanel({
                   </p>
                 )}
                 <div className="setting-grid">
+                  <label className="setting-toggle">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={settings.gyroInvertHorizontal}
+                      onChange={({ target }) =>
+                        change({ gyroInvertHorizontal: target.checked })
+                      }
+                    />
+                    Invert Horizontal Gyroscope
+                  </label>
+                  <label className="setting-toggle">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={settings.gyroInvertVertical}
+                      onChange={({ target }) =>
+                        change({ gyroInvertVertical: target.checked })
+                      }
+                    />
+                    Invert Vertical Gyroscope
+                  </label>
                   {(Object.keys(gyroLabels) as (keyof typeof gyroLabels)[]).map(
                     (key) => (
                       <Range

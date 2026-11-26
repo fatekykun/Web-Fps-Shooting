@@ -91,12 +91,9 @@ export interface UserSettings {
   touchSensitivity: { camera: number; ads: number; sniper: number };
   touchAimAssist: boolean;
   gyroEnabled: boolean;
-  gyroSensitivity: {
-    camera: number;
-    ads: number;
-    sniper: number;
-    vertical: number;
-  };
+  gyroInvertHorizontal: boolean;
+  gyroInvertVertical: boolean;
+  gyroSensitivity: SensitivityGroup;
   fov: number;
   syncAdsFov: boolean;
   scopeStyle: ScopeStyle;
@@ -138,7 +135,9 @@ export function defaultUserSettings(): UserSettings {
     touchSensitivity: { camera: 100, ads: 100, sniper: 100 },
     touchAimAssist: true,
     gyroEnabled: false,
-    gyroSensitivity: { camera: 100, ads: 100, sniper: 100, vertical: 100 },
+    gyroInvertHorizontal: false,
+    gyroInvertVertical: false,
+    gyroSensitivity: defaultSensitivityGroup(),
     fov: 85,
     syncAdsFov: false,
     scopeStyle: 'classic',
@@ -237,6 +236,8 @@ export function normalizeUserSettings(value: unknown): UserSettings {
   }
   const bool = (key: string, fallback: boolean) =>
     typeof v[key] === 'boolean' ? (v[key] as boolean) : fallback;
+  const gyroEnabled = bool('gyroEnabled', d.gyroEnabled);
+  const invertY = bool('invertY', d.invertY);
   const validBindings =
     bindingActions.every((key) => isBindingCode(b[key])) &&
     new Set(bindingActions.map((key) => b[key])).size === bindingActions.length;
@@ -249,9 +250,19 @@ export function normalizeUserSettings(value: unknown): UserSettings {
       sniper: number(object(v.touchSensitivity).sniper, 100, 1, 300),
     },
     touchAimAssist: bool('touchAimAssist', d.touchAimAssist),
-    gyroEnabled: bool('gyroEnabled', d.gyroEnabled),
+    gyroEnabled,
+    gyroInvertHorizontal: bool('gyroInvertHorizontal', d.gyroInvertHorizontal),
+    // Until gyro had its own switch, it shared the vertical look preference.
+    gyroInvertVertical: bool('gyroInvertVertical', gyroEnabled && invertY),
     gyroSensitivity: {
-      camera: Math.round(number(gyro.camera, d.gyroSensitivity.camera, 1, 300)),
+      steering: Math.round(
+        number(
+          gyro.steering,
+          number(gyro.camera, d.gyroSensitivity.steering, 1, 300),
+          1,
+          300,
+        ),
+      ),
       ads: Math.round(number(gyro.ads, d.gyroSensitivity.ads, 1, 300)),
       sniper: Math.round(number(gyro.sniper, d.gyroSensitivity.sniper, 1, 300)),
       vertical: Math.round(
@@ -270,7 +281,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
         ? v.eliminationQuality
         : 'medium',
     autoReload: bool('autoReload', d.autoReload),
-    invertY: bool('invertY', d.invertY),
+    invertY,
     reducedMotion: bool('reducedMotion', d.reducedMotion),
     diagnostics: bool('diagnostics', d.diagnostics),
     muted: bool('muted', d.muted),

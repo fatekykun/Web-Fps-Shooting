@@ -29,8 +29,13 @@ export async function requestGyroAccess(): Promise<GyroAccess> {
 const radiansPerDegree = Math.PI / 180;
 const maximumSampleGap = 100; // ms
 const driftThreshold = 0.5; // degrees per second
+const gravity = 9.81; // meters per second squared
 
-/** Integrates motion in display coordinates and discards stale samples. */
+function axis(value: number | null | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/** Integrates angular rates and discards stale samples. */
 export class GyroInput {
   private active = false;
   private previousTime?: number;
@@ -68,12 +73,34 @@ export class GyroInput {
     this.screenAngle = angle;
     if (rotated || !(elapsed > 0 && elapsed <= maximumSampleGap)) return;
 
-    const aroundX = Number.isFinite(rates.beta) ? rates.beta! : 0;
-    const aroundY = Number.isFinite(rates.gamma) ? rates.gamma! : 0;
+    const aroundX = axis(rates.beta);
+    const aroundY = axis(rates.gamma);
+    const aroundZ = axis(rates.alpha);
     const cos = Math.cos(angle * radiansPerDegree);
     const sin = Math.sin(angle * radiansPerDegree);
-    const yaw = aroundX * sin + aroundY * cos;
-    const pitch = aroundX * cos - aroundY * sin;
+    let yaw = aroundX * sin + aroundY * cos;
+    let pitch = aroundX * cos - aroundY * sin;
+
+    const measured = event.accelerationIncludingGravity;
+    const linear = event.acceleration;
+    const upX = axis(measured?.x) - axis(linear?.x);
+    const upY = axis(measured?.y) - axis(linear?.y);
+    const upZ = axis(measured?.z) - axis(linear?.z);
+    const upLength = Math.hypot(upX, upY, upZ);
+    if (
+      Number.isFinite(measured?.x) &&
+      Number.isFinite(measured?.y) &&
+      Number.isFinite(measured?.z) &&
+      Math.abs(upLength - gravity) < gravity * 0.4
+    ) {
+      // Turning about world up should feel the same with the phone tilted back.
+      yaw = (aroundX * upX + aroundY * upY + aroundZ * upZ) / upLength;
+      const planarUp = Math.hypot(upX, upY);
+      // When the screen is nearly flat, use screen right for the pitch axis.
+      if (planarUp > upLength * 0.2) {
+        pitch = (aroundX * upY - aroundY * upX) / planarUp;
+      }
+    }
     const scale = (elapsed / 1000) * radiansPerDegree;
     const x = Math.abs(yaw) < driftThreshold ? 0 : -yaw * scale;
     const y = Math.abs(pitch) < driftThreshold ? 0 : -pitch * scale;

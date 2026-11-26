@@ -337,15 +337,21 @@ describe('touch intentions', () => {
     expect(input.pitch).toBeCloseTo(expected);
     expect(s.sensitivity.camera.ads).toBe(100);
   });
-  function motion(time: number, beta: number, gamma: number) {
+  function motion(
+    time: number,
+    beta: number,
+    gamma: number,
+    sensor: DeviceMotionEventInit = {},
+  ) {
     const event = Object.assign(new Event('devicemotion'), {
       rotationRate: { alpha: 90, beta, gamma },
+      ...sensor,
     });
     Object.defineProperty(event, 'timeStamp', { value: time });
     browser.dispatchEvent(event);
   }
 
-  it('maps landscape gyro look through camera, ADS, sniper scope and vertical settings', () => {
+  it('blends steering, ADS and sniper gyro sensitivity on both axes', () => {
     Object.assign(browser, {
       isSecureContext: true,
       DeviceMotionEvent: Event,
@@ -354,7 +360,7 @@ describe('touch intentions', () => {
     const settings = defaultUserSettings();
     settings.gyroEnabled = true;
     settings.gyroSensitivity = {
-      camera: 100,
+      steering: 100,
       ads: 200,
       sniper: 50,
       vertical: 150,
@@ -371,20 +377,82 @@ describe('touch intentions', () => {
 
     weapon.ads = 0.5;
     input.setLook(0, 0);
-    motion(1030, 80, 0);
-    motion(1050, 80, 0);
+    motion(1030, 80, 40);
+    motion(1050, 80, 40);
     expect(input.movement.yaw).toBeCloseTo(80 * 0.02 * radians * 0.8 * 1.5);
+    expect(input.pitch).toBeCloseTo(-40 * 0.02 * radians * 0.8 * 1.5 * 1.5);
 
     weapon.selected = 'sniper';
     weapon.ads = 1;
-    input.configure({ ...settings, invertY: true });
     input.setLook(0, 0);
     motion(1060, 80, 40);
     motion(1080, 80, 40);
     expect(input.movement.yaw).toBeCloseTo(80 * 0.02 * radians * 0.8 * 0.5);
-    expect(input.pitch).toBeCloseTo(40 * 0.02 * radians * 0.8 * 1.5);
+    expect(input.pitch).toBeCloseTo(-40 * 0.02 * radians * 0.8 * 0.5 * 1.5);
     expect(aimScale).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { gyroInvertHorizontal: false, gyroInvertVertical: false },
+    { gyroInvertHorizontal: true, gyroInvertVertical: false },
+    { gyroInvertHorizontal: false, gyroInvertVertical: true },
+    { gyroInvertHorizontal: true, gyroInvertVertical: true },
+  ])('inverts each gyro axis independently with %j', (inversion) => {
+    Object.assign(browser, {
+      isSecureContext: true,
+      DeviceMotionEvent: Event,
+      screen: { orientation: { angle: 90 } },
+    });
+    input.configure({
+      ...defaultUserSettings(),
+      ...inversion,
+      gyroEnabled: true,
+      invertY: true,
+    });
+    motion(1000, 80, 40);
+    motion(1020, 80, 40);
+    const scale = (0.02 * Math.PI) / 180;
+    expect(input.movement.yaw).toBeCloseTo(
+      (inversion.gyroInvertHorizontal ? -80 : 80) * scale,
+    );
+    expect(input.pitch).toBeCloseTo(
+      (inversion.gyroInvertVertical ? 40 : -40) * scale,
+    );
+    input.setLook(0, 0);
+    input.touchLook(10, 10);
+    expect(input.movement.yaw).toBeLessThan(0);
+    expect(input.pitch).toBeGreaterThan(0);
+  });
+
+  it.each([90, 270])(
+    'keeps physical yaw consistent when held upright or tilted back at %i degrees',
+    (angle) => {
+      Object.assign(browser, {
+        isSecureContext: true,
+        DeviceMotionEvent: Event,
+        screen: { orientation: { angle } },
+      });
+      input.configure({ ...defaultUserSettings(), gyroEnabled: true });
+      const side = angle === 90 ? 1 : -1;
+      const yaw = (60 * 0.02 * Math.PI) / 180;
+      for (const tilt of [0, Math.PI / 4, Math.PI / 2]) {
+        const x = side * Math.cos(tilt);
+        const z = Math.sin(tilt);
+        const beta = 60 * x;
+        const gamma = 25 * side;
+        const sensor: DeviceMotionEventInit = {
+          rotationRate: { alpha: 60 * z, beta, gamma },
+          accelerationIncludingGravity: { x: x * 9.81 + 2, y: 3, z: z * 9.81 },
+          acceleration: { x: 2, y: 3, z: 0 },
+        };
+        input.setLook(0, 0);
+        motion(1000, beta, gamma, sensor);
+        motion(1020, beta, gamma, sensor);
+        expect(input.movement.yaw).toBeCloseTo(yaw, 8);
+        expect(input.pitch).toBeCloseTo((-25 * 0.02 * Math.PI) / 180, 8);
+      }
+    },
+  );
 
   it('resets gyro timing on rotation, ignores stale events and stops when disabled or paused', () => {
     const orientation = { angle: 90 };
