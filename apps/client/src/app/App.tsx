@@ -12,6 +12,7 @@ import { LoadoutEditor } from '../components/LoadoutEditor';
 import { allowedDefault } from '@breakpoint/shared/weapons/loadouts';
 import { weaponOrder } from '@breakpoint/shared';
 import { PlayPanel, CreditsPanel } from '../components/CommandPanels';
+import { requestGyroAccess, type GyroAccess } from '../game/input/GyroInput';
 import { SettingsPanel, crosshairStyle } from '../components/SettingsPanel';
 import { MobileHUD } from '../components/MobileHUD';
 import { Minimap } from '../components/Minimap';
@@ -89,6 +90,7 @@ export function App() {
   } | null>(null);
   const [hudStorageUnavailable, setHudStorageUnavailable] = useState(false);
   const preferencesRef = useRef(preferences);
+  const gyroRequest = useRef(0);
   const [saved, setSaved] = useState(true);
   const [overlay, setOverlay] = useState<
     'play' | 'settings' | 'credits' | 'weapons' | null
@@ -334,6 +336,13 @@ export function App() {
     game.current?.setUserSettings(settings);
     reticleValues.current = { gap: -1, opacity: -1 };
     return stored;
+  }
+  async function changeGyro(enabled: boolean): Promise<GyroAccess> {
+    const request = ++gyroRequest.current;
+    const access = enabled ? await requestGyroAccess() : 'granted';
+    if (request === gyroRequest.current && access === 'granted')
+      changePreferences({ ...preferencesRef.current, gyroEnabled: enabled });
+    return access;
   }
   function openRooms(tab: 'create' | 'join' = 'create'): void {
     setOverlay(null);
@@ -602,6 +611,8 @@ export function App() {
             saved={saved && !hudStorageUnavailable}
             ready={ready}
             onChange={changePreferences}
+            showGyro={device.handheld}
+            onGyroToggle={changeGyro}
             onGraphics={changeGraphics}
             onClose={() => setOverlay(null)}
             onControllerSettings={
@@ -615,6 +626,7 @@ export function App() {
               })
             }
             onReset={() => {
+              ++gyroRequest.current;
               changePreferences(defaultUserSettings());
               changeGraphics({ ...defaultGraphics });
               const { opacity, visible } = defaultMobileHudLayout().minimap;

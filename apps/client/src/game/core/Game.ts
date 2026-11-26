@@ -331,7 +331,10 @@ export class Game {
     const device = readDevice();
     if (device.handheld && !device.landscape) return;
     if (this.session && !isMatchActive(this.session.view?.phase)) return;
-    if (!automatic && device.handheld) void requestLandscape(true);
+    if (!automatic && device.handheld) {
+      this.input.requestSavedGyroAccess();
+      void requestLandscape(true);
+    }
     this.input.requestLock(automatic);
     void this.audio.unlock().then((ready) => {
       if (ready && this.session?.view?.phase !== 'countdown')
@@ -535,6 +538,8 @@ export class Game {
     settings?: PrivateRoomSettings,
   ): Promise<void> {
     if (this.session) return;
+    // Joining starts with a tap, before the room can enter play automatically.
+    this.input.requestSavedGyroAccess();
     const generation = ++this.networkGeneration;
     const { NetworkSession } = await import('../networking/NetworkSession');
     if (this.disposed || generation !== this.networkGeneration) return;

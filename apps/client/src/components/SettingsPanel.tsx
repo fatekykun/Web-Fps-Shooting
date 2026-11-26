@@ -15,6 +15,7 @@ import {
   hudOpacityOptions,
   type MobileHudControl,
 } from '../game/input/mobileHudSettings';
+import { gyroAvailable, type GyroAccess } from '../game/input/GyroInput';
 import { GraphicsControls } from './GraphicsControls';
 import { TacticalDialog } from './TacticalDialog';
 
@@ -31,6 +32,12 @@ const sensitivityLabels = {
   ads: 'ADS Sensitivity',
   sniper: 'Sniper Scope Sensitivity',
   vertical: 'Vertical Turning Sensitivity',
+} as const;
+const gyroLabels = {
+  camera: 'Gyro Camera Sensitivity',
+  ads: 'Gyro ADS Sensitivity',
+  sniper: 'Gyro Sniper Scope Sensitivity',
+  vertical: 'Gyro Vertical Turning Sensitivity',
 } as const;
 function Range({
   label,
@@ -85,6 +92,8 @@ export function SettingsPanel({
   saved,
   ready,
   onChange,
+  showGyro,
+  onGyroToggle,
   onGraphics,
   onReset,
   onClose,
@@ -99,6 +108,8 @@ export function SettingsPanel({
   saved: boolean;
   ready: boolean;
   onChange(settings: UserSettings): void;
+  showGyro: boolean;
+  onGyroToggle(enabled: boolean): Promise<GyroAccess>;
   onGraphics(settings: GraphicsSettings): void;
   onReset(): void;
   onClose(): void;
@@ -110,6 +121,9 @@ export function SettingsPanel({
   const [tab, setTab] = useState<(typeof tabs)[number]>('CONTROLS');
   const [listening, setListening] = useState<BindingAction | null>(null);
   const [notice, setNotice] = useState('');
+  const [gyroPending, setGyroPending] = useState(false);
+  const [gyroAccess, setGyroAccess] = useState<GyroAccess | null>(null);
+  const canUseGyro = showGyro && gyroAvailable();
   const id = useId();
   useEffect(() => {
     if (!listening) return;
@@ -299,7 +313,7 @@ export function SettingsPanel({
         {tab === 'SENSITIVITY' && (
           <>
             <p className="settings-note">
-              100% is neutral. Steering, ADS and sniper values control
+              100 is the default. Steering, ADS and sniper values control
               horizontal turning; vertical turning has its own value. Zoom
               scaling is retained. Hold LMB to use firing sensitivity; release
               to use camera sensitivity.
@@ -319,7 +333,7 @@ export function SettingsPanel({
                       value={settings.sensitivity[group][key]}
                       min={1}
                       max={300}
-                      display={`${settings.sensitivity[group][key]}%`}
+                      display={String(settings.sensitivity[group][key])}
                       onChange={(value) =>
                         change({
                           sensitivity: {
@@ -375,7 +389,7 @@ export function SettingsPanel({
                     value={settings.touchSensitivity[key]}
                     min={1}
                     max={300}
-                    display={`${settings.touchSensitivity[key]}%`}
+                    display={String(settings.touchSensitivity[key])}
                     onChange={(value) =>
                       change({
                         touchSensitivity: {
@@ -398,6 +412,73 @@ export function SettingsPanel({
             >
               RESET TOUCH SENSITIVITY
             </button>
+            {showGyro && (
+              <fieldset className="sensitivity-group">
+                <legend>GYROSCOPE</legend>
+                <label className="setting-toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.gyroEnabled}
+                    disabled={
+                      gyroPending || (!canUseGyro && !settings.gyroEnabled)
+                    }
+                    onChange={async ({ target }) => {
+                      setGyroPending(true);
+                      setGyroAccess(null);
+                      try {
+                        setGyroAccess(await onGyroToggle(target.checked));
+                      } finally {
+                        setGyroPending(false);
+                      }
+                    }}
+                  />{' '}
+                  Gyro aiming
+                </label>
+                {canUseGyro && gyroAccess !== 'denied' ? (
+                  <p className="settings-note">
+                    Tilt your device to aim while using touch controls.
+                  </p>
+                ) : (
+                  <p className="settings-note" role="status">
+                    {gyroAccess === 'denied'
+                      ? 'Allow motion sensor access in your browser to enable gyro aiming.'
+                      : 'Gyro aiming requires a browser with motion sensors on a secure connection.'}
+                  </p>
+                )}
+                <div className="setting-grid">
+                  {(Object.keys(gyroLabels) as (keyof typeof gyroLabels)[]).map(
+                    (key) => (
+                      <Range
+                        key={key}
+                        label={gyroLabels[key]}
+                        value={settings.gyroSensitivity[key]}
+                        min={1}
+                        max={300}
+                        display={String(settings.gyroSensitivity[key])}
+                        onChange={(value) =>
+                          change({
+                            gyroSensitivity: {
+                              ...settings.gyroSensitivity,
+                              [key]: value,
+                            },
+                          })
+                        }
+                      />
+                    ),
+                  )}
+                </div>
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    change({
+                      gyroSensitivity: defaultUserSettings().gyroSensitivity,
+                    })
+                  }
+                >
+                  RESET GYRO SENSITIVITY
+                </button>
+              </fieldset>
+            )}
           </>
         )}
         {tab === 'DISPLAY' && (

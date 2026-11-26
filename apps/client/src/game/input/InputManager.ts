@@ -15,6 +15,7 @@ import type { Recoil, RecoilAxes } from '../weapons/Recoil';
 import { KeyboardInput } from './KeyboardInput';
 import { MouseInput } from './MouseInput';
 import { TouchInput } from './TouchInput';
+import { GyroInput, requestGyroAccess } from './GyroInput';
 import { readDevice } from './deviceCapabilities';
 
 const lookLimit = Math.PI / 2 - 0.02;
@@ -67,6 +68,7 @@ export class InputManager {
   private settings = defaultUserSettings();
   private readonly keyboard: KeyboardInput;
   private readonly mouse: MouseInput;
+  private readonly gyro = new GyroInput((x, y) => this.gyroLook(x, y));
   private touch: TouchInput | null = null;
   private readonly controlClicks = new Set<number>();
   private lastControlRelease: { x: number; y: number; time: number } | null =
@@ -139,6 +141,19 @@ export class InputManager {
     this.settings = settings;
     this.weapon.autoReload = settings.autoReload;
     if (changed) this.clear();
+    this.syncGyro();
+  }
+  requestSavedGyroAccess(): void {
+    if (this.handheld && this.touchMode && this.settings.gyroEnabled)
+      void requestGyroAccess();
+  }
+  private syncGyro(): void {
+    this.gyro.setActive(
+      this.settings.gyroEnabled &&
+        this.handheld &&
+        this.touchActive &&
+        this.locked,
+    );
   }
   useTouchControls(enabled: boolean): void {
     if (this.touchMode === enabled) return;
@@ -161,6 +176,7 @@ export class InputManager {
       this.clear();
       this.touchActive = true;
       this.locked = true;
+      this.syncGyro();
       this.onLockChange(true);
       return;
     }
@@ -183,6 +199,7 @@ export class InputManager {
     const wasActive = this.locked;
     this.touchActive = false;
     this.locked = false;
+    this.syncGyro();
     this.clear();
     if (document.pointerLockElement === this.canvas) document.exitPointerLock();
     if (wasActive) this.onLockChange(false);
@@ -204,6 +221,7 @@ export class InputManager {
   };
   private readonly onBlur = (): void => this.release();
   private readonly onResize = (): void => {
+    this.gyro.reset();
     const device = readDevice();
     if (device.handheld && !device.landscape) this.release();
   };
@@ -315,6 +333,19 @@ export class InputManager {
         : 1;
     this.look(dx * scale * assist, dy * scale * assist);
   }
+  private gyroLook(x: number, y: number): void {
+    const weapon = this.getWeapon();
+    const ads = weapon ? weapon.ads : Number(this.weapon.aim);
+    const sensitivity = this.settings.gyroSensitivity;
+    const aimed = weapon?.config.scopeMagnification
+      ? sensitivity.sniper
+      : sensitivity.ads;
+    const horizontal = sensitivity.camera + (aimed - sensitivity.camera) * ads;
+    this.look(
+      (x * horizontal * this.lookScale) / 100,
+      (y * sensitivity.vertical * this.lookScale) / 100,
+    );
+  }
   private look(x: number, y: number): void {
     const previousPitch = this.pitch;
     this.movement.yaw = wrapYaw(this.movement.yaw - x);
@@ -364,6 +395,7 @@ export class InputManager {
   }
 
   setLook(yaw: number, pitch: number): void {
+    this.gyro.reset();
     this.movement.yaw = yaw;
     this.pitch = pitch;
     this.coveredReturn.pitch = this.coveredReturn.yaw = 0;
@@ -383,6 +415,7 @@ export class InputManager {
     this.clearGameplay();
   }
   clearGameplay(): void {
+    this.gyro.reset();
     this.inspectPressed = false;
     this.coveredReturn.pitch = this.coveredReturn.yaw = 0;
     this.keyboard.clear();

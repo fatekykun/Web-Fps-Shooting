@@ -90,6 +90,13 @@ export interface UserSettings {
   sensitivity: SensitivitySettings;
   touchSensitivity: { camera: number; ads: number; sniper: number };
   touchAimAssist: boolean;
+  gyroEnabled: boolean;
+  gyroSensitivity: {
+    camera: number;
+    ads: number;
+    sniper: number;
+    vertical: number;
+  };
   fov: number;
   syncAdsFov: boolean;
   scopeStyle: ScopeStyle;
@@ -130,6 +137,8 @@ export function defaultUserSettings(): UserSettings {
     },
     touchSensitivity: { camera: 100, ads: 100, sniper: 100 },
     touchAimAssist: true,
+    gyroEnabled: false,
+    gyroSensitivity: { camera: 100, ads: 100, sniper: 100, vertical: 100 },
     fov: 85,
     syncAdsFov: false,
     scopeStyle: 'classic',
@@ -206,6 +215,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
   const d = defaultUserSettings(),
     v = object(value),
     c = object(v.crosshair),
+    gyro = object(v.gyroSensitivity),
     b = { ...object(v.bindings) };
   // Add bindings introduced after first release without resetting custom keys.
   for (const action of ['sniper', 'prone', 'inspect', 'melee'] as const) {
@@ -239,6 +249,15 @@ export function normalizeUserSettings(value: unknown): UserSettings {
       sniper: number(object(v.touchSensitivity).sniper, 100, 1, 300),
     },
     touchAimAssist: bool('touchAimAssist', d.touchAimAssist),
+    gyroEnabled: bool('gyroEnabled', d.gyroEnabled),
+    gyroSensitivity: {
+      camera: Math.round(number(gyro.camera, d.gyroSensitivity.camera, 1, 300)),
+      ads: Math.round(number(gyro.ads, d.gyroSensitivity.ads, 1, 300)),
+      sniper: Math.round(number(gyro.sniper, d.gyroSensitivity.sniper, 1, 300)),
+      vertical: Math.round(
+        number(gyro.vertical, d.gyroSensitivity.vertical, 1, 300),
+      ),
+    },
     fov: number(v.fov, d.fov, 65, 110),
     syncAdsFov: bool('syncAdsFov', d.syncAdsFov),
     scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',
