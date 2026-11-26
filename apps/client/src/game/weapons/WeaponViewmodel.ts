@@ -57,11 +57,7 @@ import { slideMomentum } from '@breakpoint/shared/movement/Sliding';
 import { weaponMuzzles } from './WeaponMuzzles';
 import { RecoilSpring } from './Recoil';
 import { CinderWyrm, cinderReticle } from './CinderWyrm';
-import {
-  cinderTuning,
-  type RifleSkin,
-  type WeaponSkinStatus,
-} from './RifleSkins';
+import type { RifleSkin, WeaponSkinStatus } from './RifleSkins';
 import type { MementoMori } from './MementoMori';
 import type { LotusLava } from './LotusLava';
 import type { SniperSkin } from './SniperSkins';
@@ -74,6 +70,8 @@ const easeUnit = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
   return t * t * (3 - 2 * t);
 };
+
+const inspectSeconds = 2.2;
 
 const knifeGrip = new Quaternion().setFromAxisAngle(
   new Vector3(0, 0, 1),
@@ -192,7 +190,6 @@ export class WeaponViewmodel {
   private neonUnavailable = false;
   private inspectRequested = false;
   private inspectTime: number | null = null;
-  private inspectPose = 0;
 
   constructor() {
     const pixels = new Uint8Array(32 * 32 * 4);
@@ -366,7 +363,7 @@ export class WeaponViewmodel {
   }
 
   get inspecting(): boolean {
-    return this.inspectTime !== null || this.inspectPose > 0.01;
+    return this.inspectTime !== null;
   }
 
   setRifleSkin(skin: RifleSkin): void {
@@ -512,30 +509,19 @@ export class WeaponViewmodel {
   resetInspect(): void {
     this.inspectRequested = false;
     this.inspectTime = null;
-    this.inspectPose = 0;
   }
 
-  private updateInspect(
-    dt: number,
-    allowed: boolean,
-    immediate: boolean,
-  ): void {
-    if (!allowed) this.inspectTime = null;
-    if (this.inspectRequested && allowed && this.inspectTime === null)
+  private updateInspect(dt: number, allowed: boolean): void {
+    if (!allowed) {
+      this.resetInspect();
+      return;
+    }
+    if (this.inspectRequested && this.inspectTime === null)
       this.inspectTime = 0;
     this.inspectRequested = false;
-    const step = Math.min(dt, 0.075) * cinderTuning.animationSpeed;
-    if (this.inspectTime !== null) {
-      this.inspectTime += step;
-      const progress = this.inspectTime / cinderTuning.inspectSeconds;
-      this.inspectPose =
-        easeUnit(progress / 0.22) * easeUnit((1 - progress) / 0.24);
-      if (progress >= 1) this.inspectTime = null;
-    } else if (immediate) this.inspectPose = 0;
-    else {
-      this.inspectPose *= Math.exp(-step * 26);
-      if (this.inspectPose < 0.002) this.inspectPose = 0;
-    }
+    if (this.inspectTime === null) return;
+    this.inspectTime += dt;
+    if (this.inspectTime >= inspectSeconds) this.resetInspect();
   }
 
   /** Match the barrel's screen position across the separate viewmodel/world FOVs. */
@@ -629,6 +615,7 @@ export class WeaponViewmodel {
     }
     this.recoil.step(dt);
     if (!fired || weapons.selected === 'melee') return;
+    this.resetInspect();
     const { springStiffness, springDamping, weaponAdsMultiplier } =
       weapons.config.recoil;
     const frequency = Math.sqrt(springStiffness);
@@ -687,7 +674,6 @@ export class WeaponViewmodel {
       this.selected === 'smg' && this.smgSkin === 'neon-blade'
         ? this.neon
         : undefined;
-    const customWeapon = customRifle ?? lotus ?? blaze ?? neon;
     this.models.get('rifle')!.visible =
       this.selected === 'rifle' && !customRifle;
     if (this.cinder) this.cinder.model.visible = !!cinder;
@@ -702,6 +688,7 @@ export class WeaponViewmodel {
     this.arms.root.visible =
       weapons.selected !== 'melee' || this.meleeSkinStatus === 'ready';
     if (weapons.selected === 'melee') {
+      this.resetInspect();
       this.root.visible = active;
       this.flash.visible = false;
       this.updateAimDot(weapons, false, 0);
@@ -756,7 +743,6 @@ export class WeaponViewmodel {
     this.stance += (targetStance - this.stance) * blend;
     this.cant += (targetCant - this.cant) * blend;
     this.slide += (slideTarget - this.slide) * blend;
-    const brace = this.slide * (1 - ads) ** 3;
     const recentlyFired =
       weapons.time - weapons.current.lastShot <
       Math.min(0.25, weapons.config.fireInterval + 0.08);
@@ -768,16 +754,18 @@ export class WeaponViewmodel {
       weapons.cycling ||
       weapons.reloading ||
       weapons.equipping;
-    this.updateInspect(
-      dt,
-      !!customWeapon &&
-        active &&
-        !busy &&
-        speed < 0.4 &&
-        (movement === 'walking' || movement === 'crouching'),
-      busy || !active || !customWeapon,
-    );
-    const inspect = this.inspectPose * motion;
+    this.updateInspect(dt, active && !busy);
+    const inspectProgress = (this.inspectTime ?? 0) / inspectSeconds;
+    const inspectBlend =
+      easeUnit(inspectProgress / 0.21) * easeUnit((1 - inspectProgress) / 0.23);
+    const inspect = inspectBlend * motion;
+    // Lift to show the receiver, roll across the top, and turn toward the
+    // other side before settling into the current movement pose.
+    const turn = easeUnit((inspectProgress - 0.28) / 0.42);
+    const roll = Math.sin(turn * Math.PI);
+    const inspectDepth =
+      0.15 + Math.abs(weaponMuzzles[weapons.selected].firstPerson[2]) * 0.17;
+    const brace = this.slide * (1 - ads) ** 3 * (1 - inspectBlend);
     const carrying =
       movement === 'sprinting' &&
       speed > 0.5 &&
@@ -803,7 +791,7 @@ export class WeaponViewmodel {
       this.stridePhase =
         (this.stridePhase + speed * Math.min(dt, 0.1) * strideRadiansPerMeter) %
         (Math.PI * 2);
-    const carry = this.sprint * (1 - ads) ** 3;
+    const carry = this.sprint * (1 - ads) ** 3 * (1 - inspectBlend);
     const sway = Math.sin(this.stridePhase);
     const step = Math.sin(this.stridePhase * 2);
     const reloadTarget = Math.sin(Math.PI * weapons.reloadProgress);
@@ -813,7 +801,7 @@ export class WeaponViewmodel {
     this.reloadPose += (reloadTarget - this.reloadPose) * reloadBlend;
     const reload = this.reloadPose;
     const riflePresentation = customRifle
-      ? (1 - ads) ** 2 * (1 - carry) * (1 - reload) * (1 - this.inspectPose)
+      ? (1 - ads) ** 2 * (1 - carry) * (1 - reload) * (1 - inspectBlend)
       : 0;
     const bob =
       Math.min(1, speed / 8) * (1 - ads * 0.9) * 0.008 * motion * (1 - carry);
@@ -824,7 +812,7 @@ export class WeaponViewmodel {
         Math.cos(weapons.time * 9) * bob +
         carry * (0.02 + sway * 0.012 * motion) +
         brace * 0.025 * motion -
-        inspect * 0.26 -
+        inspect * (0.19 + 0.08 * (1 - turn)) -
         riflePresentation * 0.028,
       -0.25 +
         (pose.position[1] + 0.25) * raise -
@@ -834,32 +822,32 @@ export class WeaponViewmodel {
         this.stance * (1 - ads) * motion +
         carry * (-0.03 + step * 0.01 * motion) -
         brace * 0.055 * motion +
-        inspect * 0.095,
+        inspect * (0.115 + roll * 0.045),
       (scoped
         ? sniperEyePosition(ads, pose.position[2])
         : -0.65 + (pose.position[2] + 0.65) * raise) +
         kick * profile.weaponKickback -
         carry * 0.22 +
         brace * 0.035 * motion -
-        inspect * 0.29 -
+        inspect * inspectDepth -
         riflePresentation * 0.035,
     );
     this.root.rotation.set(
       pose.rotation[0] * raise +
         kick * profile.weaponPitch * degreesToRadians +
         carry * (0.9 + step * 0.018 * motion) +
-        inspect * 0.07,
+        inspect * (0.1 + roll * 0.23),
       pose.rotation[1] * raise +
         lateral * profile.weaponYaw * degreesToRadians +
         carry * (0.22 + Math.cos(this.stridePhase) * 0.012 * motion) +
-        inspect * 1.03 +
+        inspect * (1.06 - turn * 1.55) +
         riflePresentation * 0.11,
       pose.rotation[2] * raise -
         reload * 0.65 +
         lateral * profile.weaponRoll * degreesToRadians +
         this.cant * (1 - ads) * motion +
         carry * (-0.25 + sway * 0.018 * motion) -
-        inspect * 0.17,
+        inspect * (0.28 - turn * 0.86),
     );
     const shotAge = weapons.time - weapons.current.lastShot;
     if (active) {

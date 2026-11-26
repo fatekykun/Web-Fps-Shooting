@@ -194,6 +194,7 @@ test.describe('touch inspect', () => {
     await expect(hud).toHaveAttribute('data-inspecting', 'false');
     await expect(page.locator('.crosshair')).toHaveCSS('visibility', 'hidden');
     await page.getByRole('button', { name: 'Switch weapon' }).tap();
-    await expect(inspect).toHaveCount(0);
+    await expect(hud).toHaveAttribute('data-weapon', 'smg');
+    await expect(inspect).toBeVisible();
   });
 });

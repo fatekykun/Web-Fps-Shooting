@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import { weaponOrder } from '@breakpoint/shared';
 import {
   Box3,
   InstancedMesh,
@@ -64,9 +65,6 @@ it('animates Molten Lava using pooled geometry and collimates its optic', () => 
     expect(model.inspecting).toBe(true);
     expect(body.parent!.rotation.y - hipYaw).toBeGreaterThan(0.9);
     for (let i = 0; i < 20; i++) step(0, true);
-    expect(model.inspecting).toBe(false);
-    model.requestInspect();
-    step();
     expect(model.inspecting).toBe(true);
     step(1);
     expect(model.inspecting).toBe(false);
@@ -82,6 +80,69 @@ it('animates Molten Lava using pooled geometry and collimates its optic', () => 
     expect(body.visible).toBe(false);
     expect(mark.visible).toBe(false);
     expect(model.scene.getObjectByName('weapon-rifle')!.visible).toBe(true);
+  } finally {
+    model.dispose();
+  }
+});
+
+it.each(weaponOrder)(
+  'inspects the standard %s through sprint and walk, then restores its carry pose',
+  (id) => {
+    const model = new WeaponViewmodel();
+    const weapons = new WeaponController(() => {});
+    weapons.selected = id;
+    const root = model.scene.getObjectByName(`weapon-${id}`)!.parent!;
+    const sprint = (dt: number) =>
+      model.update(weapons, 8, dt, true, 1, 'sprinting');
+    try {
+      for (let i = 0; i < 20; i++) sprint(0.05);
+      const carryPitch = root.rotation.x;
+      model.requestInspect();
+      for (let i = 0; i < 11; i++) sprint(0.05);
+      expect(model.inspecting).toBe(true);
+      expect(root.rotation.y).toBeGreaterThan(0.85);
+      expect(root.rotation.x).toBeLessThan(carryPitch - 0.5);
+
+      for (let i = 0; i < 22; i++) model.update(weapons, 3, 0.05, true);
+      expect(model.inspecting).toBe(true);
+      expect(root.rotation.y).toBeLessThan(-0.3);
+      expect(root.rotation.z).toBeGreaterThan(0.4);
+
+      for (let i = 0; i < 12; i++) sprint(0.05);
+      expect(model.inspecting).toBe(false);
+      expect(root.rotation.x).toBeCloseTo(carryPitch, 1);
+    } finally {
+      model.dispose();
+    }
+  },
+);
+
+it('clears inspection immediately on fire input, a shot, or ADS', () => {
+  const model = new WeaponViewmodel();
+  const weapons = new WeaponController(() => {});
+  const update = (aim = false, fire = false) =>
+    model.update(weapons, 6.8, 0.05, true, 1, 'sprinting', 'classic', {
+      aim,
+      fire,
+    });
+  const startInspect = () => {
+    model.requestInspect();
+    update();
+    expect(model.inspecting).toBe(true);
+  };
+  try {
+    update();
+    startInspect();
+    update(false, true);
+    expect(model.inspecting).toBe(false);
+    startInspect();
+    model.simulateRecoil(weapons, 1 / 60, true);
+    expect(model.inspecting).toBe(false);
+    startInspect();
+    update(true);
+    expect(model.inspecting).toBe(false);
+    update();
+    expect(model.inspecting).toBe(false);
   } finally {
     model.dispose();
   }

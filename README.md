@@ -42,9 +42,12 @@ Layout**, select **Minimap** to drag it, resize it, or preview opacity before sa
 
 Open **Armory → AR-01 / Rifle → Rifle skin** and select **Molten Lava / Mythic**.
 The selection is saved in this browser and applies when you equip the rifle in
-training or a private match. Press **I**, or tap the eye icon on the touch HUD,
-to inspect it. Aiming, firing, reloading, switching weapons and movement end the
-inspect sequence. The touch button can be moved in the HUD editor.
+training or a private match.
+
+Press **I**, or tap the eye icon on the touch HUD, to inspect any equipped
+firearm. The animation plays to completion while walking or sprinting. Firing,
+aiming down sights, reloading, and switching weapons interrupt it. The touch
+button can be moved in the HUD editor.
 
 The skin changes the equipped player's first-person model and sight. Configure
 core brightness, fragment speed, particle intensity, reticle color and animation
