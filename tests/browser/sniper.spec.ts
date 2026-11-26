@@ -437,7 +437,7 @@ for (const style of ['classic', 'optic'] as const) {
     await expect(scope).toHaveCSS('opacity', '1');
     expect(
       Number(await page.getByTestId('speed').textContent()),
-    ).toBeGreaterThan(7.5);
+    ).toBeGreaterThan(6.5);
     await page.mouse.up({ button: 'right' });
     await page.clock.runFor(200);
     await expect(scope).toHaveCSS('opacity', '0');

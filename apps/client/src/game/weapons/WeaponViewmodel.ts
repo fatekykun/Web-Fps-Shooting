@@ -3,6 +3,7 @@ import {
   CircleGeometry,
   Color,
   DataTexture,
+  Euler,
   Group,
   HemisphereLight,
   DirectionalLight,
@@ -24,10 +25,16 @@ import {
 import {
   degreesToRadians,
   weaponOrder,
+  type GunId,
   type MovementState,
   type WeaponId,
   type WeaponInput,
 } from '@breakpoint/shared';
+import {
+  defaultMeleeSkin,
+  type MeleeSkin,
+} from '@breakpoint/shared/weapons/loadouts';
+import { weaponAsset } from './WeaponAssets';
 import type { WeaponController } from './WeaponController';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import type { GraphicsSettings } from '../rendering/graphicsConfig';
@@ -39,7 +46,11 @@ import {
   sniperScopeBlend,
   sniperScopeDiameter,
 } from './SniperScope';
-import { FirstPersonArms } from '../characters/FirstPersonArms';
+import {
+  FirstPersonArms,
+  type MeleeHands,
+} from '../characters/FirstPersonArms';
+import { meleeGloveAsset, meleeGrip } from '../characters/MeleeGlove';
 import type { OperatorId } from '@breakpoint/shared/operators';
 import { strideRadiansPerMeter } from '@breakpoint/shared/character';
 import { slideMomentum } from '@breakpoint/shared/movement/Sliding';
@@ -63,6 +74,48 @@ const easeUnit = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
   return t * t * (3 - 2 * t);
 };
+
+const knifeGrip = new Quaternion().setFromAxisAngle(
+  new Vector3(0, 0, 1),
+  Math.PI,
+);
+const karambitGrip = new Quaternion().setFromAxisAngle(
+  new Vector3(0, 1, 0),
+  3.6,
+);
+const katanaGrip = new Quaternion().setFromAxisAngle(
+  new Vector3(1, 0, 0),
+  Math.PI,
+);
+
+const meleeStances = {
+  'glacier-fang': {
+    grip: [0.285, -0.195, -0.57],
+    tilt: [-0.17, -0.4, 1.55],
+    hand: knifeGrip,
+    swing: { x: 0.36, depth: 0.08, roll: 0.92 },
+  },
+  'ember-talon': {
+    grip: [0.295, -0.13, -0.55],
+    tilt: [0.15, -0.37, 2.79],
+    hand: karambitGrip,
+    swing: { x: 0.25, depth: 0.06, roll: -0.6 },
+  },
+  'void-ronin': {
+    grip: [0.288, -0.231, -0.64],
+    tilt: [-0.54, -0.28, -0.1],
+    hand: katanaGrip,
+    swing: { x: 0.27, depth: 0.035, roll: 0.62 },
+  },
+} as const satisfies Record<
+  MeleeSkin,
+  {
+    grip: readonly [number, number, number];
+    tilt: readonly [number, number, number];
+    hand: Quaternion;
+    swing: { x: number; depth: number; roll: number };
+  }
+>;
 
 /** Low-poly models are pooled; the active model is one instanced draw. */
 export class WeaponViewmodel {
@@ -88,6 +141,16 @@ export class WeaponViewmodel {
   private readonly lowTexture: DataTexture;
   private readonly material: MeshLambertMaterial;
   private readonly arms: FirstPersonArms;
+  private readonly meleeModel = new Group();
+  private readonly freeHandTilt = new Euler(0, 0, 0, 'ZYX');
+  private readonly gripCenter = new Vector3();
+  private readonly meleeHands: MeleeHands = {
+    left: { wrist: new Vector3(), rotation: new Quaternion() },
+    right: { wrist: new Vector3(), rotation: new Quaternion() },
+  };
+  private meleeSkin?: MeleeSkin;
+  private meleeGeneration = 0;
+  meleeSkinStatus: WeaponSkinStatus = 'loading';
   private readonly flashMaterial = new MeshBasicMaterial({ color: 0xffc26b });
   private readonly flash = new InstancedMesh(
     this.geometry,
@@ -164,6 +227,9 @@ export class WeaponViewmodel {
     this.material = createReadableMaterial({ map: this.texture }, 0.12);
     this.arms = new FirstPersonArms(this.material);
     this.root.add(this.arms.root);
+    this.meleeModel.name = 'melee-model';
+    this.meleeModel.visible = false;
+    this.root.add(this.meleeModel);
     const key = new DirectionalLight(0xfff0d9, 1.5);
     key.position.set(-2, 4, 3);
     this.scene.add(new HemisphereLight(0xf1f0dc, 0x8b9e8e, 2.1), key);
@@ -180,7 +246,7 @@ export class WeaponViewmodel {
     this.scene.add(this.root);
   }
 
-  private build(id: WeaponId): void {
+  private build(id: GunId): void {
     const barrelLength = weaponMuzzles[id].barrelLength;
     const barrelZ = -0.18 - barrelLength / 2;
     const parts: WeaponPart[] = [
@@ -252,7 +318,7 @@ export class WeaponViewmodel {
   }
 
   /** For an independent showcase instance containing the original procedural geometry. */
-  showcaseModel(weapon: WeaponId, molten = false): Group | InstancedMesh {
+  showcaseModel(weapon: GunId, molten = false): Group | InstancedMesh {
     if (molten) this.setRifleSkin('cinder-wyrm');
     const model = molten ? this.cinder!.model : this.models.get(weapon)!;
     model.visible = true;
@@ -419,6 +485,26 @@ export class WeaponViewmodel {
     }
   }
 
+  setMeleeSkin(skin: MeleeSkin): void {
+    if (this.meleeSkin === skin) return;
+    this.meleeSkin = skin;
+    this.meleeSkinStatus = 'loading';
+    const generation = ++this.meleeGeneration;
+    this.meleeModel.clear();
+    void Promise.all([weaponAsset(skin), meleeGloveAsset()]).then(
+      ([asset, gloves]) => {
+        if (generation !== this.meleeGeneration) return;
+        this.arms.setMeleeGloves(gloves);
+        this.meleeModel.add(asset.scene.clone(true));
+        this.meleeSkinStatus = 'ready';
+      },
+      () => {
+        if (generation !== this.meleeGeneration) return;
+        this.meleeSkinStatus = 'unavailable';
+      },
+    );
+  }
+
   requestInspect(): void {
     this.inspectRequested = true;
   }
@@ -454,7 +540,7 @@ export class WeaponViewmodel {
 
   /** Match the barrel's screen position across the separate viewmodel/world FOVs. */
   muzzleWorldPosition(
-    id: WeaponId,
+    id: GunId,
     camera: PerspectiveCamera,
     out: Vector3,
     worldFov = camera.fov,
@@ -481,7 +567,11 @@ export class WeaponViewmodel {
     const optic = mounted?.reticle ?? cinder?.reticle;
     const reticle =
       mounted?.sight ??
-      (cinder ? cinderReticle : weaponSights[weapons.selected].reticle);
+      (cinder
+        ? cinderReticle
+        : weapons.selected === 'melee'
+          ? undefined
+          : weaponSights[weapons.selected].reticle);
     const mark = optic ?? this.aimDot;
     this.aimDot.visible = false;
     if (this.cinder) this.cinder.reticle.visible = false;
@@ -538,7 +628,7 @@ export class WeaponViewmodel {
       this.recoilWeapon = weapons.selected;
     }
     this.recoil.step(dt);
-    if (!fired) return;
+    if (!fired || weapons.selected === 'melee') return;
     const { springStiffness, springDamping, weaponAdsMultiplier } =
       weapons.config.recoil;
     const frequency = Math.sqrt(springStiffness);
@@ -608,6 +698,16 @@ export class WeaponViewmodel {
     if (this.blaze) this.blaze.model.visible = !!blaze;
     this.models.get('smg')!.visible = this.selected === 'smg' && !neon;
     if (this.neon) this.neon.model.visible = !!neon;
+    this.meleeModel.visible = weapons.selected === 'melee';
+    this.arms.root.visible =
+      weapons.selected !== 'melee' || this.meleeSkinStatus === 'ready';
+    if (weapons.selected === 'melee') {
+      this.root.visible = active;
+      this.flash.visible = false;
+      this.updateAimDot(weapons, false, 0);
+      if (active) this.updateMelee(weapons, speed, dt, motion, movement);
+      return;
+    }
     const recoil = this.recoil.sample(recoilTime, this.recoilSample);
     const kick = recoil.pitch * motion;
     const lateral = recoil.yaw * motion;
@@ -790,7 +890,89 @@ export class WeaponViewmodel {
     this.updateAimDot(weapons, active, ads, cinder, memento ?? neon);
   }
 
+  private updateMelee(
+    weapons: WeaponController,
+    speed: number,
+    dt: number,
+    motion: number,
+    movement: MovementState,
+  ): void {
+    const skin = this.meleeSkin ?? defaultMeleeSkin;
+    const twoHanded = skin === 'void-ronin';
+    const { grip, tilt, hand, swing } = meleeStances[skin];
+    const step = Math.min(dt, 0.1);
+    this.stridePhase =
+      (this.stridePhase + speed * step * strideRadiansPerMeter) % (Math.PI * 2);
+    const sprinting = Number(movement === 'sprinting');
+    this.sprint += (sprinting - this.sprint) * (1 - Math.exp(-12 * step));
+    const bob = Math.min(1, speed / 8) * motion;
+    const sway = Math.sin(this.stridePhase) * bob;
+    const bounce = Math.cos(this.stridePhase * 2) * bob;
+    const age = weapons.time - weapons.current.lastShot;
+    const windup = easeUnit(age / 0.065) * (1 - easeUnit((age - 0.065) / 0.09));
+    const slash =
+      easeUnit((age - 0.065) / 0.13) * (1 - easeUnit((age - 0.195) / 0.23));
+    const width = Math.min(1, this.camera.aspect / 1.6);
+    const lower = weapons.equipLowering * 0.16 + this.sprint * 0.035;
+    const { left, right } = this.meleeHands;
+
+    this.root.position.set(0, 0, 0);
+    this.root.rotation.set(0, 0, 0);
+    this.meleeModel.position.set(
+      (grip[0] + 0.05 * windup - swing.x * slash) * width + sway * 0.012,
+      grip[1] - lower + bounce * 0.012 + 0.045 * slash,
+      grip[2] + windup * 0.04 - swing.depth * slash + this.sprint * 0.025,
+    );
+    this.meleeModel.rotation.set(
+      tilt[0] - 0.14 * this.sprint - 0.37 * slash,
+      tilt[1] + 0.24 * windup + 0.41 * slash,
+      tilt[2] - 0.42 * windup + swing.roll * slash + sway * 0.038,
+      'ZYX',
+    );
+
+    this.placeMeleeGrip(right, hand, false, twoHanded ? 0.066 : 0);
+    left.open = !twoHanded;
+    if (twoHanded) {
+      this.placeMeleeGrip(left, katanaGrip, true, -0.039);
+    } else {
+      left.wrist.set(
+        -0.36 * width + 0.031 * sway - 0.056 * slash,
+        -0.254 - lower - 0.024 * bounce - 0.035 * slash,
+        -0.5 - 0.028 * sway - 0.035 * this.sprint,
+      );
+      left.rotation.setFromEuler(
+        this.freeHandTilt.set(0.5, 0.31, 0.4 - this.sprint * 0.11),
+      );
+    }
+    this.arms.update(0, 0, 0, 0, motion, undefined, this.meleeHands);
+  }
+
+  private placeMeleeGrip(
+    hand: MeleeHands['right'],
+    gripRotation: Quaternion,
+    left: boolean,
+    along: number,
+  ): void {
+    const blade = this.meleeModel;
+    hand.rotation.copy(blade.quaternion).multiply(gripRotation);
+    // Rotate the wrist around the hilt contact, which stays fixed in blade space.
+    const center = this.gripCenter
+      .set(0, along, 0)
+      .applyQuaternion(blade.quaternion)
+      .add(blade.position);
+    hand.wrist
+      .set(
+        left ? -meleeGrip.across : meleeGrip.across,
+        meleeGrip.rise,
+        meleeGrip.depth,
+      )
+      .applyQuaternion(hand.rotation)
+      .add(center);
+  }
+
   dispose(): void {
+    ++this.meleeGeneration;
+    this.meleeModel.clear();
     this.arms.dispose();
     this.cinder?.dispose();
     this.mementoRequest?.abort();

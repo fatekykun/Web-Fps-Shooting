@@ -1,6 +1,7 @@
-export type WeaponId = 'rifle' | 'smg' | 'shotgun' | 'sniper';
-export type WeaponCategory = 'rifle' | 'smg' | 'shotgun' | 'sniper';
-export type RecoilCategory = WeaponCategory | 'lmg' | 'pistol';
+export type GunId = 'rifle' | 'smg' | 'shotgun' | 'sniper';
+export type WeaponId = GunId | 'melee';
+export type WeaponCategory = WeaponId;
+export type RecoilCategory = GunId | 'lmg' | 'pistol';
 
 export interface RecoilProfile {
   /** Camera degrees per shot, before pattern and multipliers. */

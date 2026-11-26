@@ -1,7 +1,7 @@
-import type { WeaponConfig, WeaponId } from '../types/weapons';
+import type { GunId, WeaponConfig, WeaponId } from '../types/weapons';
 import { recoilProfiles } from './recoil';
 
-export const weaponOrder: readonly WeaponId[] = [
+export const weaponOrder: readonly GunId[] = [
   'rifle',
   'smg',
   'shotgun',
@@ -9,6 +9,7 @@ export const weaponOrder: readonly WeaponId[] = [
 ];
 export const combatConfig = Object.freeze({
   baseFov: 85,
+  gunMovementScale: 0.85,
   equipTime: 0.18,
   fireBuffer: 0.1,
   bloomRecoveryDelay: 0.15,
@@ -19,6 +20,44 @@ export const combatConfig = Object.freeze({
 /** Angles are in degrees. Shared training/online values are prototype balance settings. */
 export const weaponConfigs: Readonly<Record<WeaponId, Readonly<WeaponConfig>>> =
   {
+    melee: {
+      id: 'melee',
+      name: 'MELEE',
+      category: 'melee',
+      automatic: false,
+      magazine: 0,
+      reserve: 0,
+      fireInterval: 0.55,
+      reloadTime: 0,
+      adsTime: 0.18,
+      adsFov: combatConfig.baseFov,
+      hipSpread: 0,
+      adsSpread: 0,
+      movementSpread: 0,
+      jumpSpread: 0,
+      fallSpread: 0,
+      bloomPerShot: 0,
+      maxBloom: 0,
+      bloomRecovery: 0,
+      recoil: recoilProfiles.pistol,
+      pellets: 1,
+      damage: 75,
+      bodyMultipliers: {
+        head: 1,
+        upperTorso: 1,
+        lowerTorso: 1,
+        leftArm: 1,
+        rightArm: 1,
+        leftHand: 1,
+        rightHand: 1,
+        leftLeg: 1,
+        rightLeg: 1,
+        leftFoot: 1,
+        rightFoot: 1,
+      },
+      damageFalloff: [],
+      range: 2,
+    },
     sniper: {
       id: 'sniper',
       name: 'SR-04 / SNIPER',

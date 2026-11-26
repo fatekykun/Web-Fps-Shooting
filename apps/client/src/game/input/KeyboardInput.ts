@@ -36,7 +36,7 @@ export class KeyboardInput {
       if (event.code === b.dive) input.movement.divePressed = true;
       if (event.code === b.reload) input.weapon.reloadPressed = true;
       if (event.code === b.inspect) input.inspectPressed = true;
-      for (const id of ['rifle', 'smg', 'shotgun', 'sniper'] as const)
+      for (const id of ['rifle', 'smg', 'shotgun', 'sniper', 'melee'] as const)
         if (event.code === b[id]) input.weapon.switchTo = id;
     }
     this.keys.add(event.code);

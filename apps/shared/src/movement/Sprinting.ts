@@ -13,12 +13,13 @@ export function sprint(
   velocity: Vector3Like,
   input: MovementInput,
   dt: number,
+  speedScale = 1,
 ): void {
   updateGroundVelocity(
     velocity,
     input,
     dt,
-    movementConfig.sprintSpeed,
+    movementConfig.sprintSpeed * speedScale,
     movementConfig.sprintAcceleration,
   );
 }

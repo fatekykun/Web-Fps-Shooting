@@ -1,11 +1,14 @@
 import { useId, useState } from 'react';
-import { weaponConfigs, weaponOrder, type WeaponId } from '@breakpoint/shared';
+import { weaponConfigs, weaponOrder, type GunId } from '@breakpoint/shared';
 import {
+  defaultMeleeSkin,
+  isMeleeSkin,
   loadoutSlots,
+  meleeSkins,
   skinDefinitions,
   weaponCategories,
   weaponSkinIds,
-  type Equipment,
+  type LoadoutEquipment,
   type LoadoutProfile,
   type LoadoutSlot,
   type WeaponSkin,
@@ -31,17 +34,21 @@ export function LoadoutEditor({
   const [drafts, setDrafts] = useState(profile.slots);
   const [message, setMessage] = useState('');
   const [inspecting, setInspecting] = useState(false);
-  const [previewCharacter, setPreviewCharacter] = useState(false);
+  const [preview, setPreview] = useState<'weapon' | 'character' | 'melee'>(
+    'weapon',
+  );
   const characterField = useId();
   const draft = drafts[slot];
+  const melee = draft.meleeSkin ?? defaultMeleeSkin;
   const operator = draft.operator ?? 'standard';
   const config = weaponConfigs[draft.weapon];
   const definition = skinDefinitions[draft.skin];
   const dirty = (index: LoadoutSlot) =>
     drafts[index].weapon !== profile.slots[index].weapon ||
     drafts[index].skin !== profile.slots[index].skin ||
+    drafts[index].meleeSkin !== profile.slots[index].meleeSkin ||
     drafts[index].operator !== profile.slots[index].operator;
-  const edit = (next: Equipment) => {
+  const edit = (next: LoadoutEquipment) => {
     const updated = [...drafts] as LoadoutProfile['slots'];
     updated[slot] = next;
     setDrafts(updated);
@@ -72,7 +79,7 @@ export function LoadoutEditor({
               onChange={({ target }) =>
                 edit({
                   ...draft,
-                  weapon: target.value as WeaponId,
+                  weapon: target.value as GunId,
                   skin: 'standard',
                 })
               }
@@ -93,6 +100,23 @@ export function LoadoutEditor({
               }
             >
               {weaponSkinIds[draft.weapon].map((id) => (
+                <option key={id} value={id}>
+                  {skinDefinitions[id].name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Melee Weapon
+            <select
+              value={melee}
+              onChange={({ target: { value } }) => {
+                if (!isMeleeSkin(value)) return;
+                edit({ ...draft, meleeSkin: value });
+                setPreview('melee');
+              }}
+            >
+              {meleeSkins.map((id) => (
                 <option key={id} value={id}>
                   {skinDefinitions[id].name}
                 </option>
@@ -159,7 +183,7 @@ export function LoadoutEditor({
               onChange={({ target: { value } }) => {
                 if (!isOperator(value)) return;
                 edit({ ...draft, operator: value });
-                setPreviewCharacter(value !== 'standard');
+                setPreview(value === 'standard' ? 'weapon' : 'character');
               }}
             >
               {Object.entries(operators).map(([id, entry]) => (
@@ -169,33 +193,47 @@ export function LoadoutEditor({
               ))}
             </select>
           </div>
-          {operator !== 'standard' && (
-            <div
-              className="equipment-preview-mode"
-              role="group"
-              aria-label="Preview mode"
+          <div
+            className="equipment-preview-mode"
+            role="group"
+            aria-label="Preview mode"
+          >
+            <button
+              type="button"
+              aria-pressed={
+                preview === 'weapon' ||
+                (preview === 'character' && operator === 'standard')
+              }
+              onClick={() => setPreview('weapon')}
             >
+              Weapon
+            </button>
+            <button
+              type="button"
+              aria-pressed={preview === 'melee'}
+              onClick={() => setPreview('melee')}
+            >
+              Melee
+            </button>
+            {operator !== 'standard' && (
               <button
                 type="button"
-                aria-pressed={!previewCharacter}
-                onClick={() => setPreviewCharacter(false)}
-              >
-                Weapon
-              </button>
-              <button
-                type="button"
-                aria-pressed={previewCharacter}
-                onClick={() => setPreviewCharacter(true)}
+                aria-pressed={preview === 'character'}
+                onClick={() => setPreview('character')}
               >
                 Character
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </section>
         <WeaponPreview
-          equipment={draft}
+          equipment={
+            preview === 'melee' ? { weapon: 'melee', skin: melee } : draft
+          }
           operator={
-            previewCharacter && operator !== 'standard' ? operator : undefined
+            preview === 'character' && operator !== 'standard'
+              ? operator
+              : undefined
           }
           reducedMotion={reducedMotion}
           inspecting={inspecting}

@@ -1,4 +1,4 @@
-import type { WeaponId } from '@breakpoint/shared';
+import type { GunId } from '@breakpoint/shared';
 import { sniperEyePosition } from './SniperScope';
 
 export type WeaponPart = readonly [
@@ -66,7 +66,7 @@ function sniperScope(): WeaponPart[] {
 }
 
 /** Geometry and eye alignment share one local coordinate system; FOV/timing stay in shared weaponConfigs. */
-export const weaponSights: Readonly<Record<WeaponId, WeaponSight>> = {
+export const weaponSights: Readonly<Record<GunId, WeaponSight>> = {
   rifle: {
     kind: 'red-dot',
     ads: { position: [0, -0.146, -0.61], rotation: [0, 0, 0] },

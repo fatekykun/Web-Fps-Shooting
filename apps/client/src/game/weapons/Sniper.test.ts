@@ -89,11 +89,11 @@ describe('bolt-action sniper', () => {
       expect(w.fieldOfView(103)).toBeCloseTo(103, 3);
     },
   );
-  it('keeps ADS available during traversal and only slows scoped walking, with airborne spread', () => {
+  it('keeps ADS available during traversal and applies the scoped walking modifier on top of the firearm penalty, with airborne spread', () => {
     const w = sniper();
     expect(w.config.adsTime).toBeCloseTo(0.35 * 0.9, 10);
-    expect(w.movementScale(true, {}, 'walking')).toBe(0.45);
-    expect(w.movementScale(false, {}, 'walking')).toBe(1);
+    expect(w.movementScale(true, {}, 'walking')).toBeCloseTo(0.45 * 0.85);
+    expect(w.movementScale(false, {}, 'walking')).toBe(0.85);
     for (const state of [
       'sprinting',
       'sliding',
@@ -102,7 +102,7 @@ describe('bolt-action sniper', () => {
       'recovering',
       'airborne',
     ]) {
-      expect(w.movementScale(true, {}, state)).toBe(1);
+      expect(w.movementScale(true, {}, state)).toBe(0.85);
       w.ads = 0;
       for (let frame = 0; frame < 30; frame++) {
         w.updateAds(dt, true);
@@ -118,8 +118,8 @@ describe('bolt-action sniper', () => {
       }
       expect(w.ads).toBeGreaterThan(0.97);
     }
-    expect(w.movementScale(true, { sprint: true }, 'walking')).toBe(1);
-    expect(w.movementScale(true, { slidePressed: true }, 'walking')).toBe(1);
+    expect(w.movementScale(true, { sprint: true }, 'walking')).toBe(0.85);
+    expect(w.movementScale(true, { slidePressed: true }, 'walking')).toBe(0.85);
     const config = weaponConfigs.sniper;
     const scoped = calculateSpread(config, 1, 0, ground);
     expect(calculateSpread(config, 0, 0, ground)).toBeGreaterThan(scoped * 100);
@@ -132,6 +132,6 @@ describe('bolt-action sniper', () => {
     ).toBeGreaterThan(scoped * 50);
     w.switchWeapon('rifle');
     step(w, 15);
-    expect(w.movementScale(true, {}, 'walking')).toBe(1);
+    expect(w.movementScale(true, {}, 'walking')).toBe(0.85);
   });
 });

@@ -213,6 +213,30 @@ export class OperatorRig {
     }
     this.groundBoots((1 - air) * (1 - dive) * (1 - prone));
 
+    if (pose.weapon === 'melee') {
+      this.supportShoulder.quaternion.copy(this.restSupportShoulder);
+      this.supportShoulder.rotateZ(-0.64 * brace);
+      for (const arm of this.arms) {
+        for (const binding of [arm.upper, arm.lower, arm.hand])
+          this.setWorldRotation(
+            binding.bone,
+            this.sourceRotation(rig, binding),
+          );
+        this.curlFingers(arm, arm === this.arms[1] ? 1 : 0.28);
+      }
+      this.root.updateMatrixWorld(true);
+      const { hand, palm } = this.arms[1];
+      this.weaponMatrix
+        .copy(rig.bones[hand.source]!.matrixWorld)
+        .setPosition(
+          this.scratch
+            .copy(palm)
+            .divideScalar(this.scale)
+            .applyMatrix4(hand.bone.matrixWorld),
+        );
+      return;
+    }
+
     const reload =
       (pose.reloadBlend ?? 0) * Math.sin(Math.PI * (pose.reloadProgress ?? 0));
     const carry =
@@ -360,7 +384,10 @@ export class OperatorRig {
     this.aimLimb(rig, upper, arm.upperDirection, this.elbow);
     this.aimLimb(rig, lower, arm.lowerDirection, this.wrist);
     this.setWorldRotation(hand.bone, arm.rotation);
+    this.curlFingers(arm, grip);
+  }
 
+  private curlFingers(arm: Arm, grip: number): void {
     for (const { bone, rest, curl } of arm.fingers) {
       bone.quaternion.copy(rest);
       bone.rotateZ(curl * Math.max(0.12, grip));

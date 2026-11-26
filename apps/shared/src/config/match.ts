@@ -1,4 +1,4 @@
-import type { WeaponId } from '../types/weapons';
+import type { GunId, WeaponId } from '../types/weapons';
 import { weaponOrder } from './weapons';
 import {
   arenas,
@@ -47,7 +47,7 @@ export function parsePrivateRoomSettings(
       v.allowedWeapons.length < 1 ||
       v.allowedWeapons.length > 2 ||
       new Set(v.allowedWeapons).size !== v.allowedWeapons.length ||
-      [...v.allowedWeapons].some((id) => !weaponOrder.includes(id))
+      [...v.allowedWeapons].some((id) => !weaponOrder.includes(id as GunId))
     )
       return null;
     allowedWeapons = weaponOrder.filter((id) =>

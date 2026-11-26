@@ -82,7 +82,7 @@ export function WeaponPreview({
       data-status={status}
     >
       <div className="showcase-surface" ref={surface}>
-        {unavailable && !operator && (
+        {unavailable && !operator && equipment.weapon !== 'melee' && (
           <img
             src={weaponThumbnail(equipment)}
             alt={skinDefinitions[skin].name}
@@ -98,7 +98,9 @@ export function WeaponPreview({
             : status === 'fallback'
               ? operator
                 ? 'Character preview unavailable'
-                : 'Showing the standard weapon'
+                : equipment.weapon === 'melee'
+                  ? 'Melee preview unavailable'
+                  : 'Showing the standard weapon'
               : 'Interactive preview unavailable'}
         </span>
       )}

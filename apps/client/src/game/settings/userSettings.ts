@@ -27,6 +27,7 @@ export const bindingActions = [
   'smg',
   'shotgun',
   'sniper',
+  'melee',
   'scoreboard',
 ] as const;
 export type BindingAction = (typeof bindingActions)[number];
@@ -46,6 +47,7 @@ export const bindingLabels: Record<BindingAction, string> = {
   smg: 'Equip Loadout 2',
   shotgun: 'Equip Loadout 3',
   sniper: 'Equip Loadout 4',
+  melee: 'Switch melee weapon',
   scoreboard: 'Scoreboard',
 };
 export const defaultBindings: Readonly<Record<BindingAction, string>> =
@@ -65,6 +67,7 @@ export const defaultBindings: Readonly<Record<BindingAction, string>> =
     smg: 'Digit2',
     shotgun: 'Digit3',
     sniper: 'Digit4',
+    melee: 'KeyQ',
     scoreboard: 'Tab',
   });
 export type ScopeStyle = 'optic' | 'classic';
@@ -205,7 +208,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     c = object(v.crosshair),
     b = { ...object(v.bindings) };
   // Add bindings introduced after first release without resetting custom keys.
-  for (const action of ['sniper', 'prone', 'inspect'] as const) {
+  for (const action of ['sniper', 'prone', 'inspect', 'melee'] as const) {
     if (b[action] !== undefined) continue;
     const available = [
       d.bindings[action],

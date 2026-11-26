@@ -18,7 +18,7 @@ import { TacticalSkeleton } from '../characters/TacticalSkeleton';
 import { createTacticalGeometry } from '../characters/TacticalGeometry';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import { weaponMuzzles } from '../weapons/WeaponMuzzles';
-import type { Vector3Like, WeaponId } from '@breakpoint/shared';
+import type { GunId, Vector3Like, WeaponId } from '@breakpoint/shared';
 import { RemoteWeaponSkins } from './RemoteWeaponSkins';
 import { operatorAsset } from '../characters/OperatorAssets';
 import { OperatorRig } from '../characters/OperatorRig';
@@ -30,6 +30,10 @@ const colors = [
   0xa49e88,
 ];
 const chestJoint = rigJoints.findIndex(({ name }) => name === 'chest');
+const rightWristJoint = rigJoints.findIndex(
+  ({ name }) => name === 'rightWrist',
+);
+const palmOffset = new Matrix4().makeTranslation(0, -0.055, 0);
 const weaponJoint = rigJoints.findIndex(({ name }) => name === 'weapon');
 
 function avatarPalette(player: PublicPlayer) {
@@ -52,6 +56,7 @@ function avatarPalette(player: PublicPlayer) {
 }
 
 export class RemotePlayers {
+  private readonly meleeMatrix = new Matrix4();
   private readonly geometry = createTacticalGeometry();
   private readonly material = createReadableMaterial();
   private readonly mesh = new InstancedMesh(
@@ -92,7 +97,7 @@ export class RemotePlayers {
     return this.count / parts.length;
   }
 
-  muzzleWorldPosition(id: string, weapon: WeaponId, out: Vector3): boolean {
+  muzzleWorldPosition(id: string, weapon: GunId, out: Vector3): boolean {
     for (let i = 0; i < this.playerCount; i++) {
       const pose = this.poses[i]!;
       if (pose.id === id && pose.weapon === weapon) {
@@ -197,18 +202,25 @@ export class RemotePlayers {
     pose.weapon = player.weapon;
     const operator = this.updateOperator(player, rig);
     pose.customBody = !!operator;
+    const melee = player.weapon === 'melee';
     const weaponMatrix =
-      operator?.weaponMatrix ?? rig.bones[weaponJoint]!.matrixWorld;
-    pose.muzzle
-      .set(...weaponMuzzles[player.weapon].remote)
-      .applyMatrix4(weaponMatrix);
+      operator?.weaponMatrix ??
+      (melee
+        ? this.meleeMatrix
+            .copy(rig.bones[rightWristJoint]!.matrixWorld)
+            .multiply(palmOffset)
+        : rig.bones[weaponJoint]!.matrixWorld);
+    const tip =
+      player.weapon === 'melee'
+        ? undefined
+        : weaponMuzzles[player.weapon].remote;
+    if (tip) pose.muzzle.set(...tip).applyMatrix4(weaponMatrix);
     const palette = avatarPalette(player);
     const custom = this.skins.append(player.weapon, player.skin, weaponMatrix);
     for (const definition of parts) {
       this.part.position.set(...definition.position);
       this.part.scale.set(...definition.size);
-      if (definition.name === 'weapon-barrel') {
-        const tip = weaponMuzzles[player.weapon].remote;
+      if (tip && definition.name === 'weapon-barrel') {
         this.part.position.set(tip[0], tip[1], (-0.27 + tip[2]) / 2);
         this.part.scale.z = -0.27 - tip[2];
       }
@@ -222,7 +234,7 @@ export class RemotePlayers {
         definition.name === 'unit-patch' && player.team !== 'none';
       if (
         definition.joint === weaponJoint
-          ? custom
+          ? melee || custom
           : pose.customBody && !teamPatch
       )
         this.part.matrix.makeScale(0, 0, 0);

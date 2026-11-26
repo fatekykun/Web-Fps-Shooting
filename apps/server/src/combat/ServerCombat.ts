@@ -29,6 +29,9 @@ import { networkConfig } from '@breakpoint/shared/network';
 import { SpawnDirector, type SpawnDebug } from '../spawns/SpawnDirector';
 import {
   allowedDefault,
+  allowsMelee,
+  defaultMeleeSkin,
+  type MeleeSkin,
   isLoadoutSlot,
   type LoadoutSlot,
   type WeaponSkin,
@@ -47,6 +50,7 @@ interface Loadout {
   slot?: LoadoutSlot;
   nextSlot?: LoadoutSlot;
   skin?: WeaponSkin;
+  meleeSkin?: MeleeSkin;
   owned: Set<WeaponId>;
   seed: number;
   held: WeaponInput;
@@ -107,7 +111,7 @@ export class ServerCombat {
     if (
       !weapons.length ||
       new Set(weapons).size !== weapons.length ||
-      weapons.some((id) => !weaponOrder.includes(id))
+      weapons.some((id) => id === 'melee' || !weaponOrder.includes(id))
     )
       throw new Error('Invalid room weapon loadout.');
     this.allowedWeapons = weaponOrder.filter((id) => weapons.includes(id));
@@ -215,6 +219,7 @@ export class ServerCombat {
         : allowedDefault(profile, this.allowedWeapons);
     loadout.slot = choice.slot;
     loadout.skin = choice.equipment.skin;
+    loadout.meleeSkin = choice.equipment.meleeSkin;
     loadout.weapons.selected = player.state.weapon = choice.equipment.weapon;
     player.state.skin = choice.equipment.skin;
     player.state.operator = choice.equipment.operator ?? 'standard';
@@ -297,11 +302,19 @@ export class ServerCombat {
           ? { ...loadout.held }
           : neutral();
       if (
-        player.loadoutProfile ||
-        (controls.switchTo && !loadout.owned.has(controls.switchTo))
+        controls.switchTo === 'melee'
+          ? !allowsMelee(this.allowedWeapons)
+          : player.loadoutProfile ||
+            (controls.switchTo && !loadout.owned.has(controls.switchTo))
       )
         controls.switchTo = null;
-      if (!loadout.owned.has(loadout.weapons.selected)) {
+      if (
+        !loadout.owned.has(loadout.weapons.selected) &&
+        !(
+          loadout.weapons.selected === 'melee' &&
+          allowsMelee(this.allowedWeapons)
+        )
+      ) {
         controls.fire = controls.firePressed = false;
         loadout.weapons.clearTriggerBuffer();
       }
@@ -317,6 +330,7 @@ export class ServerCombat {
         verticalSpeed: movement.velocity.y,
       });
       player.state.weapon = loadout.weapons.selected;
+      player.state.skin = this.activeSkin(loadout) ?? 'standard';
       player.animation.weapon(
         movementConfig.fixedStep,
         loadout.weapons.reloading,
@@ -335,6 +349,12 @@ export class ServerCombat {
     for (const shot of this.pending) this.resolve(shot);
   }
 
+  private activeSkin(loadout: Loadout): WeaponSkin | undefined {
+    return loadout.weapons.selected === 'melee'
+      ? (loadout.meleeSkin ?? defaultMeleeSkin)
+      : loadout.skin;
+  }
+
   private queueShot(
     player: ServerPlayer,
     loadout: Loadout,
@@ -343,14 +363,15 @@ export class ServerCombat {
     const position = player.movement.physics.position;
     loadout.shieldUntil = 0;
     player.state.protected = false;
-    this.spawns.shot(position, this.tick);
+    if (shot.config.id !== 'melee') this.spawns.shot(position, this.tick);
     player.animation.fire();
+    const skin = this.activeSkin(loadout);
     this.pending.push({
       player,
       shot: { ...shot },
       seed: loadout.seed,
-      effect: shotEffect(player, shot.config.id, loadout.skin),
-      skin: loadout.skin,
+      effect: shotEffect(player, shot.config.id, skin),
+      skin,
       origin: {
         x: position.x,
         y: position.y + player.movement.eyeOffset,
@@ -421,7 +442,7 @@ export class ServerCombat {
         if (!hit) continue;
         distance = hit.distance;
         victim = target;
-        critical = hit.head;
+        critical = shot.config.id !== 'melee' && hit.head;
         const meters = Math.hypot(
           hit.point.x - origin.x,
           hit.point.y - origin.y,
@@ -502,13 +523,15 @@ export class ServerCombat {
       owner.critical = headshot;
     }
     const impact = event.traces[0];
-    if (impact?.normal) this.spawns.shot(impact.end, this.tick);
+    if (event.weapon !== 'melee' && impact?.normal)
+      this.spawns.shot(impact.end, this.tick);
     this.onShot(event);
   }
 
   owner(player: ServerPlayer): OwnerCombat {
     const l = this.loadouts.get(player.state.id)!,
       w = l.weapons;
+    const skin = this.activeSkin(l);
     return {
       life: player.state.life,
       health: player.state.health,
@@ -519,7 +542,7 @@ export class ServerCombat {
       protected: player.state.protected,
       selected: w.selected,
       ...(l.nextWeapon === undefined ? {} : { nextWeapon: l.nextWeapon }),
-      ...(l.skin === undefined ? {} : { skin: l.skin }),
+      ...(skin === undefined ? {} : { skin }),
       operator: isOperator(player.state.operator)
         ? player.state.operator
         : 'standard',

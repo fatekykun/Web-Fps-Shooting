@@ -55,7 +55,7 @@ test('sprint carry, fire and ADS preserve all four weapons and smoothly restore 
     );
     expect(
       Number(await page.getByTestId('speed').textContent()),
-    ).toBeGreaterThan(7.5);
+    ).toBeGreaterThan(6.5);
     await page.screenshot({ path: `test-results/bp05-${id}-sprint.png` });
     await page.clock.runFor(180);
     await page.screenshot({ path: `test-results/one-hand-${id}-swing.png` });

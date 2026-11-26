@@ -1,5 +1,10 @@
 import type { CombatSnapshot } from '../game/combat/PracticeCombat';
 import { weaponConfigs, weaponOrder } from '@breakpoint/shared';
+import {
+  allowsMelee,
+  defaultMeleeSkin,
+  skinDefinitions,
+} from '@breakpoint/shared/weapons/loadouts';
 import { playerCombatConfig } from '@breakpoint/shared/combat';
 import { KillFeed } from './KillFeed';
 import { rifleSkins } from '../game/weapons/RifleSkins';
@@ -27,6 +32,7 @@ export function CombatHud({
   choosingLoadout?: boolean;
 }) {
   const weapon = weaponConfigs[combat.weapon];
+  const melee = combat.weapon === 'melee';
   const skin =
     combat.weapon === 'sniper'
       ? sniperSkins[combat.sniperSkin ?? 'standard']
@@ -35,7 +41,7 @@ export function CombatHud({
         : combat.weapon === 'smg'
           ? smgSkins[combat.smgSkin ?? 'standard']
           : rifleSkins[combat.rifleSkin ?? 'standard'];
-  const skinStatus =
+  const gunSkinStatus =
     combat.weapon === 'sniper'
       ? combat.sniperSkinStatus
       : combat.weapon === 'shotgun'
@@ -43,10 +49,16 @@ export function CombatHud({
         : combat.weapon === 'smg'
           ? combat.smgSkinStatus
           : combat.rifleSkinStatus;
-  const mythic = skin.mythic && skinStatus === 'ready';
-  const name = mythic
-    ? `${combat.name.split(' / ')[0]} / ${skin.name.toUpperCase()}`
-    : combat.name;
+  const skinStatus = melee ? combat.meleeSkinStatus : gunSkinStatus;
+  const skinName = melee
+    ? skinDefinitions[combat.meleeSkin ?? defaultMeleeSkin].name
+    : skin.name;
+  const mythic = !melee && skin.mythic && skinStatus === 'ready';
+  const name = melee
+    ? skinName.toUpperCase()
+    : mythic
+      ? `${combat.name.split(' / ')[0]} / ${skinName.toUpperCase()}`
+      : combat.name;
   const healthPercent =
     ((combat.player?.health ?? 0) / playerCombatConfig.health) * 100;
   return (
@@ -65,6 +77,8 @@ export function CombatHud({
         data-shotgun-skin-status={combat.shotgunSkinStatus}
         data-smg-skin={combat.smgSkin}
         data-smg-skin-status={combat.smgSkinStatus}
+        data-melee-skin={combat.meleeSkin}
+        data-melee-skin-status={combat.meleeSkinStatus}
         data-inspecting={!!combat.inspecting}
         data-ammo={combat.magazine}
         data-reserve={combat.reserve}
@@ -80,16 +94,20 @@ export function CombatHud({
       >
         {multiplayer ? (
           <div className="match-weapon-identity">
-            <span className="match-weapon-icon" aria-hidden="true" />
+            {!melee && (
+              <span className="match-weapon-icon" aria-hidden="true" />
+            )}
             <div className="weapon-name">{name}</div>
           </div>
         ) : (
           <div className="weapon-name">{name}</div>
         )}
-        <div className="ammo-line">
-          <strong>{String(combat.magazine).padStart(2, '0')}</strong>
-          <span>/ {combat.reserve}</span>
-        </div>
+        {!melee && (
+          <div className="ammo-line">
+            <strong>{String(combat.magazine).padStart(2, '0')}</strong>
+            <span>/ {combat.reserve}</span>
+          </div>
+        )}
         <div className="weapon-action">
           {combat.player && !combat.player.alive
             ? 'WAITING TO RESPAWN'
@@ -99,22 +117,24 @@ export function CombatHud({
                 ? 'CYCLING BOLT'
                 : combat.equipping
                   ? 'EQUIPPING'
-                  : combat.magazine === 0
-                    ? combat.reserve > 0
-                      ? `EMPTY · ${keyLabel(bindings.reload)} TO RELOAD`
-                      : 'OUT OF AMMO'
-                    : combat.ads > 0.5
-                      ? 'AIM DOWN SIGHTS'
-                      : 'HIP FIRE'}
+                  : melee
+                    ? 'MELEE READY'
+                    : combat.magazine === 0
+                      ? combat.reserve > 0
+                        ? `EMPTY · ${keyLabel(bindings.reload)} TO RELOAD`
+                        : 'OUT OF AMMO'
+                      : combat.ads > 0.5
+                        ? 'AIM DOWN SIGHTS'
+                        : 'HIP FIRE'}
         </div>
         {skinStatus && skinStatus !== 'ready' && (
           <span className="weapon-action" role="status">
             {skinStatus === 'loading'
-              ? `LOADING ${skin.name.toUpperCase()}`
-              : `${skin.name.toUpperCase()} UNAVAILABLE`}
+              ? `LOADING ${skinName.toUpperCase()}`
+              : `${skinName.toUpperCase()} UNAVAILABLE`}
           </span>
         )}
-        {multiplayer && (
+        {multiplayer && !melee && (
           <span className="match-fire-mode">
             {weapon.burstSize ? 'BURST' : weapon.automatic ? 'AUTO' : 'SINGLE'}
           </span>
@@ -131,6 +151,8 @@ export function CombatHud({
             {multiplayer
               ? 'LOADOUT LOCKED UNTIL RESPAWN'
               : `${weaponOrder.map((id) => keyLabel(bindings[id])).join(' / ')} LOADOUTS`}
+            {(!combat.allowedWeapons || allowsMelee(combat.allowedWeapons)) &&
+              ` · ${keyLabel(bindings.melee)} SWITCH`}
             {mythic && ` · ${keyLabel(bindings.inspect)} INSPECT`}
           </div>
         )}

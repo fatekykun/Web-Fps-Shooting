@@ -1,6 +1,6 @@
 import type { MovementInput, MovementState } from '../types/movement';
 import type { MovementSnapshot } from '../movement/MovementController';
-import type { WeaponInput, WeaponId } from '../types/weapons';
+import type { GunId, WeaponInput, WeaponId } from '../types/weapons';
 import { weaponOrder } from '../config/weapons';
 import type { CharacterAnimationValues } from '../combat/characterAnimation';
 import type { OwnerCombat } from '../combat/networkCombat';
@@ -138,7 +138,11 @@ export function parseInput(value: unknown): PlayerInput | null {
       )
     )
       return null;
-    if (w.switchTo !== null && !weaponOrder.includes(w.switchTo as WeaponId))
+    if (
+      w.switchTo !== null &&
+      w.switchTo !== 'melee' &&
+      !weaponOrder.includes(w.switchTo as GunId)
+    )
       return null;
     if (w.autoReload !== undefined && typeof w.autoReload !== 'boolean')
       return null;

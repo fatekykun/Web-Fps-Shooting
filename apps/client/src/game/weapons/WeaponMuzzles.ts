@@ -1,4 +1,4 @@
-import type { WeaponId } from '@breakpoint/shared';
+import type { GunId } from '@breakpoint/shared';
 
 type Point = readonly [number, number, number];
 interface MuzzleDefinition {
@@ -7,7 +7,7 @@ interface MuzzleDefinition {
   remote: Point;
 }
 /** Model-local barrel exits. The sniper's exit includes its muzzle brake. */
-export const weaponMuzzles: Readonly<Record<WeaponId, MuzzleDefinition>> = {
+export const weaponMuzzles: Readonly<Record<GunId, MuzzleDefinition>> = {
   rifle: {
     barrelLength: 0.35,
     firstPerson: [0, 0.025, -0.53],

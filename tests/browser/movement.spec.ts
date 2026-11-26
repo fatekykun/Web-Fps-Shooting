@@ -24,7 +24,7 @@ async function sprint(page: Page) {
   await page.keyboard.down('w');
   await page.clock.runFor(1200);
   expect(Number(await page.getByTestId('speed').textContent())).toBeGreaterThan(
-    7.5,
+    6.5,
   );
 }
 
@@ -217,6 +217,13 @@ test('sprint slide widens the camera and cancels on Depot cover', async ({
   page,
 }) => {
   await enter(page);
+  // Keep the fixed approach to cover at full sprint speed.
+  await page.keyboard.press('q');
+  await page.clock.runFor(250);
+  await expect(page.getByTestId('weapon-status')).toHaveAttribute(
+    'data-weapon',
+    'melee',
+  );
   const pose = page.getByTestId('position');
   const readFov = async () =>
     Number(await page.getByTestId('weapon-status').getAttribute('data-fov'));
@@ -271,7 +278,7 @@ test('backslide and dolphin dive recover to a standing sprint', async ({
     'sprinting',
   );
   expect(Number(await page.getByTestId('speed').textContent())).toBeGreaterThan(
-    7.5,
+    6.5,
   );
   await page.keyboard.press('x');
   await page.clock.runFor(300);

@@ -6,11 +6,14 @@ import {
   Group,
   InstancedMesh,
   Matrix4,
+  Mesh,
   Quaternion,
   Skeleton,
   Vector3,
   type Material,
 } from 'three';
+import type { GloveGeometries } from './MeleeGlove';
+import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import { createTacticalGeometry } from './TacticalGeometry';
 import { sprintArmPose } from '@breakpoint/shared/character';
 import type { OperatorId } from '@breakpoint/shared/operators';
@@ -24,6 +27,17 @@ const armColors = {
   ghost: [0x465771, 0x39485e, 0x28333e, 0x222a33, 0x39434c],
   'crimson-officer': [0xbec6c5, 0xcfd5d2, 0x731b32, 0xe2e5df, 0xc2c8c7],
 } as const;
+
+interface MeleeHand {
+  wrist: Vector3;
+  rotation: Quaternion;
+  open?: boolean;
+}
+
+export interface MeleeHands {
+  left: MeleeHand;
+  right: MeleeHand;
+}
 
 /** Grip IK blends to a camera-space free support arm during sprint carry. */
 export class FirstPersonArms {
@@ -46,7 +60,13 @@ export class FirstPersonArms {
   private readonly freeRotation = new Quaternion();
   private readonly parentRotation = new Quaternion();
   private readonly freeEuler = new Euler();
+  private meleeGloves?: GloveGeometries & {
+    left: Mesh;
+    right: Mesh;
+    material: ReturnType<typeof createReadableMaterial>;
+  };
   private colorsReady = false;
+  private melee = false;
   private operator: OperatorId = 'standard';
 
   constructor(material: Material) {
@@ -81,6 +101,7 @@ export class FirstPersonArms {
     phase = 0,
     motion = 1,
     grips?: { firing: Vector3; support: Vector3 },
+    melee?: MeleeHands,
   ): void {
     const [sleeve, forearmColor, cuff, glove, fingers] =
       armColors[this.operator];
@@ -88,9 +109,19 @@ export class FirstPersonArms {
     this.inverse.copy(this.root.matrixWorld).invert();
     this.root.getWorldQuaternion(this.parentRotation).invert();
     const free = sprintArmPose(phase, motion);
+    const updateColors = !this.colorsReady || this.melee !== !!melee;
+    this.melee = !!melee;
+    const gloves = this.meleeGloves;
+    if (gloves) {
+      gloves.left.visible = gloves.right.visible = !!melee;
+      gloves.left.geometry = melee?.left.open ? gloves.open : gloves.grip;
+      gloves.left.scale.y = melee?.left.open ? 1 : -1;
+      if (updateColors) gloves.material.color.setHex(glove);
+    }
     let instance = 0;
     for (let side = 0; side < 2; side++) {
       const left = side === 0;
+      const hand = left ? melee?.left : melee?.right;
       const upper = this.bones[side * 3]!,
         forearm = this.bones[side * 3 + 1]!,
         wrist = this.bones[side * 3 + 2]!;
@@ -114,6 +145,10 @@ export class FirstPersonArms {
           grip.z + (left ? reload * 0.2 : 0),
         );
       }
+      if (hand) {
+        upper.position.set(left ? -0.23 : 0.38, -0.48, -0.28);
+        this.target.copy(hand.wrist);
+      }
       this.direction.copy(this.target).sub(upper.position);
       const distance = Math.min(
         upperLength + foreLength - 0.0001,
@@ -123,8 +158,17 @@ export class FirstPersonArms {
       const along =
         (upperLength ** 2 - foreLength ** 2 + distance ** 2) / (2 * distance);
       const height = Math.sqrt(Math.max(0, upperLength ** 2 - along ** 2));
+      this.bend.set(left ? -0.3 : 0.3, -1, 0);
+      if (hand) {
+        // Project the palm-to-wrist axis into the elbow's bend plane. A small
+        // downward bias keeps the sleeves entering from below the camera.
+        this.target
+          .set(left ? -1 : 1, hand.open ? -0.12 : 0.48, 0.24)
+          .applyQuaternion(hand.rotation);
+        this.bend.multiplyScalar(0.24).add(this.target);
+        this.target.copy(hand.wrist);
+      }
       this.bend
-        .set(left ? -0.3 : 0.3, -1, 0)
         .addScaledVector(this.direction, -this.bend.dot(this.direction))
         .normalize();
       this.elbow
@@ -136,13 +180,26 @@ export class FirstPersonArms {
       upper.quaternion.copy(this.upperRotation);
       this.direction.copy(this.target).sub(this.elbow).normalize();
       this.foreRotation.setFromUnitVectors(down, this.direction);
+      if (hand) {
+        // Keep the cuff's outer face in the same plane as the back of the glove.
+        const back = this.bend.set(0, 0, 1).applyQuaternion(hand.rotation);
+        back.addScaledVector(this.direction, -back.dot(this.direction));
+        if (back.lengthSq() > 1e-6) {
+          const up = this.target.copy(this.direction).negate();
+          const across = this.elbow.crossVectors(up, back).normalize();
+          this.foreRotation.setFromRotationMatrix(
+            this.transform.makeBasis(across, up, back.normalize()),
+          );
+        }
+      }
       forearm.quaternion
         .copy(this.upperRotation)
         .invert()
         .multiply(this.foreRotation);
       wrist.quaternion.copy(this.foreRotation).invert();
-      if (left) wrist.rotateZ(reload * 0.6);
-      if (left && carry > 0) {
+      if (hand) wrist.quaternion.multiply(hand.rotation);
+      else if (left) wrist.rotateZ(reload * 0.6);
+      if (!hand && left && carry > 0) {
         // The free arm swings beside the body in camera space, independently
         // of the raised weapon. The firing arm keeps its existing grip IK.
         this.freeShoulder.set(-0.26, -0.2, -0.4).applyMatrix4(this.inverse);
@@ -178,11 +235,16 @@ export class FirstPersonArms {
         // Matrices are local to the weapon root, which supplies all ADS/recoil/carry motion.
         this.transform.premultiply(this.inverse);
         this.mesh.setMatrixAt(instance, this.transform);
-        if (!this.colorsReady)
+        if (updateColors)
           this.mesh.setColorAt(instance, this.color.setHex(tint));
         instance++;
       };
       part(upper, [0, -upperLength / 2, 0], [0.125, upperLength, 0.14], sleeve);
+      if (hand) {
+        part(forearm, [0, -0.14, 0], [0.096, 0.284, 0.104], forearmColor);
+        part(forearm, [0, -0.281, 0], [0.069, 0.077, 0.077], cuff);
+        continue;
+      }
       part(
         forearm,
         [0, -foreLength / 2, 0],
@@ -205,10 +267,34 @@ export class FirstPersonArms {
           fingers,
         );
     }
+    this.mesh.count = instance;
     this.mesh.instanceMatrix.needsUpdate = true;
-    if (!this.colorsReady && this.mesh.instanceColor)
+    if (updateColors && this.mesh.instanceColor)
       this.mesh.instanceColor.needsUpdate = true;
     this.colorsReady = true;
+  }
+
+  setMeleeGloves({ grip, open }: GloveGeometries): void {
+    if (this.meleeGloves) return;
+    const material = createReadableMaterial(
+      {
+        color: armColors[this.operator][3],
+        flatShading: false,
+        vertexColors: true,
+      },
+      0.15,
+    );
+    const left = new Mesh(grip, material);
+    const right = new Mesh(grip, material);
+    left.name = 'left-melee-glove';
+    right.name = 'right-melee-glove';
+    // The grip mesh was authored thumb-up. Reflect its Y axis so the thumb
+    // stays on the same side of each hand as in the open glove.
+    right.scale.set(-1, -1, 1);
+    left.visible = right.visible = false;
+    this.bones[2]!.add(left);
+    this.bones[5]!.add(right);
+    this.meleeGloves = { grip, open, left, right, material };
   }
 
   setOperator(operator: OperatorId): void {
@@ -218,6 +304,7 @@ export class FirstPersonArms {
   }
 
   dispose(): void {
+    this.meleeGloves?.material.dispose();
     this.mesh.dispose();
     this.geometry.dispose();
     this.skeleton.dispose();

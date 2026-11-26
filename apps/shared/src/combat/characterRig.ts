@@ -38,6 +38,7 @@ export type CharacterPose = Partial<CharacterAnimationValues> & {
   pitch: number;
   halfHeight: number;
   movement?: string;
+  weapon?: string;
 };
 export interface JointPose {
   x: number;
@@ -272,6 +273,25 @@ export function poseRigJoints(pose: CharacterPose, out: JointPose[]): void {
     (1 - (pose.aimBlend ?? 0)) ** 3 *
     (1 - reload);
   const brace = slideBrace(pose, slide);
+  if (pose.weapon === 'melee') {
+    const strike = Math.sin(Math.PI * Math.min(1, (pose.fireBlend ?? 0) * 1.1));
+    const swing = Math.sin(pose.gaitPhase ?? 0) * carry * (1 - slide);
+    const leftShoulder = out[5]!;
+    const leftUpperArm = out[6]!;
+    const leftForearm = out[7]!;
+    const rightUpperArm = out[10]!;
+    const rightForearm = out[11]!;
+    leftShoulder.rz = -0.64 * brace;
+    leftUpperArm.rx = 0.23 + 0.48 * swing - 0.4 * brace;
+    leftUpperArm.rz = -0.19 - 0.16 * brace;
+    leftForearm.rx = 0.48 + 0.57 * carry * (1 - slide) - 0.39 * brace;
+    rightUpperArm.rx = 0.48 - 0.26 * swing + 0.47 * strike;
+    rightUpperArm.ry = 0.64 * strike;
+    rightUpperArm.rz = 0.28 - 0.53 * strike;
+    rightForearm.rx = 0.91 + 0.2 * carry - 0.72 * strike;
+    out[12]!.rx = -1.12 + 0.23 * strike;
+    return;
+  }
   solveWeaponArms(out, {
     reload,
     carry: carry * (1 - slide),
