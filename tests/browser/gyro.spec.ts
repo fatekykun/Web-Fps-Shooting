@@ -61,7 +61,7 @@ test('requests permission, saves gyro settings, and applies horizontal inversion
   await invertHorizontal.tap();
   await invertVertical.tap();
 
-  const values = ['150', '55', '83', '180'];
+  const values = ['300', '55', '83', '180'];
   for (const [index, label] of labels.entries()) {
     const slider = page.getByRole('slider', { name: label, exact: true });
     await slider.fill(values[index]!);
@@ -108,14 +108,14 @@ test('requests permission, saves gyro settings, and applies horizontal inversion
     page.evaluate(() => {
       for (const time of [1000, 1020, 1040]) {
         const event = new DeviceMotionEvent('devicemotion', {
-          rotationRate: { alpha: 0, beta: 90, gamma: 0 },
+          rotationRate: { alpha: 0, beta: 15, gamma: 0 },
         });
         Object.defineProperty(event, 'timeStamp', { value: time });
         window.dispatchEvent(event);
       }
     });
   await tilt();
-  await expect.poll(heading).toBeCloseTo((90 * Math.PI * 0.04 * 1.5) / 180);
+  await expect.poll(heading).toBeCloseTo((15 * Math.PI * 0.04 * 12) / 180);
 
   await page.getByRole('button', { name: 'Pause game' }).tap();
   await openSensitivity(page);

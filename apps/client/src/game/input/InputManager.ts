@@ -27,6 +27,13 @@ function wrapYaw(yaw: number): number {
   );
 }
 
+function gyroTurnScale(sensitivity: number, fovScale: number): number {
+  const linearScale = sensitivity / 100;
+  const aboveDefault = Math.max(0, linearScale - 1);
+  // Preserve fine aiming through 100. Zoom leaves the extra turning speed above 100 available.
+  return linearScale * fovScale + 2.25 * aboveDefault ** 2;
+}
+
 function coverReturn(covered: number, recoil: number, input: number): number {
   const sign = Math.sign(recoil);
   return (
@@ -340,9 +347,9 @@ export class InputManager {
     const aimed = weapon?.config.scopeMagnification
       ? sensitivity.sniper
       : sensitivity.ads;
-    const modeSensitivity =
-      sensitivity.steering + (aimed - sensitivity.steering) * ads;
-    const scale = (modeSensitivity * this.lookScale) / 100;
+    const steeringScale = gyroTurnScale(sensitivity.steering, this.lookScale);
+    const aimedScale = gyroTurnScale(aimed, this.lookScale);
+    const scale = steeringScale + (aimedScale - steeringScale) * ads;
     this.look(
       (this.settings.gyroInvertHorizontal ? -x : x) * scale,
       (y * scale * sensitivity.vertical) / 100,
