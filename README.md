@@ -393,7 +393,7 @@ server-owned in both match modes; only enemies take damage in TDM.
 | ---------------- | --------------------------------------------------------------------- |
 | Left mouse       | Fire; rifle/SMG repeat while held, shotgun/sniper require new presses |
 | Hold right mouse | Aim down sights; release to return to hip fire                        |
-| R                | Reload; ammo transfers only when the reload finishes                  |
+| R                | Reload; shotguns insert one shell at a time                           |
 | 1 / 2 / 3 / 4    | Rifle / SMG / shotgun / sniper; independent ammo inventories          |
 | Hold Tab online  | Show the live scoreboard                                              |
 
@@ -404,12 +404,12 @@ seconds. It is a holographic sensor, so the movement course can pass through it.
 Cover blocks shots before the target. This dummy remains local practice and is
 disabled in online rooms.
 
-| Weapon        | Magazine / reserve | Fire                                 | Reload | ADS to 90% |
-| ------------- | ------------------ | ------------------------------------ | ------ | ---------- |
-| AR-01 rifle   | 30 / 120           | Automatic, 600 RPM                   | 2.0 s  | 140 ms     |
-| SM-02 SMG     | 35 / 140           | Automatic, 900 RPM                   | 1.6 s  | 100 ms     |
-| SG-03 shotgun | 8 / 40             | Semi-auto, 0.8 s interval, 8 pellets | 2.4 s  | 180 ms     |
-| SR-04 sniper  | 5 / 20             | Bolt-action, 45 RPM                  | 2.8 s  | 315 ms     |
+| Weapon        | Magazine / reserve | Fire                                 | Reload          | ADS to 90% |
+| ------------- | ------------------ | ------------------------------------ | --------------- | ---------- |
+| AR-01 rifle   | 30 / 120           | Automatic, 600 RPM                   | 2.0 s           | 140 ms     |
+| SM-02 SMG     | 35 / 140           | Automatic, 900 RPM                   | 1.6 s           | 100 ms     |
+| SG-03 shotgun | 8 / 40             | Semi-auto, 0.8 s interval, 8 pellets | 0.8 s per shell | 180 ms     |
+| SR-04 sniper  | 5 / 20             | Bolt-action, 45 RPM                  | 2.8 s           | 315 ms     |
 
 ADS changes camera FOV, sight alignment and sensitivity without smoothing mouse
 look. Its reversible exponential blend is sampled for each rendered frame. The
@@ -427,8 +427,11 @@ A fresh shoot press cancels a partial reload and fires the remaining ammunition,
 subject to the normal fire interval and bolt cooldown. Empty-magazine reloads
 cannot be interrupted by shooting or aiming. A fresh ADS/scope press also cancels
 a partial reload, while already-held ADS allows a new reload to proceed.
-Ammo transfers only when the reload finishes,
-limited by capacity and available reserves; cancellation spends no reserve ammo.
+The shotgun inserts one shell every 0.8 seconds until full or out of reserves.
+Fire as soon as one shell is loaded to interrupt the reload. If that shot empties
+the shotgun, Auto Reload starts a new reload when shells remain in reserve.
+Other weapons transfer ammo at the end of the reload. Cancelling preserves
+unloaded reserve ammo.
 The weapon blends smoothly out of a cancelled reload. These rules also run on
 the multiplayer server, which validates the preference and owns the ammo counts.
 Switching takes 180 ms and
@@ -454,9 +457,8 @@ clipping the gun through nearby walls. Impacts use a fixed 32-slot instance pool
 muzzle flashes add no lights. Combat HUD snapshots update on events plus telemetry,
 and crosshair presentation uses DOM properties rather than a React game loop.
 
-Prototype limits: magazine-style reloads for all four weapons (no per-shell
-shotgun loading) and primitive viewmodels. Practice uses eleven stationary sensors;
-online avatars use the shared tactical skeleton with articulated limb joints.
+Practice uses eleven stationary sensors. Online avatars use the shared tactical
+skeleton with articulated limb joints.
 Weapon values are prototype balance settings.
 
 ### Tuning recoil
