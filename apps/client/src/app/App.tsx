@@ -532,6 +532,7 @@ export function App() {
             error={error}
             initialTab={roomTab}
             initialCode={inviteCode}
+            focusCallsign={device.kind !== 'phone'}
             ready={ready}
             onCancelConnect={() => {
               ++connectAttempt.current;

@@ -32,6 +32,7 @@ interface Props {
   onScores(): void;
   initialTab?: 'create' | 'join';
   initialCode?: string;
+  focusCallsign?: boolean;
   ready?: boolean;
   onCancelConnect(): void;
 }
@@ -51,6 +52,7 @@ export function RoomPanel({
   onScores,
   initialTab = 'create',
   initialCode = '',
+  focusCallsign = true,
   ready = true,
   onCancelConnect,
 }: Props) {
@@ -148,26 +150,28 @@ export function RoomPanel({
         close();
       }}
     >
-      <div className="room-heading">
-        <span className="eyebrow">
-          {room ? arenas[room.mapId].name.toUpperCase() : 'MULTIPLAYER'} /
-          PRIVATE SESSION
-        </span>
-        <button
-          className="room-button"
-          onClick={close}
-          aria-label="Close rooms"
-        >
-          ×
-        </button>
-      </div>
-      <h2 id="room-title">
-        {room
-          ? 'YOUR SQUAD.'
-          : tab === 'create'
-            ? 'OPEN A FREQUENCY.'
-            : 'FIND YOUR SQUAD.'}
-      </h2>
+      <header className="room-panel-header">
+        <div className="room-heading">
+          <span className="eyebrow">
+            {room ? arenas[room.mapId].name.toUpperCase() : 'MULTIPLAYER'} /
+            PRIVATE SESSION
+          </span>
+          <button
+            className="room-button"
+            onClick={close}
+            aria-label="Close rooms"
+          >
+            ×
+          </button>
+        </div>
+        <h2 id="room-title">
+          {room
+            ? 'YOUR SQUAD.'
+            : tab === 'create'
+              ? 'OPEN A FREQUENCY.'
+              : 'FIND YOUR SQUAD.'}
+        </h2>
+      </header>
       {room ? (
         <>
           <div className="room-code-row">
@@ -409,23 +413,25 @@ export function RoomPanel({
               ? 'Your squad. Your rules. Choose FFA or TDM and share a private room code.'
               : 'Enter your callsign and a six-character code to join your squad.'}
           </p>
-          <label className="room-field">
-            PLAYER NAME
-            <input
-              autoFocus
-              autoComplete="nickname"
-              maxLength={20}
-              value={name}
-              disabled={busy}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Your callsign"
-            />
-          </label>
           <div
             id="room-connect-form"
+            className="room-connect-fields"
+            data-mode={tab}
             role="tabpanel"
             aria-labelledby={`room-tab-${tab}`}
           >
+            <label className="room-field">
+              PLAYER NAME
+              <input
+                autoFocus={focusCallsign}
+                autoComplete="nickname"
+                maxLength={20}
+                value={name}
+                disabled={busy}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Your callsign"
+              />
+            </label>
             {tab === 'create' ? (
               <>
                 <MatchFields

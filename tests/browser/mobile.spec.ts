@@ -312,8 +312,8 @@ test.describe('phone touch controls', () => {
     await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
     await expect(page.locator('.mobile-hud')).toBeVisible();
     const controls = page.locator('.mobile-hud button[data-hud-id]');
-    await expect(controls).toHaveCount(12);
-    await expect(controls.locator('svg[data-control-icon]')).toHaveCount(12);
+    await expect(controls).toHaveCount(13);
+    await expect(controls.locator('svg[data-control-icon]')).toHaveCount(13);
     for (const control of await controls.all())
       await expect(control).toHaveText('');
     const boxes = await page.locator('.touch-button').evaluateAll((buttons) =>
