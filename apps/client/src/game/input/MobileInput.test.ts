@@ -379,8 +379,9 @@ describe('touch intentions', () => {
     input.setLook(0, 0);
     motion(1030, 80, 40);
     motion(1050, 80, 40);
-    expect(input.movement.yaw).toBeCloseTo(80 * 0.02 * radians * 0.8 * 1.5);
-    expect(input.pitch).toBeCloseTo(-40 * 0.02 * radians * 0.8 * 1.5 * 1.5);
+    const blendedScale = (0.8 + 3.85) / 2;
+    expect(input.movement.yaw).toBeCloseTo(80 * 0.02 * radians * blendedScale);
+    expect(input.pitch).toBeCloseTo(-40 * 0.02 * radians * blendedScale * 1.5);
 
     weapon.selected = 'sniper';
     weapon.ads = 1;
@@ -391,6 +392,35 @@ describe('touch intentions', () => {
     expect(input.pitch).toBeCloseTo(-40 * 0.02 * radians * 0.8 * 0.5 * 1.5);
     expect(aimScale).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { mode: 'steering', weaponId: 'rifle', ads: 0, fovScale: 1, scale: 12 },
+    { mode: 'ads', weaponId: 'rifle', ads: 1, fovScale: 0.75, scale: 11.25 },
+    { mode: 'sniper', weaponId: 'sniper', ads: 1, fovScale: 0.25, scale: 9.75 },
+  ] as const)(
+    'keeps extra turning speed at max gyro sensitivity in $mode mode',
+    ({ mode, weaponId, ads, fovScale, scale }) => {
+      Object.assign(browser, {
+        isSecureContext: true,
+        DeviceMotionEvent: Event,
+        screen: { orientation: { angle: 90 } },
+      });
+      const settings = defaultUserSettings();
+      settings.gyroEnabled = true;
+      settings.gyroSensitivity[mode] = 300;
+      input.configure(settings);
+      input.lookScale = fovScale;
+      weapon = new WeaponController(() => {});
+      weapon.selected = weaponId;
+      weapon.ads = ads;
+
+      motion(1000, 60, 30);
+      motion(1020, 60, 30);
+      const radians = (scale * 0.02 * Math.PI) / 180;
+      expect(input.movement.yaw).toBeCloseTo(60 * radians, 8);
+      expect(input.pitch).toBeCloseTo(-30 * radians, 8);
+    },
+  );
 
   it.each([
     { gyroInvertHorizontal: false, gyroInvertVertical: false },
