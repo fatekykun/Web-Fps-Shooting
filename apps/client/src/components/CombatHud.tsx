@@ -153,7 +153,7 @@ export function CombatHud({
               : `${weaponOrder.map((id) => keyLabel(bindings[id])).join(' / ')} LOADOUTS`}
             {(!combat.allowedWeapons || allowsMelee(combat.allowedWeapons)) &&
               ` · ${keyLabel(bindings.melee)} SWITCH`}
-            {mythic && ` · ${keyLabel(bindings.inspect)} INSPECT`}
+            {!melee && ` · ${keyLabel(bindings.inspect)} INSPECT`}
           </div>
         )}
       </aside>

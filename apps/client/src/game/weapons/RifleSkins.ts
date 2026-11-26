@@ -28,5 +28,4 @@ export const cinderTuning = Object.freeze({
   particleIntensity: 0.75,
   reticleColor: 0xffa43e,
   animationSpeed: 1,
-  inspectSeconds: 2.2,
 });

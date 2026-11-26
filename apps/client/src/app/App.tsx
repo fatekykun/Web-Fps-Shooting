@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sniperScopeBlend } from '../game/weapons/SniperScope';
-import { rifleSkins } from '../game/weapons/RifleSkins';
 import type { Game, GameTelemetry } from '../game/core/Game';
 import { Telemetry } from '../components/Telemetry';
 import { GraphicsControls } from '../components/GraphicsControls';
@@ -690,15 +689,9 @@ export function App() {
             attach={attachTouchControls}
             showInspect={
               !choosingLoadout &&
-              ((!!combat?.rifleSkin &&
-                rifleSkins[combat.rifleSkin].mythic &&
-                combat.rifleSkinStatus === 'ready') ||
-                (combat?.sniperSkin === 'lotus-lava' &&
-                  combat.sniperSkinStatus === 'ready') ||
-                (combat?.shotgunSkin === 'glorious-blaze' &&
-                  combat.shotgunSkinStatus === 'ready') ||
-                (combat?.smgSkin === 'neon-blade' &&
-                  combat.smgSkinStatus === 'ready'))
+              !!combat &&
+              combat.weapon !== 'melee' &&
+              (combat.player?.alive ?? true)
             }
             tablet={device.tablet}
             layout={mobileLayout}
