@@ -256,3 +256,30 @@ it('persists all eight sensitivity values independently without resetting bindin
   expect(saveUserSettings(settings)).toBe(true);
   expect(loadUserSettings()).toEqual(settings);
 });
+
+it('validates saved gyro preferences and keeps gyro off for older settings', () => {
+  expect(normalizeUserSettings({ sensitivity: 1.5 })).toMatchObject({
+    gyroEnabled: false,
+    gyroSensitivity: { camera: 100, ads: 100, sniper: 100, vertical: 100 },
+    sensitivity: { camera: { steering: 150 } },
+  });
+  const settings = normalizeUserSettings({
+    gyroEnabled: true,
+    gyroSensitivity: {
+      camera: -20,
+      ads: 500,
+      sniper: 84.7,
+      vertical: Infinity,
+    },
+  });
+  expect(settings.gyroEnabled).toBe(true);
+  expect(settings.gyroSensitivity).toEqual({
+    camera: 1,
+    ads: 300,
+    sniper: 85,
+    vertical: 100,
+  });
+  expect(normalizeUserSettings(JSON.parse(JSON.stringify(settings)))).toEqual(
+    settings,
+  );
+});

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InputManager } from './InputManager';
+import { requestGyroAccess } from './GyroInput';
+import { WeaponController } from '../weapons/WeaponController';
 import {
   classifyDevice,
   requestLandscape,
@@ -141,6 +143,7 @@ describe('touch intentions', () => {
     root: Root,
     doc: EventTarget,
     browser: EventTarget,
+    weapon: WeaponController | null,
     changed: ReturnType<typeof vi.fn<(locked: boolean) => void>>;
   const aimScale = vi.fn(() => 1);
   beforeEach(() => {
@@ -161,13 +164,14 @@ describe('touch intentions', () => {
       matches: q.includes('coarse'),
     }));
     changed = vi.fn();
+    weapon = null;
     aimScale.mockReset().mockReturnValue(1);
     input = new InputManager(
       new EventTarget() as HTMLCanvasElement,
       changed,
       vi.fn(),
       vi.fn(),
-      () => null,
+      () => weapon,
       () => ['sniper', 'rifle'],
       aimScale,
     );
@@ -333,6 +337,116 @@ describe('touch intentions', () => {
     expect(input.pitch).toBeCloseTo(expected);
     expect(s.sensitivity.camera.ads).toBe(100);
   });
+  function motion(time: number, beta: number, gamma: number) {
+    const event = Object.assign(new Event('devicemotion'), {
+      rotationRate: { alpha: 90, beta, gamma },
+    });
+    Object.defineProperty(event, 'timeStamp', { value: time });
+    browser.dispatchEvent(event);
+  }
+
+  it('maps landscape gyro look through camera, ADS, sniper scope and vertical settings', () => {
+    Object.assign(browser, {
+      isSecureContext: true,
+      DeviceMotionEvent: Event,
+      screen: { orientation: { angle: 90 } },
+    });
+    const settings = defaultUserSettings();
+    settings.gyroEnabled = true;
+    settings.gyroSensitivity = {
+      camera: 100,
+      ads: 200,
+      sniper: 50,
+      vertical: 150,
+    };
+    input.configure(settings);
+    input.lookScale = 0.8;
+    weapon = new WeaponController(() => {});
+
+    const radians = Math.PI / 180;
+    motion(1000, 80, 40);
+    motion(1020, 80, 40);
+    expect(input.movement.yaw).toBeCloseTo(80 * 0.02 * radians * 0.8);
+    expect(input.pitch).toBeCloseTo(-40 * 0.02 * radians * 0.8 * 1.5);
+
+    weapon.ads = 0.5;
+    input.setLook(0, 0);
+    motion(1030, 80, 0);
+    motion(1050, 80, 0);
+    expect(input.movement.yaw).toBeCloseTo(80 * 0.02 * radians * 0.8 * 1.5);
+
+    weapon.selected = 'sniper';
+    weapon.ads = 1;
+    input.configure({ ...settings, invertY: true });
+    input.setLook(0, 0);
+    motion(1060, 80, 40);
+    motion(1080, 80, 40);
+    expect(input.movement.yaw).toBeCloseTo(80 * 0.02 * radians * 0.8 * 0.5);
+    expect(input.pitch).toBeCloseTo(40 * 0.02 * radians * 0.8 * 1.5);
+    expect(aimScale).not.toHaveBeenCalled();
+  });
+
+  it('resets gyro timing on rotation, ignores stale events and stops when disabled or paused', () => {
+    const orientation = { angle: 90 };
+    Object.assign(browser, {
+      isSecureContext: true,
+      DeviceMotionEvent: Event,
+      screen: { orientation },
+    });
+    motion(1000, 80, 40);
+    motion(1020, 80, 40);
+    expect(input.movement.yaw).toBe(0);
+
+    const settings = { ...defaultUserSettings(), gyroEnabled: true };
+    input.configure(settings);
+    motion(1100, 90, 0);
+    motion(1120, 90, 0);
+    const amount = (90 * 0.02 * Math.PI) / 180;
+    expect(input.movement.yaw).toBeCloseTo(amount);
+
+    orientation.angle = 270;
+    motion(1140, 90, 0);
+    expect(input.movement.yaw).toBeCloseTo(amount);
+    motion(1160, 90, 0);
+    expect(input.movement.yaw).toBeCloseTo(0);
+    motion(2000, 90, 0);
+    motion(2020, 0.1, 0.2);
+    expect(input.movement.yaw).toBeCloseTo(0);
+    expect(input.pitch).toBe(0);
+
+    input.release();
+    motion(2040, 90, 0);
+    motion(2060, 90, 0);
+    expect(input.movement.yaw).toBeCloseTo(0);
+    input.requestLock();
+    motion(2100, 90, 0);
+    motion(2120, 90, 0);
+    expect(input.movement.yaw).toBeCloseTo(-amount);
+    input.configure({ ...settings, gyroEnabled: false });
+    motion(2140, 90, 0);
+    motion(2160, 90, 0);
+    expect(input.movement.yaw).toBeCloseTo(-amount);
+  });
+
+  it('requests Safari motion permission on supported secure pages and handles rejection', async () => {
+    const permission = vi
+      .fn<() => Promise<PermissionState>>()
+      .mockResolvedValue('granted');
+    Object.assign(browser, {
+      DeviceMotionEvent: Object.assign(class extends Event {}, {
+        requestPermission: permission,
+      }),
+    });
+    await expect(requestGyroAccess()).resolves.toBe('unavailable');
+    expect(permission).not.toHaveBeenCalled();
+    Object.assign(browser, { isSecureContext: true });
+    await expect(requestGyroAccess()).resolves.toBe('granted');
+    permission.mockResolvedValueOnce('denied');
+    await expect(requestGyroAccess()).resolves.toBe('denied');
+    permission.mockRejectedValueOnce(new Error('gesture required'));
+    await expect(requestGyroAccess()).resolves.toBe('denied');
+  });
+
   it('handles unsupported and rejected orientation/fullscreen APIs', async () => {
     await expect(requestLandscape()).resolves.toBeUndefined();
     const lock = vi.fn(() => Promise.reject(new Error('unsupported')));

@@ -31,6 +31,12 @@ for handheld touch play. It slows aiming near the training dummy or an opponent
 with a clear line of sight, with a stronger effect in ADS. Rotation, focus loss
 and pause clear held controls. Online matches continue while paused, as on desktop.
 
+In **Settings → Sensitivity → Gyroscope**, turn on **Gyro aiming** and allow
+motion sensor access if prompted. Tilt a supported phone or tablet to aim
+alongside the touch controls. Camera, ADS, Sniper Scope, and Vertical Turning
+each have their own sensitivity value. Gyro aiming starts off and requires a
+secure browser connection.
+
 See [BP-13](docs/BP-13.md) for implementation, validation, browser limitations and
 instructions for testing from a phone on the same Wi-Fi network.
 
@@ -141,7 +147,7 @@ Settings apply immediately and save in this browser when storage is available:
   Esc cancels rebinding. Mouse buttons and Esc remain fixed. ADS retains each
   weapon's aimed FOV and scales sensitivity to the visible FOV.
 - **Sensitivity (BP-07):** separate Camera and Firing groups each provide
-  Steering, ADS, Sniper Scope and Vertical Turning sliders (1–300%, default 100%).
+  Steering, ADS, Sniper Scope and Vertical Turning sliders (1–300, default 100).
   Steering/ADS/sniper control horizontal turning; vertical turning is independent.
   ADS blends from steering to the aimed value, with sniper taking priority over
   generic ADS. Hold LMB to use Firing values while the weapon has ammo and is
@@ -149,7 +155,7 @@ Settings apply immediately and save in this browser when storage is available:
   applies once to both axes. Empty weapons and blocked reloads use Camera values;
   a fresh press that can cancel a partial reload uses Firing values. Reset Sensitivity
   resets only these eight values; Restore Defaults resets all preferences.
-  Older global sensitivity values migrate into all eight percentages without
+  Older global sensitivity values migrate into all eight values without
   multiplying them twice or resetting other preferences.
 - **Display:** resolution preset, adaptive resolution, reduced motion and detailed
   diagnostics. FPS remains visible by default; enable diagnostics for movement,
