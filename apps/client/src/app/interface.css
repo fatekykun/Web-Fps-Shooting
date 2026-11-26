@@ -510,6 +510,72 @@
     background: #17251e;
   }
 }
+.gyro-activation {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.gyro-activation button[aria-pressed='true'] {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.gyro-calibration,
+.gyro-saved {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+}
+.gyro-calibration summary {
+  min-height: 34px;
+  align-content: center;
+  color: #d5dfca;
+  cursor: pointer;
+}
+.gyro-calibration .room-button {
+  margin-top: 6px;
+}
+.gyro-measurement {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font: 11px var(--mono);
+}
+.gyro-measurement dd {
+  margin: 0;
+  color: #d5dfca;
+}
+.gyro-calibration-fields {
+  margin: 8px 0;
+}
+.gyro-calibration-fields :is(input:not([type='checkbox']), select) {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  background: #111e18;
+  color: var(--paper);
+  font-size: 16px;
+}
+.gyro-saved ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gyro-saved li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+.gyro-saved small {
+  display: block;
+  color: var(--muted);
+}
 .section-heading {
   display: flex;
   justify-content: space-between;

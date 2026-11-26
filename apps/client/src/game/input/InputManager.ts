@@ -15,7 +15,13 @@ import type { Recoil, RecoilAxes } from '../weapons/Recoil';
 import { KeyboardInput } from './KeyboardInput';
 import { MouseInput } from './MouseInput';
 import { TouchInput } from './TouchInput';
-import { GyroInput, requestGyroAccess } from './GyroInput';
+import { GyroInput, requestGyroAccess, type GyroSample } from './GyroInput';
+import {
+  createGyroGainResolver,
+  type GyroAimMode,
+  type GyroAxis,
+  type GyroMapping,
+} from './gyroSensitivity';
 import { readDevice } from './deviceCapabilities';
 
 const lookLimit = Math.PI / 2 - 0.02;
@@ -25,13 +31,6 @@ function wrapYaw(yaw: number): number {
     ((((yaw + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) -
     Math.PI
   );
-}
-
-function gyroTurnScale(sensitivity: number, fovScale: number): number {
-  const linearScale = sensitivity / 100;
-  const aboveDefault = Math.max(0, linearScale - 1);
-  // Preserve fine aiming through 100. Zoom leaves the extra turning speed above 100 available.
-  return linearScale * fovScale + 2.25 * aboveDefault ** 2;
 }
 
 function coverReturn(covered: number, recoil: number, input: number): number {
@@ -45,6 +44,30 @@ function returned(covered: number, before: number, after: number): number {
   const sign = Math.sign(covered);
   const recovered = before * sign - Math.max(0, after * sign);
   return sign * Math.min(Math.abs(covered), Math.max(0, recovered));
+}
+
+export interface GyroMeasurement {
+  sample: GyroSample | null;
+  physicalYaw: number;
+  physicalPitch: number;
+  cameraYaw: number;
+  cameraPitch: number;
+  cameraYawTravel: number;
+  aim: {
+    mode: GyroAimMode;
+    ads: number;
+    firing: boolean;
+    active: boolean;
+    mapping: GyroMapping;
+    baseFov: number;
+    fovScale: number;
+    steeringSensitivity: number;
+    aimedSensitivity: number;
+    yawGain: number;
+    pitchGain: number;
+    yawSource: string;
+    pitchSource: string;
+  } | null;
 }
 
 /** Devices supply intentions to the existing movement and weapon controllers. */
@@ -75,7 +98,9 @@ export class InputManager {
   private settings = defaultUserSettings();
   private readonly keyboard: KeyboardInput;
   private readonly mouse: MouseInput;
-  private readonly gyro = new GyroInput((x, y) => this.gyroLook(x, y));
+  private readonly gyro = new GyroInput((sample) => this.gyroLook(sample));
+  private resolveGyroGain = createGyroGainResolver('reference', []);
+  private gyroMeasurement: GyroMeasurement | null = null;
   private touch: TouchInput | null = null;
   private readonly controlClicks = new Set<number>();
   private lastControlRelease: { x: number; y: number; time: number } | null =
@@ -146,17 +171,25 @@ export class InputManager {
       (action) => this.settings.bindings[action] !== settings.bindings[action],
     );
     this.settings = settings;
+    this.resolveGyroGain = createGyroGainResolver(
+      settings.gyroMapping,
+      settings.gyroCalibration,
+    );
     this.weapon.autoReload = settings.autoReload;
     if (changed) this.clear();
     this.syncGyro();
   }
   requestSavedGyroAccess(): void {
-    if (this.handheld && this.touchMode && this.settings.gyroEnabled)
+    if (
+      this.handheld &&
+      this.touchMode &&
+      this.settings.gyroActivation !== 'off'
+    )
       void requestGyroAccess();
   }
   private syncGyro(): void {
     this.gyro.setActive(
-      this.settings.gyroEnabled &&
+      this.settings.gyroActivation !== 'off' &&
         this.handheld &&
         this.touchActive &&
         this.locked,
@@ -304,15 +337,19 @@ export class InputManager {
     const index = allowed.findIndex((id) => id === current);
     this.weapon.switchTo = allowed[(index + 1) % allowed.length] ?? null;
   }
-  mouseLook(dx: number, dy: number): void {
-    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
-    const weapon = this.getWeapon();
-    const firing =
+  private isFiring(weapon: WeaponController | null): boolean {
+    return (
       this.weapon.fire &&
       (!weapon ||
         (!weapon.equipping &&
           weapon.current.magazine > 0 &&
-          (!weapon.reloading || this.weapon.firePressed)));
+          (!weapon.reloading || this.weapon.firePressed)))
+    );
+  }
+  mouseLook(dx: number, dy: number): void {
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    const weapon = this.getWeapon();
+    const firing = this.isFiring(weapon);
     const group = this.settings.sensitivity[firing ? 'firing' : 'camera'];
     const ads = weapon ? weapon.ads : Number(this.weapon.aim);
     const aimed = weapon?.config.scopeMagnification ? group.sniper : group.ads;
@@ -340,21 +377,93 @@ export class InputManager {
         : 1;
     this.look(dx * scale * assist, dy * scale * assist);
   }
-  private gyroLook(x: number, y: number): void {
+  startGyroMeasurement(): void {
+    this.gyro.reset();
+    this.gyroMeasurement = {
+      sample: null,
+      physicalYaw: 0,
+      physicalPitch: 0,
+      cameraYaw: 0,
+      cameraPitch: 0,
+      cameraYawTravel: 0,
+      aim: null,
+    };
+  }
+  getGyroMeasurement(): GyroMeasurement | null {
+    return this.gyroMeasurement ? { ...this.gyroMeasurement } : null;
+  }
+  private gyroLook(sample: GyroSample): void {
     const weapon = this.getWeapon();
     const ads = weapon ? weapon.ads : Number(this.weapon.aim);
+    const aimingMode = weapon?.config.scopeMagnification ? 'sniper' : 'ads';
+    const mode = ads > 0 ? aimingMode : 'hip';
+    const active =
+      this.settings.gyroActivation === 'always' || (this.weapon.aim && ads > 0);
+    const firing = this.isFiring(weapon);
     const sensitivity = this.settings.gyroSensitivity;
-    const aimed = weapon?.config.scopeMagnification
-      ? sensitivity.sniper
-      : sensitivity.ads;
-    const steeringScale = gyroTurnScale(sensitivity.steering, this.lookScale);
-    const aimedScale = gyroTurnScale(aimed, this.lookScale);
-    const scale = steeringScale + (aimedScale - steeringScale) * ads;
-    this.look(
-      (this.settings.gyroInvertHorizontal ? -x : x) * scale,
-      (y * scale * sensitivity.vertical) / 100,
-      this.settings.gyroInvertVertical,
-    );
+    const getGain = (axis: GyroAxis) => {
+      const context = { axis, firing, fovScale: this.lookScale };
+      const aimed = this.resolveGyroGain({
+        ...context,
+        sensitivity:
+          mode === 'hip' ? sensitivity.steering : sensitivity[aimingMode],
+        aim: mode,
+      });
+      if (ads === 0 || ads === 1) return aimed;
+      const steering = this.resolveGyroGain({
+        ...context,
+        sensitivity: sensitivity.steering,
+        aim: 'hip',
+      });
+      return {
+        gain: steering.gain + (aimed.gain - steering.gain) * ads,
+        source:
+          steering.source === aimed.source
+            ? aimed.source
+            : `${steering.source} → ${aimed.source}`,
+      };
+    };
+    const yaw = getGain('yaw');
+    const pitch = getGain('pitch');
+    const pitchGain = (pitch.gain * sensitivity.vertical) / 100;
+    const deadZone = this.settings.gyroDeadZone;
+    const deltaYaw =
+      active && Math.abs(sample.yawRate) >= deadZone
+        ? sample.yaw * yaw.gain * (this.settings.gyroInvertHorizontal ? -1 : 1)
+        : 0;
+    const deltaPitch =
+      active && Math.abs(sample.pitchRate) >= deadZone
+        ? sample.pitch * pitchGain * (this.settings.gyroInvertVertical ? -1 : 1)
+        : 0;
+    if (!Number.isFinite(deltaYaw) || !Number.isFinite(deltaPitch)) return;
+    const beforePitch = this.pitch;
+    if (deltaYaw || deltaPitch) this.look(-deltaYaw, -deltaPitch, false);
+
+    const measurement = this.gyroMeasurement;
+    if (measurement) {
+      measurement.sample = sample;
+      measurement.physicalYaw += sample.yaw;
+      measurement.physicalPitch += sample.pitch;
+      measurement.cameraYaw += deltaYaw;
+      measurement.cameraYawTravel += Math.abs(deltaYaw);
+      measurement.cameraPitch += this.pitch - beforePitch;
+      measurement.aim = {
+        mode,
+        ads,
+        firing,
+        active,
+        mapping: this.settings.gyroMapping,
+        baseFov: this.settings.fov,
+        fovScale: this.settings.gyroMapping === 'legacy' ? this.lookScale : 1,
+        steeringSensitivity: sensitivity.steering,
+        aimedSensitivity:
+          mode === 'hip' ? sensitivity.steering : sensitivity[aimingMode],
+        yawGain: yaw.gain,
+        pitchGain,
+        yawSource: yaw.source,
+        pitchSource: pitch.source,
+      };
+    }
   }
   private look(
     x: number,

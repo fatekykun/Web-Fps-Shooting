@@ -28,47 +28,65 @@ export async function requestGyroAccess(): Promise<GyroAccess> {
 
 const radiansPerDegree = Math.PI / 180;
 const maximumSampleGap = 100; // ms
-const driftThreshold = 0.5; // degrees per second
 const gravity = 9.81; // meters per second squared
 
 function axis(value: number | null | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-/** Integrates angular rates and discards stale samples. */
+export interface GyroSample {
+  intervalMs: number;
+  yawRate: number;
+  pitchRate: number;
+  yaw: number;
+  pitch: number;
+}
+
+/** Maps degrees per second and integrates each valid interval into radians. */
 export class GyroInput {
   private active = false;
   private previousTime?: number;
   private screenAngle?: number;
 
-  constructor(private readonly look: (x: number, y: number) => void) {}
+  constructor(private readonly look: (sample: GyroSample) => void) {}
 
   setActive(active: boolean): void {
     active = active && gyroAvailable();
     if (active === this.active) return;
     this.active = active;
     this.reset();
-    if (active) window.addEventListener('devicemotion', this.onMotion);
-    else window.removeEventListener('devicemotion', this.onMotion);
+    if (active) {
+      window.addEventListener('devicemotion', this.onMotion);
+      document.addEventListener('visibilitychange', this.reset);
+    } else {
+      window.removeEventListener('devicemotion', this.onMotion);
+      document.removeEventListener('visibilitychange', this.reset);
+    }
   }
 
-  reset(): void {
+  readonly reset = (): void => {
     this.previousTime = undefined;
     this.screenAngle = undefined;
-  }
+  };
 
   private readonly onMotion = (event: DeviceMotionEvent): void => {
     const rates = event.rotationRate;
-    if (document.hidden || !rates) {
+    if (
+      document.hidden ||
+      !Number.isFinite(event.timeStamp) ||
+      !rates ||
+      ![rates.alpha, rates.beta, rates.gamma].some(Number.isFinite)
+    ) {
       this.reset();
       return;
     }
 
     // Older Safari exposes only the legacy display angle.
-    const angle = window.screen?.orientation?.angle ?? window.orientation ?? 0;
+    const angle = axis(window.screen?.orientation?.angle ?? window.orientation);
     const elapsed =
       this.previousTime === undefined ? 0 : event.timeStamp - this.previousTime;
     const rotated = angle !== this.screenAngle;
+    if (!rotated && this.previousTime !== undefined && elapsed <= 0) return;
     this.previousTime = event.timeStamp;
     this.screenAngle = angle;
     if (rotated || !(elapsed > 0 && elapsed <= maximumSampleGap)) return;
@@ -78,8 +96,9 @@ export class GyroInput {
     const aroundZ = axis(rates.alpha);
     const cos = Math.cos(angle * radiansPerDegree);
     const sin = Math.sin(angle * radiansPerDegree);
-    let yaw = aroundX * sin + aroundY * cos;
-    let pitch = aroundX * cos - aroundY * sin;
+    const screenUpRate = aroundX * sin + aroundY * cos;
+    const pitchRate = aroundX * cos - aroundY * sin;
+    let yawRate = screenUpRate;
 
     const measured = event.accelerationIncludingGravity;
     const linear = event.acceleration;
@@ -87,23 +106,25 @@ export class GyroInput {
     const upY = axis(measured?.y) - axis(linear?.y);
     const upZ = axis(measured?.z) - axis(linear?.z);
     const upLength = Math.hypot(upX, upY, upZ);
+    const screenUp = upX * sin + upY * cos;
+    const headingLength = Math.hypot(screenUp, upZ);
     if (
       Number.isFinite(measured?.x) &&
       Number.isFinite(measured?.y) &&
       Number.isFinite(measured?.z) &&
-      Math.abs(upLength - gravity) < gravity * 0.4
+      Math.abs(upLength - gravity) < gravity * 0.4 &&
+      headingLength > upLength * 0.2
     ) {
-      // Turning about world up should feel the same with the phone tilted back.
-      yaw = (aroundX * upX + aroundY * upY + aroundZ * upZ) / upLength;
-      const planarUp = Math.hypot(upX, upY);
-      // When the screen is nearly flat, use screen right for the pitch axis.
-      if (planarUp > upLength * 0.2) {
-        pitch = (aroundX * upY - aroundY * upX) / planarUp;
-      }
+      // Remove gravity's screen-right component so pitching cannot also steer.
+      yawRate = (screenUpRate * screenUp + aroundZ * upZ) / headingLength;
     }
     const scale = (elapsed / 1000) * radiansPerDegree;
-    const x = Math.abs(yaw) < driftThreshold ? 0 : -yaw * scale;
-    const y = Math.abs(pitch) < driftThreshold ? 0 : -pitch * scale;
-    if (x || y) this.look(x, y);
+    this.look({
+      intervalMs: elapsed,
+      yawRate,
+      pitchRate,
+      yaw: yawRate * scale,
+      pitch: pitchRate * scale,
+    });
   };
 }
