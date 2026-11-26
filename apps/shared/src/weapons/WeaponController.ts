@@ -204,18 +204,29 @@ export class WeaponController {
     this.recoil.step(dt);
     if (input.switchTo) this.switchWeapon(input.switchTo);
     if (this.reloading && this.time + 1e-9 >= this.reloadEnd) {
+      const { magazine, reloadPerShell, reloadTime } = this.config;
+      const completed = reloadPerShell
+        ? 1 + Math.floor((this.time + 1e-9 - this.reloadEnd) / reloadTime)
+        : magazine;
       const amount = Math.min(
-        this.config.magazine - this.current.magazine,
+        completed,
+        magazine - this.current.magazine,
         this.current.reserve,
       );
       this.current.magazine += amount;
       this.current.reserve -= amount;
-      this.reloadEnd = 0;
+      // Keep the next insertion on the original schedule, even after a late tick.
+      this.reloadEnd =
+        reloadPerShell &&
+        this.current.magazine < magazine &&
+        this.current.reserve > 0
+          ? this.reloadEnd + amount * reloadTime
+          : 0;
       this.onChange();
     }
     if (input.reloadPressed) this.reload();
-    // Fresh presses interrupt partial reloads. Empty reloads must finish, and
-    // completion is processed first so a press on that tick uses the loaded rounds.
+    // Commit the insertion before handling presses so the first shell can
+    // fire on its arrival tick. A press while still empty keeps reloading.
     if (
       this.reloading &&
       (input.firePressed || input.aimPressed) &&

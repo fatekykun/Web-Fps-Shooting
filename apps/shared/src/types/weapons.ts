@@ -69,7 +69,9 @@ export interface WeaponConfig {
   magazine: number;
   reserve: number;
   fireInterval: number;
+  /** Seconds per reload, or per shell when reloadPerShell is enabled. */
   reloadTime: number;
+  reloadPerShell?: boolean;
   adsTime: number;
   adsFov: number;
   hipSpread: number;

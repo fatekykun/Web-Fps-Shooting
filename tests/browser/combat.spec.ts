@@ -125,8 +125,49 @@ test('shotgun requires fresh presses and reload pauses safely with training', as
   await page.clock.runFor(300);
   await expect(hud).toHaveAttribute('data-reloading', 'true');
   await expect(hud).toHaveAttribute('data-ammo', '7');
-  await page.clock.runFor(2200);
+  await page.clock.runFor(300);
   await expect(hud).toHaveAttribute('data-ammo', '8');
   await expect(hud).toHaveAttribute('data-reserve', '39');
   expect(errors).toEqual([]);
+});
+
+test('shotgun adds shells one at a time and restarts reload after firing the only shell', async ({
+  page,
+}) => {
+  await enter(page);
+  const hud = page.getByTestId('weapon-status');
+  const tapFire = async () => {
+    await page.mouse.down();
+    await page.clock.runFor(60);
+    await page.mouse.up();
+  };
+  await page.keyboard.press('3');
+  await page.clock.runFor(300);
+  for (let shell = 8; shell > 0; shell--) {
+    await tapFire();
+    if (shell > 1) await page.clock.runFor(790);
+  }
+  await expect(hud).toHaveAttribute('data-shots', '8');
+  await expect(hud).toHaveAttribute('data-ammo', '0');
+  await expect(hud).toHaveAttribute('data-reloading', 'true');
+
+  await page.clock.runFor(800);
+  await expect(hud).toHaveAttribute('data-ammo', '1');
+  await expect(hud).toHaveAttribute('data-reserve', '39');
+  await expect(hud).toHaveAttribute('data-reloading', 'true');
+  await tapFire();
+  await expect(hud).toHaveAttribute('data-shots', '9');
+  await expect(hud).toHaveAttribute('data-ammo', '0');
+  await expect(hud).toHaveAttribute('data-reloading', 'true');
+
+  await page.clock.runFor(1600);
+  await expect(hud).toHaveAttribute('data-ammo', '2');
+  await expect(hud).toHaveAttribute('data-reserve', '37');
+  await tapFire();
+  await expect(hud).toHaveAttribute('data-shots', '10');
+  await expect(hud).toHaveAttribute('data-ammo', '1');
+  await expect(hud).toHaveAttribute('data-reloading', 'false');
+  await page.clock.runFor(850);
+  await expect(hud).toHaveAttribute('data-ammo', '1');
+  await expect(hud).toHaveAttribute('data-reserve', '37');
 });

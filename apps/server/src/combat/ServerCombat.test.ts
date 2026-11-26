@@ -2,6 +2,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initializePhysics } from '@breakpoint/shared/physics';
 import { arenaBoxes } from '@breakpoint/shared/maps';
 import {
+  movementConfig,
   weaponConfigs,
   weaponOrder,
   calculateDamage,
@@ -938,6 +939,36 @@ it('keeps automatic reload and empty-magazine interruption authoritative with li
     reserve: 0,
   });
   expect(f.combat.owner(player).reloading).toBe(false);
+});
+
+it('publishes each shotgun shell and restarts reload when firing the only loaded shell', () => {
+  const f = fixture();
+  const player = f.add('shell-reload', 0, 12);
+  const w = f.combat.get(player.state.id)!.weapons;
+  w.selected = 'shotgun';
+  w.current.magazine = 1;
+  w.current.reserve = 3;
+  const shellTicks = Math.round(w.config.reloadTime / movementConfig.fixedStep);
+  const owner = () => f.combat.owner(player);
+
+  f.controls(player, trigger);
+  f.step();
+  expect(owner()).toMatchObject({ reloading: true, shots: 1 });
+  f.step(shellTicks);
+  expect(owner().ammo.shotgun).toEqual({ magazine: 1, reserve: 2 });
+  expect(owner().reloading).toBe(true);
+
+  f.controls(player, trigger);
+  f.step();
+  expect(owner()).toMatchObject({ reloading: true, shots: 2 });
+  expect(owner().ammo.shotgun).toEqual({ magazine: 0, reserve: 2 });
+  expect(f.shots).toHaveLength(2);
+  f.step(shellTicks);
+  expect(owner().ammo.shotgun).toEqual({ magazine: 1, reserve: 1 });
+  expect(owner().reloading).toBe(true);
+  f.step(shellTicks);
+  expect(owner().ammo.shotgun).toEqual({ magazine: 2, reserve: 0 });
+  expect(owner().reloading).toBe(false);
 });
 
 it('cancels a partial server reload on a fresh shot without granting or losing reserve ammo', () => {

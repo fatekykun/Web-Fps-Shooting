@@ -27,7 +27,7 @@ function setup(id: WeaponId = 'rifle') {
   return w;
 }
 
-it.each(weaponOrder)(
+it.each(weaponOrder.filter((id) => !weaponConfigs[id].reloadPerShell))(
   'automatically reloads the last %s round once, ignores empty-magazine interrupts and respects limited reserves',
   (id) => {
     const w = setup(id),
@@ -61,7 +61,7 @@ it.each(weaponOrder)('supports manual %s reload with auto reload off', (id) => {
   expect(w.current).toMatchObject({ magazine: 0, reserve: 3 });
   step(w, 1, { ...idle, reloadPressed: true });
   expect(w.reloading).toBe(true);
-  step(w, Math.round(w.config.reloadTime / dt));
+  step(w, 240);
   expect(w.current).toMatchObject({ magazine: 3, reserve: 0 });
 });
 
@@ -97,9 +97,75 @@ it.each(weaponOrder)(
     step(w, 1, press);
     expect(w.reloading).toBe(false);
     expect(w.shotsFired).toBe(1);
-    expect(w.current).toMatchObject({ magazine: 2, reserve: 0 });
+    expect(w.current).toMatchObject(
+      w.config.reloadPerShell
+        ? { magazine: 1, reserve: 1 }
+        : { magazine: 2, reserve: 0 },
+    );
   },
 );
+
+it('loads shotgun shells one at a time, fires the first shell, and reloads again from empty', () => {
+  const w = setup('shotgun');
+  const shellTicks = Math.round(w.config.reloadTime / dt);
+  w.current.magazine = 1;
+  w.current.reserve = 4;
+  step(w, 1, press);
+  expect(w.reloading).toBe(true);
+  expect(w.current).toMatchObject({ magazine: 0, reserve: 4 });
+
+  step(w, shellTicks - 1, press);
+  expect(w.shotsFired).toBe(1);
+  expect(w.current).toMatchObject({ magazine: 0, reserve: 4 });
+
+  // A press on the insertion tick can use the first shell immediately.
+  step(w, 1, press);
+  expect(w.shotsFired).toBe(2);
+  expect(w.reloading).toBe(true);
+  expect(w.reloadProgress).toBeCloseTo(0);
+  expect(w.current).toMatchObject({ magazine: 0, reserve: 3 });
+  step(w, shellTicks);
+  expect(w.current).toMatchObject({ magazine: 1, reserve: 2 });
+  expect(w.reloading).toBe(true);
+  step(w, shellTicks);
+  expect(w.current).toMatchObject({ magazine: 2, reserve: 1 });
+  step(w, 1, press);
+  expect(w.shotsFired).toBe(3);
+  expect(w.reloading).toBe(false);
+  step(w, shellTicks);
+  expect(w.current).toMatchObject({ magazine: 1, reserve: 1 });
+});
+
+it.each([false, true])(
+  'stops inserting shells at capacity or when reserve runs out (limited reserve: %s)',
+  (limited) => {
+    const w = setup('shotgun');
+    w.current.magazine = 6;
+    w.current.reserve = limited ? 1 : 3;
+    w.reload();
+    w.step(w.config.reloadTime * 3, idle, context);
+    expect(w.reloading).toBe(false);
+    expect(w.current).toMatchObject(
+      limited ? { magazine: 7, reserve: 0 } : { magazine: 8, reserve: 1 },
+    );
+  },
+);
+
+it('keeps a shotgun empty after firing the first shell with Auto Reload off', () => {
+  const w = setup('shotgun');
+  w.current.magazine = 0;
+  w.current.reserve = 2;
+  const shellTicks = Math.round(w.config.reloadTime / dt);
+  step(w, 1, { ...idle, autoReload: false, reloadPressed: true });
+  step(w, shellTicks);
+  expect(w.current).toMatchObject({ magazine: 1, reserve: 1 });
+  expect(w.reloading).toBe(true);
+  step(w, 1, press);
+  expect(w.shotsFired).toBe(1);
+  expect(w.reloading).toBe(false);
+  step(w, shellTicks);
+  expect(w.current).toMatchObject({ magazine: 0, reserve: 1 });
+});
 
 it('does not restart an active reload or overfill a magazine', () => {
   const w = setup();
@@ -232,7 +298,11 @@ it.each(weaponOrder)(
     w.updateAds(0.1, true);
     expect(w.reloading).toBe(false);
     expect(w.ads).toBeGreaterThan(0);
-    expect(w.current).toMatchObject({ magazine: 3, reserve: 0 });
+    expect(w.current).toMatchObject(
+      w.config.reloadPerShell
+        ? { magazine: 1, reserve: 2 }
+        : { magazine: 3, reserve: 0 },
+    );
     expect(w.shotsFired).toBe(0);
   },
 );
