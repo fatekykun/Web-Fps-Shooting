@@ -413,6 +413,24 @@ export function SettingsPanel({
               <h3>PRESENTATION</h3>
               <span>NATIVE HUD / PIXEL WORLD</span>
             </div>
+            <div className="scope-style-setting">
+              <label htmlFor={`${id}-elimination-quality`}>
+                Elimination effect quality
+              </label>
+              <select
+                id={`${id}-elimination-quality`}
+                value={settings.eliminationQuality}
+                onChange={({ target }) => {
+                  const value = target.value;
+                  if (value === 'low' || value === 'medium' || value === 'high')
+                    change({ eliminationQuality: value });
+                }}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
             <label className="setting-toggle">
               <input
                 type="checkbox"

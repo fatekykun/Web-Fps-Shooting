@@ -14,17 +14,25 @@ import {
   type ShotEvent,
 } from '@breakpoint/shared/weapons/WeaponController';
 import { intersectAvatar, standingAnchor } from '@breakpoint/shared/avatar';
+import { isOperator } from '@breakpoint/shared/operators';
 import {
   playerCombatConfig,
   spawnProtectionByMode,
   type OwnerCombat,
   type ServerShot,
   type KillEvent,
+  type EliminationEffect,
 } from '@breakpoint/shared/combat';
 import type { ServerPlayer } from '../players/ServerPlayer';
 import type { GameMode } from '@breakpoint/shared/match';
 import { networkConfig } from '@breakpoint/shared/network';
 import { SpawnDirector, type SpawnDebug } from '../spawns/SpawnDirector';
+import {
+  allowedDefault,
+  isLoadoutSlot,
+  type LoadoutSlot,
+  type WeaponSkin,
+} from '@breakpoint/shared/weapons/loadouts';
 
 const neutral = (): WeaponInput => ({
   fire: false,
@@ -36,6 +44,9 @@ const neutral = (): WeaponInput => ({
 interface Loadout {
   weapons: WeaponController;
   nextWeapon?: WeaponId;
+  slot?: LoadoutSlot;
+  nextSlot?: LoadoutSlot;
+  skin?: WeaponSkin;
   owned: Set<WeaponId>;
   seed: number;
   held: WeaponInput;
@@ -56,6 +67,29 @@ interface PendingShot {
   yaw: number;
   pitch: number;
   seed: number;
+  effect?: EliminationEffect;
+  skin?: WeaponSkin;
+}
+
+function shotEffect(
+  player: ServerPlayer,
+  weapon: WeaponId,
+  skin?: WeaponSkin,
+): EliminationEffect | undefined {
+  switch (skin) {
+    case 'memento-mori':
+      return 'soul-requiem';
+    case 'neon-blade':
+    case 'lotus-lava':
+    case 'glorious-blaze':
+      return skin;
+  }
+  if (player.loadoutProfile) return undefined;
+  if (weapon === 'rifle' && player.soulRequiem) return 'soul-requiem';
+  if (weapon === 'sniper' && player.lotusLava) return 'lotus-lava';
+  if (weapon === 'shotgun' && player.gloriousBlaze) return 'glorious-blaze';
+  if (weapon === 'smg' && player.neonBlade) return 'neon-blade';
+  return undefined;
 }
 
 /** Receives validated controls, never client hits, ammo, rays, timestamps or damage. */
@@ -79,9 +113,13 @@ export class ServerCombat {
     this.allowedWeapons = weaponOrder.filter((id) => weapons.includes(id));
     for (const [id, loadout] of this.loadouts) {
       loadout.owned = new Set(this.allowedWeapons);
-      if (!loadout.owned.has(loadout.weapons.selected))
+      const player = this.players.get(id)!;
+      if (player.loadoutProfile) {
+        this.applyProfile(player, loadout, loadout.slot);
+      } else if (!loadout.owned.has(loadout.weapons.selected)) {
         loadout.weapons.switchWeapon(this.allowedWeapons[0]!);
-      this.players.get(id)!.state.weapon = loadout.weapons.selected;
+        player.state.weapon = loadout.weapons.selected;
+      }
     }
   }
 
@@ -154,6 +192,7 @@ export class ServerCombat {
         ? selected
         : this.allowedWeapons[0]!;
     player.state.weapon = loadout.weapons.selected;
+    this.applyProfile(player, loadout, previous?.nextSlot);
     this.loadouts.set(player.state.id, loadout);
     player.movementScale = (input) =>
       loadout.weapons.movementScale(
@@ -163,10 +202,35 @@ export class ServerCombat {
       );
   }
 
-  selectLoadout(player: ServerPlayer, weapon: unknown): void {
+  private applyProfile(
+    player: ServerPlayer,
+    loadout: Loadout,
+    request?: LoadoutSlot,
+  ): void {
+    const profile = player.loadoutProfile;
+    if (!profile) return;
+    const choice =
+      request !== undefined && loadout.owned.has(profile.slots[request].weapon)
+        ? { slot: request, equipment: profile.slots[request] }
+        : allowedDefault(profile, this.allowedWeapons);
+    loadout.slot = choice.slot;
+    loadout.skin = choice.equipment.skin;
+    loadout.weapons.selected = player.state.weapon = choice.equipment.weapon;
+    player.state.skin = choice.equipment.skin;
+    player.state.operator = choice.equipment.operator ?? 'standard';
+  }
+
+  selectLoadout(player: ServerPlayer, value: unknown): void {
     const loadout = this.loadouts.get(player.state.id);
-    if (loadout && loadout.owned.has(weapon as WeaponId))
-      loadout.nextWeapon = weapon as WeaponId;
+    if (!loadout) return;
+    if (player.loadoutProfile) {
+      if (
+        isLoadoutSlot(value) &&
+        loadout.owned.has(player.loadoutProfile.slots[value].weapon)
+      )
+        loadout.nextSlot = value;
+    } else if (loadout.owned.has(value as WeaponId))
+      loadout.nextWeapon = value as WeaponId;
   }
   remove(id: string): void {
     this.loadouts.delete(id);
@@ -199,6 +263,8 @@ export class ServerCombat {
         loadout.weapons.selected = loadout.owned.has(selected)
           ? selected
           : this.allowedWeapons[0]!;
+        this.applyProfile(player, loadout, loadout.nextSlot ?? loadout.slot);
+        loadout.nextSlot = undefined;
         loadout.seed = this.seed();
         loadout.held = neutral();
         loadout.inputTick = -100;
@@ -230,7 +296,10 @@ export class ServerCombat {
         : tick - loadout.inputTick <= playerCombatConfig.heldInputTicks
           ? { ...loadout.held }
           : neutral();
-      if (controls.switchTo && !loadout.owned.has(controls.switchTo))
+      if (
+        player.loadoutProfile ||
+        (controls.switchTo && !loadout.owned.has(controls.switchTo))
+      )
         controls.switchTo = null;
       if (!loadout.owned.has(loadout.weapons.selected)) {
         controls.fire = controls.firePressed = false;
@@ -280,6 +349,8 @@ export class ServerCombat {
       player,
       shot: { ...shot },
       seed: loadout.seed,
+      effect: shotEffect(player, shot.config.id, loadout.skin),
+      skin: loadout.skin,
       origin: {
         x: position.x,
         y: position.y + player.movement.eyeOffset,
@@ -300,6 +371,8 @@ export class ServerCombat {
     yaw,
     pitch,
     seed,
+    effect,
+    skin,
   }: PendingShot): void {
     const event: ServerShot = {
       id: ++this.shotId,
@@ -307,6 +380,10 @@ export class ServerCombat {
       weapon: shot.config.id,
       origin,
       traces: [],
+      ...(skin ? { skin } : {}),
+      ...(effect === 'lotus-lava' ? { sniperSkin: effect } : {}),
+      ...(effect === 'glorious-blaze' ? { shotgunSkin: effect } : {}),
+      ...(effect === 'neon-blade' ? { smgSkin: effect } : {}),
     };
     const damage = new Map<
       ServerPlayer,
@@ -405,6 +482,7 @@ export class ServerCombat {
           killer: player.state.name,
           victim: victim.state.name,
           weapon: shot.config.id,
+          ...(skin ? { skin } : {}),
           headshot: result.critical,
           killerId: player.state.id,
           victimId: victim.state.id,
@@ -413,6 +491,7 @@ export class ServerCombat {
             y: victim.state.y - standingAnchor,
             z: victim.state.z,
           },
+          ...(effect ? { effect } : {}),
         });
       }
     }
@@ -440,6 +519,12 @@ export class ServerCombat {
       protected: player.state.protected,
       selected: w.selected,
       ...(l.nextWeapon === undefined ? {} : { nextWeapon: l.nextWeapon }),
+      ...(l.skin === undefined ? {} : { skin: l.skin }),
+      operator: isOperator(player.state.operator)
+        ? player.state.operator
+        : 'standard',
+      ...(l.slot === undefined ? {} : { loadoutSlot: l.slot }),
+      ...(l.nextSlot === undefined ? {} : { nextLoadoutSlot: l.nextSlot }),
       ammo: {
         rifle: {
           magazine: w.ammo.rifle.magazine,

@@ -155,8 +155,8 @@ test('shows the local shotgun ring in a private room while the server resolves e
   try {
     guest.send('ready', true);
     await page.getByRole('button', { name: 'START SESSION' }).click();
+    await page.getByRole('button', { name: 'Equip Loadout 3' }).click();
     await enterStartedMatch(page);
-    await page.keyboard.press('3');
     await expect(
       page.locator('.crosshair[data-shape="shotgun"]'),
     ).toBeVisible();

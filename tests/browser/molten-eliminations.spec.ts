@@ -39,7 +39,18 @@ async function prepareMoltenLava(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem(
       'breakpoint.settings.v1',
-      JSON.stringify({ rifleSkin: 'cinder-wyrm', reducedMotion: false }),
+      JSON.stringify({
+        loadouts: {
+          defaultSlot: 0,
+          slots: [
+            { weapon: 'rifle', skin: 'cinder-wyrm' },
+            { weapon: 'smg', skin: 'neon-blade' },
+            { weapon: 'shotgun', skin: 'glorious-blaze' },
+            { weapon: 'sniper', skin: 'lotus-lava' },
+          ],
+        },
+        reducedMotion: false,
+      }),
     );
     localStorage.setItem(
       'breakpoint.graphics.v2',

@@ -10,6 +10,7 @@ import {
 import type { PlayerState } from '../rooms/RoomState';
 import { playerCombatConfig } from '@breakpoint/shared/combat';
 import { CharacterAnimation } from '@breakpoint/shared/animation';
+import type { LoadoutProfile } from '@breakpoint/shared/weapons/loadouts';
 import {
   FootstepTracker,
   type RemoteFootstep,
@@ -17,6 +18,11 @@ import {
 
 /** Each capsule collides with the shared static map. Player collisions belong to a later pass. */
 export class ServerPlayer {
+  loadoutProfile?: LoadoutProfile;
+  soulRequiem = false;
+  lotusLava = false;
+  gloriousBlaze = false;
+  neonBlade = false;
   readonly animation = new CharacterAnimation();
   readonly movement: MovementController;
   private readonly footsteps = new FootstepTracker();

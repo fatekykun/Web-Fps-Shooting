@@ -13,6 +13,7 @@
     "./combat": "./src/combat/networkCombat.ts",
     "./avatar": "./src/combat/avatar.ts",
     "./character": "./src/combat/characterRig.ts",
+    "./operators": "./src/combat/operators.ts",
     "./animation": "./src/combat/characterAnimation.ts",
     "./match": "./src/config/match.ts"
   },

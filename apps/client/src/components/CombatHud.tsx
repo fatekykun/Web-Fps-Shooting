@@ -3,6 +3,9 @@ import { weaponConfigs, weaponOrder } from '@breakpoint/shared';
 import { playerCombatConfig } from '@breakpoint/shared/combat';
 import { KillFeed } from './KillFeed';
 import { rifleSkins } from '../game/weapons/RifleSkins';
+import { sniperSkins } from '../game/weapons/SniperSkins';
+import { shotgunSkins } from '../game/weapons/ShotgunSkins';
+import { smgSkins } from '../game/weapons/SmgSkins';
 import {
   defaultBindings,
   keyLabel,
@@ -16,15 +19,33 @@ export function CombatHud({
   combat,
   bindings = defaultBindings,
   multiplayer = false,
+  choosingLoadout = false,
 }: {
   combat: CombatSnapshot;
   bindings?: UserSettings['bindings'];
   multiplayer?: boolean;
+  choosingLoadout?: boolean;
 }) {
   const weapon = weaponConfigs[combat.weapon];
-  const mythic = combat.rifleSkin === 'cinder-wyrm';
+  const skin =
+    combat.weapon === 'sniper'
+      ? sniperSkins[combat.sniperSkin ?? 'standard']
+      : combat.weapon === 'shotgun'
+        ? shotgunSkins[combat.shotgunSkin ?? 'standard']
+        : combat.weapon === 'smg'
+          ? smgSkins[combat.smgSkin ?? 'standard']
+          : rifleSkins[combat.rifleSkin ?? 'standard'];
+  const skinStatus =
+    combat.weapon === 'sniper'
+      ? combat.sniperSkinStatus
+      : combat.weapon === 'shotgun'
+        ? combat.shotgunSkinStatus
+        : combat.weapon === 'smg'
+          ? combat.smgSkinStatus
+          : combat.rifleSkinStatus;
+  const mythic = skin.mythic && skinStatus === 'ready';
   const name = mythic
-    ? `AR-01 / ${rifleSkins['cinder-wyrm'].name.toUpperCase()}`
+    ? `${combat.name.split(' / ')[0]} / ${skin.name.toUpperCase()}`
     : combat.name;
   const healthPercent =
     ((combat.player?.health ?? 0) / playerCombatConfig.health) * 100;
@@ -35,7 +56,15 @@ export function CombatHud({
         aria-label="Weapon status"
         data-testid="weapon-status"
         data-weapon={combat.weapon}
+        data-operator={combat.operator}
         data-rifle-skin={combat.rifleSkin}
+        data-rifle-skin-status={combat.rifleSkinStatus}
+        data-sniper-skin={combat.sniperSkin}
+        data-sniper-skin-status={combat.sniperSkinStatus}
+        data-shotgun-skin={combat.shotgunSkin}
+        data-shotgun-skin-status={combat.shotgunSkinStatus}
+        data-smg-skin={combat.smgSkin}
+        data-smg-skin-status={combat.smgSkinStatus}
         data-inspecting={!!combat.inspecting}
         data-ammo={combat.magazine}
         data-reserve={combat.reserve}
@@ -78,6 +107,13 @@ export function CombatHud({
                       ? 'AIM DOWN SIGHTS'
                       : 'HIP FIRE'}
         </div>
+        {skinStatus && skinStatus !== 'ready' && (
+          <span className="weapon-action" role="status">
+            {skinStatus === 'loading'
+              ? `LOADING ${skin.name.toUpperCase()}`
+              : `${skin.name.toUpperCase()} UNAVAILABLE`}
+          </span>
+        )}
         {multiplayer && (
           <span className="match-fire-mode">
             {weapon.burstSize ? 'BURST' : weapon.automatic ? 'AUTO' : 'SINGLE'}
@@ -90,12 +126,14 @@ export function CombatHud({
             }}
           />
         </div>
-        <div className="weapon-keys">
-          {(combat.allowedWeapons ?? weaponOrder)
-            .map((id) => `${keyLabel(bindings[id])} ${id.toUpperCase()}`)
-            .join(' · ')}
-          {mythic && ` · ${keyLabel(bindings.inspect)} INSPECT`}
-        </div>
+        {!choosingLoadout && (
+          <div className="weapon-keys">
+            {multiplayer
+              ? 'LOADOUT LOCKED UNTIL RESPAWN'
+              : `${weaponOrder.map((id) => keyLabel(bindings[id])).join(' / ')} LOADOUTS`}
+            {mythic && ` · ${keyLabel(bindings.inspect)} INSPECT`}
+          </div>
+        )}
       </aside>
       {combat.player ? (
         <>

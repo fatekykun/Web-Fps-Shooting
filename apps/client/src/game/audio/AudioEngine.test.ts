@@ -153,6 +153,14 @@ class Context {
   readonly decodedElimination = { duration: 0.164 };
   readonly decodedMoltenLava = { duration: 0.68 };
   readonly decodedMoltenKill = { duration: 1.38 };
+  readonly decodedMementoMori = { duration: 0.339 };
+  readonly decodedSoulRequiem = { duration: 1.79 };
+  readonly decodedLotusShot = { duration: 1.3 };
+  readonly decodedLotusKill = { duration: 2.45 };
+  readonly decodedBlazeShot = { duration: 0.825 };
+  readonly decodedBlazeKill = { duration: 1.795 };
+  readonly decodedNeonShot = { duration: 0.25 };
+  readonly decodedNeonKill = { duration: 1.5 };
   decodeAudioData = vi.fn(
     async (data: ArrayBuffer) =>
       [
@@ -165,6 +173,14 @@ class Context {
         this.decodedElimination,
         this.decodedMoltenLava,
         this.decodedMoltenKill,
+        this.decodedMementoMori,
+        this.decodedSoulRequiem,
+        this.decodedLotusShot,
+        this.decodedLotusKill,
+        this.decodedBlazeShot,
+        this.decodedBlazeKill,
+        this.decodedNeonShot,
+        this.decodedNeonKill,
       ][data.byteLength - 1]!,
   );
   resume = vi.fn(async () => {
@@ -395,6 +411,14 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     '/audio/breakpoint-elimination.wav',
     '/audio/molten_lava_rifle_shot.wav',
     '/audio/molten_lava_kill_effect.wav',
+    '/audio/memento_mori_reference_shot.wav',
+    '/audio/memento_mori_reference_kill.wav',
+    '/audio/lotus_lava_gunshot.wav',
+    '/audio/lotus_lava_kill.wav',
+    '/audio/Glorious_Blaze_Shot_V2.wav',
+    '/audio/Glorious_Blaze_Kill_V4_Isolated.wav',
+    '/audio/neon_legend_shot.wav',
+    '/audio/neon_legend_kill.wav',
   ];
   const fetchShot = vi.fn(
     async (path: string) =>
@@ -516,6 +540,7 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     expect(moltenKills[0]?.stop).toHaveBeenCalledWith(1.38);
     expect(headshots()).toHaveLength(2);
     audio.shot('rifle', 1, 0, 'cinder-wyrm');
+    audio.shot('rifle', 1, 0, 'memento-mori');
     audio.shot('rifle', 0.4, -0.6);
     audio.shot('smg', 1, 0, 'cinder-wyrm');
     const mythicShots = context.nodes.filter(
@@ -523,12 +548,108 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     );
     expect(mythicShots).toHaveLength(1);
     expect(mythicShots[0]?.stop).toHaveBeenCalledWith(0.68);
+    const mementoShots = context.nodes.filter(
+      (node) => node.buffer === context.decodedMementoMori,
+    );
+    expect(mementoShots).toHaveLength(1);
+    expect(mementoShots[0]?.stop).toHaveBeenCalledWith(0.339);
     expect(
       context.nodes.filter((node) => node.buffer === context.decodedRifle),
     ).toHaveLength(3);
     expect(
       context.nodes.filter((node) => node.buffer === context.decodedSmg),
     ).toHaveLength(3);
+    audio.feedback({
+      ...downedTarget,
+      hitSequence: 7,
+      rifleSkin: 'memento-mori',
+      rifleSkinStatus: 'ready',
+    });
+    expect(
+      context.nodes.filter(
+        (node) => node.buffer === context.decodedElimination,
+      ),
+    ).toHaveLength(1);
+    const clock = audio.playMythicElimination('soul-requiem');
+    expect(clock?.()).toBe(0);
+    context.currentTime = 0.17;
+    expect(clock?.()).toBeCloseTo(0.17);
+    const requiem = context.nodes.filter(
+      (node) => node.buffer === context.decodedSoulRequiem,
+    );
+    expect(requiem).toHaveLength(1);
+    expect(requiem[0]?.stop).toHaveBeenCalledWith(1.79);
+    // The fake audio nodes stay active until the test reports playback ended.
+    for (const node of context.nodes) node.onended?.();
+    audio.feedback({
+      ...downedTarget,
+      weapon: 'sniper',
+      hitSequence: 8,
+      sniperSkin: 'lotus-lava',
+      sniperSkinStatus: 'ready',
+    });
+    expect(
+      context.nodes.filter(
+        (node) => node.buffer === context.decodedElimination,
+      ),
+    ).toHaveLength(1);
+    expect(audio.shot('sniper', 0.6, 0.5, 'lotus-lava')).toBe(false);
+    audio.shot('rifle', 1, 0, 'lotus-lava');
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedLotusShot),
+    ).toHaveLength(1);
+    const lotusClock = audio.playMythicElimination('lotus-lava');
+    context.currentTime = 0.59;
+    expect(lotusClock?.()).toBeCloseTo(0.42);
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedLotusKill),
+    ).toHaveLength(1);
+    audio.feedback({
+      ...downedTarget,
+      weapon: 'shotgun',
+      hitSequence: 9,
+      shotgunSkin: 'glorious-blaze',
+      shotgunSkinStatus: 'ready',
+    });
+    expect(
+      context.nodes.filter(
+        (node) => node.buffer === context.decodedElimination,
+      ),
+    ).toHaveLength(1);
+    audio.shot('rifle', 1, 0, 'glorious-blaze');
+    audio.shot('shotgun', 1, 0, 'glorious-blaze');
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedBlazeShot),
+    ).toHaveLength(1);
+    const blazeClock = audio.playMythicElimination('glorious-blaze');
+    context.currentTime = 0.79;
+    expect(blazeClock?.()).toBeCloseTo(0.2);
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedBlazeKill),
+    ).toHaveLength(1);
+    audio.feedback({
+      ...downedTarget,
+      weapon: 'smg',
+      hitSequence: 10,
+      smgSkin: 'neon-blade',
+      smgSkinStatus: 'ready',
+    });
+    expect(
+      context.nodes.filter(
+        (node) => node.buffer === context.decodedElimination,
+      ),
+    ).toHaveLength(1);
+    audio.shot('rifle', 1, 0, 'neon-blade');
+    audio.shot('smg', 1, 0, 'neon-blade');
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedNeonShot),
+    ).toHaveLength(1);
+    const neonClock = audio.playMythicElimination('neon-blade');
+    context.currentTime = 1.49;
+    expect(neonClock?.()).toBeCloseTo(0.7);
+    expect(
+      context.nodes.filter((node) => node.buffer === context.decodedNeonKill),
+    ).toHaveLength(1);
   } finally {
     audio.dispose();
   }

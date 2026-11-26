@@ -96,6 +96,430 @@
   font: 800 clamp(10px, 2.5vmin, 13px)/1.2 var(--display, sans-serif);
 }
 
+.loadout-thumbnail {
+  aspect-ratio: 2.1;
+  display: grid;
+  place-items: center;
+}
+.loadout-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  min-height: 0;
+}
+.loadout-thumbnail img[hidden] {
+  display: none;
+}
+.loadout-thumbnail img:not([hidden]) + .match-weapon-icon {
+  display: none;
+}
+.loadout-skin {
+  color: var(--loadout-accent);
+  font: 700 clamp(9px, 2.4vmin, 14px) var(--display, sans-serif);
+}
+.loadout-room-fallback {
+  margin: 0;
+  padding: 0.55rem;
+  color: #f4bf86;
+  font: 0.75rem var(--mono);
+}
+.loadout-equip:disabled {
+  opacity: 0.43;
+  cursor: default;
+}
+
+.tactical-dialog.loadout-editor {
+  --equipment-accent: #ffb066;
+  width: min(96vw, 1500px);
+  height: min(94dvh, 1000px);
+  max-width: none;
+  max-height: none;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 0;
+  background: #141b18;
+}
+.tactical-dialog.loadout-editor[open] {
+  display: grid;
+}
+.loadout-editor .dialog-content {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  overflow: auto;
+}
+.equipment-slots {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.equipment-slots button {
+  min-width: 0;
+  min-height: 50px;
+  display: grid;
+  text-align: left;
+  gap: 3px;
+  padding: 8px 12px;
+  background: #212b26;
+  color: #cbd1ca;
+  border: 1px solid #48534b;
+  border-left: 3px solid #536155;
+  cursor: pointer;
+}
+.equipment-slots button[aria-pressed='true'] {
+  border-color: var(--equipment-accent);
+  background: #422f21;
+  color: #fff4e0;
+}
+.equipment-slots strong {
+  font: 800 clamp(0.7rem, 2vmin, 1rem) var(--display, sans-serif);
+}
+.equipment-slots span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+  font: 0.68rem var(--mono);
+}
+
+.equipment-grid {
+  display: grid;
+  grid-template-columns: minmax(115px, 0.77fr) minmax(0, 3.2fr) minmax(
+      155px,
+      0.92fr
+    );
+  min-height: 0;
+  gap: 13px;
+}
+.equipment-identity,
+.equipment-statistics {
+  background: #1b251f;
+  border: 1px solid #3c4b41;
+  padding: clamp(9px, 2vmin, 20px);
+  min-width: 0;
+  align-self: start;
+}
+.equipment-identity > span:first-child {
+  font: 700 0.76rem var(--mono);
+  color: #b6c6b6;
+}
+.equipment-identity h3 {
+  font: 850 clamp(1.1rem, 3.5vmin, 2.4rem)/1 var(--display, sans-serif);
+  margin: 10px 0 12px;
+  color: #f6f1e8;
+  overflow-wrap: anywhere;
+}
+.equipment-identity p {
+  font: 0.77rem var(--mono);
+  color: #b7bfb4;
+}
+.equipment-character {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  color: #dfe5d9;
+  font: 700 0.7rem var(--mono);
+}
+.equipment-character select {
+  width: 100%;
+}
+.equipment-preview-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.equipment-preview-mode button {
+  padding: 6px;
+  background: #1b271f;
+  border: 1px solid #67746a;
+  color: #edece5;
+  font: 700 0.65rem var(--mono);
+  cursor: pointer;
+}
+.equipment-preview-mode button[aria-pressed='true'] {
+  border-color: var(--equipment-accent);
+  color: var(--equipment-accent);
+}
+.equipment-rarity {
+  --rarity: #ccd5ca;
+  color: var(--rarity);
+  border-bottom: 2px solid var(--rarity);
+  font: 700 0.72rem var(--mono);
+  padding-bottom: 3px;
+  text-transform: uppercase;
+}
+[data-rarity='Rare'] .equipment-rarity {
+  --rarity: #78c6ff;
+}
+[data-rarity='Epic'] .equipment-rarity {
+  --rarity: #c594fb;
+}
+[data-rarity='Legendary'] .equipment-rarity {
+  --rarity: #ffd274;
+}
+[data-rarity='Mythic'] .equipment-rarity {
+  --rarity: #ff9a64;
+}
+.equipment-statistics h3 {
+  margin: 0 0 10px;
+  font: 800 0.88rem var(--display, sans-serif);
+  color: #f6f1e8;
+}
+.equipment-statistics {
+  max-height: 100%;
+  overflow: auto;
+}
+.equipment-statistics .weapon-profile-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.equipment-statistics dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.equipment-statistics dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px;
+  font: 0.69rem var(--mono);
+}
+.equipment-statistics dd {
+  margin: 0;
+  color: #fff0d7;
+  white-space: nowrap;
+}
+.equipment-statistics small {
+  color: #b6c0b4;
+}
+.equipment-statistics meter {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 5px;
+}
+.equipment-statistics meter::-webkit-meter-optimum-value {
+  background: var(--equipment-accent);
+}
+.equipment-statistics meter::-moz-meter-bar {
+  background: var(--equipment-accent);
+}
+
+.weapon-showcase {
+  position: relative;
+  overflow: hidden;
+  min-height: 240px;
+  border: 1px solid #566456;
+  background: radial-gradient(
+    ellipse at 50% 55%,
+    #475347,
+    #26322b 54%,
+    #17211d 86%
+  );
+}
+.weapon-showcase::before {
+  content: '';
+  inset: 0;
+  position: absolute;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, #cbdbcb0d 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, #cbdbcb0d 0 1px, transparent 1px 24px);
+}
+.showcase-surface {
+  inset: 0;
+  position: absolute;
+  touch-action: none;
+  cursor: grab;
+}
+.showcase-surface:active {
+  cursor: grabbing;
+}
+.showcase-surface canvas,
+.showcase-surface img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.showcase-status {
+  position: absolute;
+  inset: 12px auto auto 12px;
+  padding: 6px 8px;
+  background: #18211bed;
+  color: #f9d8b0;
+  font: 0.72rem var(--mono);
+  pointer-events: none;
+}
+.showcase-actions {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.showcase-actions button,
+.equipment-commands button,
+.loadout-editor select {
+  min-height: 40px;
+  padding: 6px 10px;
+  background: #1b271f;
+  border: 1px solid #67746a;
+  color: #edece5;
+  border-radius: 0;
+  font: 700 clamp(0.64rem, 1.8vmin, 0.79rem) var(--mono);
+  cursor: pointer;
+}
+.loadout-editor :is(button, select):focus-visible {
+  outline: 2px solid var(--equipment-accent);
+  outline-offset: 2px;
+}
+.loadout-editor .dialog-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 0.8fr) auto;
+  column-gap: 10px;
+  align-items: end;
+}
+.loadout-editor .dialog-footer label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: #e0e6db;
+  font: 0.68rem var(--mono);
+}
+.equipment-commands {
+  display: flex;
+  justify-content: end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.equipment-commands button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.equipment-commands .equipment-save {
+  color: #24160d;
+  background: var(--equipment-accent);
+  border-color: var(--equipment-accent);
+}
+.equipment-message {
+  min-height: 0.85rem;
+  color: #ffc894;
+  font: 0.73rem var(--mono);
+}
+.loadout-editor.inspecting {
+  width: 100vw;
+  height: 100dvh;
+  margin: 0;
+}
+.loadout-editor.inspecting .dialog-content {
+  grid-template-rows: minmax(0, 1fr);
+}
+.loadout-editor.inspecting .equipment-grid {
+  grid-template-columns: 1fr;
+}
+.loadout-editor.inspecting
+  :is(
+    .equipment-slots,
+    .equipment-identity,
+    .equipment-statistics,
+    .equipment-message,
+    .dialog-footer
+  ) {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .equipment-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(102px, 0.4fr);
+    align-content: start;
+  }
+  .equipment-identity {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .equipment-identity h3,
+  .equipment-identity p {
+    margin: 0;
+  }
+  .equipment-statistics {
+    padding: 8px;
+  }
+  .equipment-statistics dl {
+    gap: 5px;
+  }
+  .equipment-statistics dl > div {
+    font-size: 0.62rem;
+  }
+  .equipment-slots button {
+    padding-inline: 5px;
+  }
+  .loadout-editor .dialog-footer {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 7px;
+  }
+  .loadout-editor .equipment-commands {
+    grid-column: 1 / -1;
+  }
+  .weapon-showcase {
+    min-height: 210px;
+  }
+}
+@media (max-height: 520px) and (min-width: 560px) {
+  .loadout-editor .dialog-header {
+    padding: 8px 14px;
+  }
+  .loadout-editor .dialog-header h2 {
+    font-size: 22px;
+    margin-top: 3px;
+  }
+  .loadout-editor .dialog-content {
+    gap: 6px;
+    padding: 7px 14px;
+  }
+  .loadout-editor .dialog-footer {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    padding: 6px 14px;
+  }
+  .loadout-editor .equipment-commands {
+    grid-column: auto;
+  }
+  .equipment-grid {
+    grid-template-columns: minmax(88px, 0.6fr) minmax(0, 2.8fr) minmax(
+        132px,
+        0.8fr
+      );
+    gap: 7px;
+    align-content: stretch;
+  }
+  .equipment-identity {
+    grid-column: auto;
+    display: block;
+  }
+  .equipment-identity h3 {
+    margin: 5px 0;
+  }
+  .equipment-identity p {
+    margin-top: 8px;
+  }
+  .equipment-slots button {
+    min-height: 34px;
+    padding-block: 4px;
+  }
+  .equipment-statistics dl {
+    gap: 3px;
+  }
+  .loadout-editor .weapon-showcase {
+    min-height: 155px;
+  }
+}
+
 .loadout-weapon .match-weapon-icon {
   display: block;
   width: min(92px, 100%);

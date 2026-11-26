@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  sniperScopeBlend,
-  sniperScopeDiameter,
-} from '../game/weapons/SniperScope';
+import { sniperScopeBlend } from '../game/weapons/SniperScope';
+import { rifleSkins } from '../game/weapons/RifleSkins';
 import type { Game, GameTelemetry } from '../game/core/Game';
 import { Telemetry } from '../components/Telemetry';
 import { GraphicsControls } from '../components/GraphicsControls';
@@ -11,7 +9,9 @@ import { RoomPanel } from '../components/RoomPanel';
 import { MatchHud } from '../components/MatchHud';
 import { LoadoutPanel } from '../components/LoadoutPanel';
 import { CommandMenu } from '../components/CommandMenu';
-import { WeaponPanel } from '../components/WeaponPanel';
+import { LoadoutEditor } from '../components/LoadoutEditor';
+import { allowedDefault } from '@breakpoint/shared/weapons/loadouts';
+import { weaponOrder } from '@breakpoint/shared';
 import { PlayPanel, CreditsPanel } from '../components/CommandPanels';
 import { SettingsPanel, crosshairStyle } from '../components/SettingsPanel';
 import { MobileHUD } from '../components/MobileHUD';
@@ -201,12 +201,12 @@ export function App() {
         ads: number,
         scoped: number,
         opticReticle: boolean,
+        diameter: number,
         shotgunRadius?: number,
       ) => {
         if (cancelled || !reticle.current) return;
         const opacity = sniperScopeBlend(scoped);
         if (scope.current) {
-          const diameter = sniperScopeDiameter(scoped);
           scope.current.style.opacity = String(opacity);
           scope.current.style.setProperty(
             '--scope-diameter',
@@ -309,6 +309,13 @@ export function App() {
   ]);
 
   useEffect(() => {
+    if (!ready) return;
+    game.current?.setShowcaseOpen(
+      overlay === 'weapons' && !isMatchActive(room?.phase),
+    );
+  }, [overlay, ready, room?.phase]);
+
+  useEffect(() => {
     if (portrait) game.current?.pause();
   }, [portrait]);
 
@@ -319,13 +326,15 @@ export function App() {
     saveGraphicsSettings(settings);
     game.current?.setGraphicsSettings(settings);
   }
-  function changePreferences(value: UserSettings): void {
+  function changePreferences(value: UserSettings): boolean {
     const settings = normalizeUserSettings(value);
     preferencesRef.current = settings;
     setPreferences(settings);
-    setSaved(saveUserSettings(settings));
+    const stored = saveUserSettings(settings);
+    setSaved(stored);
     game.current?.setUserSettings(settings);
     reticleValues.current = { gap: -1, opacity: -1 };
+    return stored;
   }
   function openRooms(tab: 'create' | 'join' = 'create'): void {
     setOverlay(null);
@@ -334,6 +343,7 @@ export function App() {
     setRoomsOpen(true);
   }
   function openPanel(panel: 'play' | 'settings' | 'credits' | 'weapons'): void {
+    if (panel === 'weapons' && isMatchActive(room?.phase)) return;
     setRoomsOpen(false);
     setOverlay(panel);
   }
@@ -553,6 +563,7 @@ export function App() {
               game.current?.setTeam(team);
             }}
             onLobby={() => game.current?.returnToLobby()}
+            onLoadouts={() => openPanel('weapons')}
             onScores={() => {
               setRoomsOpen(false);
               setShowScores(true);
@@ -571,15 +582,17 @@ export function App() {
         {!choosingLoadout && overlay === 'credits' && (
           <CreditsPanel onClose={() => setOverlay(null)} />
         )}
-        {!choosingLoadout && overlay === 'weapons' && (
-          <WeaponPanel
-            initialWeapon={combat?.weapon}
-            allowedWeapons={room?.allowedWeapons}
-            rifleSkin={preferences.rifleSkin}
-            onRifleSkin={(rifleSkin) =>
-              changePreferences({ ...preferences, rifleSkin })
+        {!isMatchActive(room?.phase) && overlay === 'weapons' && (
+          <LoadoutEditor
+            profile={preferences.loadouts}
+            reducedMotion={preferences.reducedMotion}
+            onSave={(loadouts) =>
+              changePreferences({ ...preferencesRef.current, loadouts })
             }
-            onClose={() => setOverlay(null)}
+            onClose={() => {
+              setOverlay(null);
+              if (room?.phase === 'lobby') setRoomsOpen(true);
+            }}
           />
         )}
         {!choosingLoadout && overlay === 'settings' && !controllerSettings && (
@@ -650,6 +663,11 @@ export function App() {
             ref={scope}
             data-testid="sniper-scope"
             data-style={preferences.scopeStyle}
+            data-skin={
+              combat?.sniperSkinStatus === 'ready'
+                ? combat.sniperSkin
+                : undefined
+            }
             hidden={choosingLoadout}
             aria-hidden="true"
           >
@@ -664,13 +682,23 @@ export function App() {
             combat={combat}
             bindings={preferences.bindings}
             multiplayer={multiplayerHud}
+            choosingLoadout={choosingLoadout}
           />
         )}
         {locked && touchControls && (
           <MobileHUD
             attach={attachTouchControls}
             showInspect={
-              combat?.rifleSkin === 'cinder-wyrm' && !choosingLoadout
+              !choosingLoadout &&
+              ((!!combat?.rifleSkin &&
+                rifleSkins[combat.rifleSkin].mythic &&
+                combat.rifleSkinStatus === 'ready') ||
+                (combat?.sniperSkin === 'lotus-lava' &&
+                  combat.sniperSkinStatus === 'ready') ||
+                (combat?.shotgunSkin === 'glorious-blaze' &&
+                  combat.shotgunSkinStatus === 'ready') ||
+                (combat?.smgSkin === 'neon-blade' &&
+                  combat.smgSkinStatus === 'ready'))
             }
             tablet={device.tablet}
             layout={mobileLayout}
@@ -683,19 +711,30 @@ export function App() {
         )}
         {choosingLoadout && room && (
           <LoadoutPanel
+            key={[room.code, room.match.round, loadoutLife, respawning].join(
+              '/',
+            )}
             respawning={respawning}
             seconds={
               respawning
                 ? Math.max(1, Math.ceil(owner?.respawnIn ?? 0))
                 : room.match.countdownSeconds || matchCountdownSeconds
             }
-            allowedWeapons={room.allowedWeapons}
-            selected={owner?.nextWeapon ?? owner?.selected}
-            rifleSkin={preferences.rifleSkin}
-            onEquip={(weapon) => {
+            allowedWeapons={room.allowedWeapons ?? weaponOrder}
+            profile={preferences.loadouts}
+            selected={
+              owner?.nextLoadoutSlot ??
+              (respawning
+                ? owner?.loadoutSlot
+                : allowedDefault(
+                    preferences.loadouts,
+                    room.allowedWeapons ?? weaponOrder,
+                  ).slot)
+            }
+            onEquip={(slot) => {
               if (loadoutLife !== undefined)
                 game.current?.selectLoadout({
-                  weapon,
+                  slot,
                   life: loadoutLife,
                   round: room.match.round,
                 });

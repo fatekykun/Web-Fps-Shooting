@@ -11,13 +11,25 @@ import type { Scene } from 'three';
 import type { MovementController } from '../movement/MovementController';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { WeaponController, type ShotEvent } from '../weapons/WeaponController';
-import type { RifleSkin } from '../weapons/RifleSkins';
+import type { RifleSkin, WeaponSkinStatus } from '../weapons/RifleSkins';
+import type { SniperSkin } from '../weapons/SniperSkins';
+import type { ShotgunSkin } from '../weapons/ShotgunSkins';
+import type { SmgSkin } from '../weapons/SmgSkins';
 import { TrainingDummy } from './TrainingDummy';
 import { PooledImpacts } from '../effects/PooledImpacts';
 import type { OwnerCombat, KillEvent } from '@breakpoint/shared/combat';
+import type { OperatorId } from '@breakpoint/shared/operators';
 
 export interface CombatSnapshot {
+  operator?: OperatorId;
   rifleSkin?: RifleSkin;
+  rifleSkinStatus?: WeaponSkinStatus;
+  sniperSkin?: SniperSkin;
+  sniperSkinStatus?: WeaponSkinStatus;
+  shotgunSkin?: ShotgunSkin;
+  shotgunSkinStatus?: WeaponSkinStatus;
+  smgSkin?: SmgSkin;
+  smgSkinStatus?: WeaponSkinStatus;
   inspecting?: boolean;
   allowedWeapons?: readonly WeaponId[];
   weapon: WeaponId;

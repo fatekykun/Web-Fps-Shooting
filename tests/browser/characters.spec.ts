@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
 import { movementConfig } from '@breakpoint/shared';
+import { defaultLoadouts } from '@breakpoint/shared/weapons/loadouts';
 import {
   characterParts,
   createRigTransforms,
@@ -44,6 +45,7 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
   let peer: Room<unknown, RoomState> | undefined,
     filler: Room<unknown, RoomState> | undefined,
     timer: ReturnType<typeof setInterval> | undefined;
+  let peakLandingBlend = 0;
   let sequence = 0,
     forward = 0,
     right = 0,
@@ -78,7 +80,12 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     const client = new Client('http://127.0.0.1:2567');
     const code = (await page.getByTestId('room-code').textContent())!;
     filler = await reserveSpawnSlot(client, code);
-    peer = await client.joinById<RoomState>(code, { name: 'Tactical actor' });
+    const profile = defaultLoadouts();
+    profile.slots[0].operator = 'crimson-officer';
+    peer = await client.joinById<RoomState>(code, {
+      name: 'Tactical actor',
+      profile,
+    });
     for (const type of ['shot', 'kill', 'correction', 'notice'])
       peer.onMessage(type, () => {});
     peer.send('ready', true);
@@ -86,6 +93,8 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     const actor = () => peer!.state.players.get(peer!.sessionId)!;
     timer = setInterval(() => {
       const state = actor();
+      // Keep the peak across camera movement and screenshot capture.
+      peakLandingBlend = Math.max(peakLandingBlend, state?.landingBlend ?? 0);
       // Allow the two-input batches to run at 60 Hz despite 20 Hz state patches.
       if (!state || sequence - state.ack > 4) return;
       peer!.send(
@@ -159,6 +168,7 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     };
     await lookAtActor();
     await page.screenshot({ path: 'test-results/bp11-tactical-idle.png' });
+    expect(actor().operator).toBe('crimson-officer');
     expect(actor().animationTime).toBeGreaterThan(0);
     expect(gripErrors(actor()).every((error) => error < 0.005)).toBe(true);
     aim = true;
@@ -198,6 +208,7 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
       path: 'test-results/remote-weapon-sprint-fire.png',
     });
     fire = false;
+    peakLandingBlend = 0;
     jumpPressed = true;
     await expect
       .poll(() => actor().airBlend, { intervals: [25] })
@@ -205,7 +216,7 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     await lookAtActor();
     await page.screenshot({ path: 'test-results/bp11-tactical-jump.png' });
     await expect
-      .poll(() => actor().landingBlend, { intervals: [25] })
+      .poll(() => peakLandingBlend, { intervals: [25] })
       .toBeGreaterThan(0.3);
     const landingX = actor().x;
     yaw = Math.PI / 2;
@@ -213,7 +224,10 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     slidePressed = true;
     await expect
       .poll(() => actor().slideBlend, { intervals: [25] })
-      .toBeGreaterThan(0.7);
+      .toBeGreaterThan(0.9);
+    const [bracingHand, slidingGrip] = gripErrors(actor());
+    expect(bracingHand).toBeGreaterThan(0.3);
+    expect(slidingGrip).toBeLessThan(0.005);
     await lookAtActor(0.65);
     await page.screenshot({ path: 'test-results/bp11-tactical-slide.png' });
     forward = 0;

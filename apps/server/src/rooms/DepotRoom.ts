@@ -11,6 +11,10 @@ import {
   type ArenaDefinition,
 } from '@breakpoint/shared/maps';
 import { networkConfig, parseName } from '@breakpoint/shared/network';
+import {
+  defaultLoadouts,
+  parseLoadoutProfile,
+} from '@breakpoint/shared/weapons/loadouts';
 import { RoomState, PlayerState } from './RoomState';
 import { ServerPlayer } from '../players/ServerPlayer';
 import { ServerCombat } from '../combat/ServerCombat';
@@ -128,6 +132,13 @@ export class DepotRoom extends Room<{ state: RoomState }> {
       const player = this.state.players.get(client.sessionId);
       if (player) player.ready = ready;
     });
+    this.onMessage('loadout-profile', (client, value: unknown) => {
+      if (this.state.phase !== 'lobby' && this.state.phase !== 'results')
+        return;
+      const player = this.simulations.get(client.sessionId);
+      const profile = parseLoadoutProfile(value);
+      if (player && profile) player.loadoutProfile = profile;
+    });
     this.onMessage('loadout', (client, payload: unknown) => {
       const player = this.simulations.get(client.sessionId);
       if (
@@ -138,12 +149,12 @@ export class DepotRoom extends Room<{ state: RoomState }> {
         payload.round !== this.state.round ||
         !('life' in payload) ||
         payload.life !== player.state.life ||
-        !('weapon' in payload) ||
+        !('slot' in payload) ||
         (this.state.phase !== 'countdown' &&
           (this.state.phase !== 'playing' || player.state.alive))
       )
         return;
-      this.combat.selectLoadout(player, payload.weapon);
+      this.combat.selectLoadout(player, payload.slot);
     });
     this.onMessage('*', () => {
       /* Unrecognized hit/damage/ammo claims have no authority. */
@@ -233,7 +244,7 @@ export class DepotRoom extends Room<{ state: RoomState }> {
     return true;
   }
 
-  onJoin(client: Client, options: { name: string }): void {
+  onJoin(client: Client, options: { name: string; profile?: unknown }): void {
     const slots = new Set(
       [...this.state.players.values()].map((player) => player.slot),
     );
@@ -250,6 +261,8 @@ export class DepotRoom extends Room<{ state: RoomState }> {
       player.ready = true;
     }
     const simulation = new ServerPlayer(player, this.arena);
+    simulation.loadoutProfile =
+      parseLoadoutProfile(options.profile) ?? defaultLoadouts();
     this.simulations.set(client.sessionId, simulation);
     this.combat.add(simulation);
     this.state.players.set(client.sessionId, player);

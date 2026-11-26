@@ -44,7 +44,7 @@ it.each([
   ['walk', { gaitPhase: 1.2, gaitAmount: 0.7 }],
   ['aim', { aimBlend: 1 }],
   ['sprint aim', { sprintBlend: 1, carryBlend: 0, aimBlend: 1 }],
-  ['slide', { halfHeight: 0.2, slideBlend: 1 }],
+  ['slide ADS', { halfHeight: 0.14, slideBlend: 1, aimBlend: 1 }],
   ['dive', { halfHeight: 0.04, diveBlend: 1 }],
   ['jump', { airBlend: 1 }],
   ['fire', { fireBlend: 1 }],
@@ -62,6 +62,21 @@ it.each([
     }
   },
 );
+
+it('frees the support hand to brace while the sliding weapon follows the look direction', () => {
+  const rig = createRigTransforms();
+  for (const pitch of [-1.5, -0.6, 0, 0.6, 1.5]) {
+    const pose = { ...base, halfHeight: 0.14, slideBlend: 1, pitch };
+    evaluateRig(pose, rig);
+    const muzzle = rotatePoint(rig[21]!, 0, 0, -1, { x: 0, y: 0, z: 0 });
+    expect(muzzle.y).toBeCloseTo(Math.sin(pitch), 6);
+    expect(gripError(pose, false)).toBeLessThan(0.001);
+    expect(gripError(pose, true)).toBeGreaterThan(0.25);
+    const wrist = rig[8]!;
+    const palm = rotatePoint(wrist, 0, -0.055, 0, { x: 0, y: 0, z: 0 });
+    expect(wrist.y + palm.y).toBeCloseTo(0.074, 3);
+  }
+});
 
 it('keeps the firing hand attached while the free support arm swings through a sprint and returns for ADS', () => {
   const points: { x: number; y: number; z: number }[] = [];

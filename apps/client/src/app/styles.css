@@ -1223,9 +1223,9 @@ kbd {
   border: 0;
   border-radius: 50%;
   box-shadow:
-    0 0 0 3px #101a19,
-    0 0 0 10px #364744,
-    0 0 0 13px #101a19,
+    0 0 0 3px var(--scope-edge, #101a19),
+    0 0 0 10px var(--scope-rim, #364744),
+    0 0 0 13px var(--scope-edge, #101a19),
     0 3px 12px 13px rgb(5 10 9 / 35%),
     inset 0 0 14px 5px rgb(12 25 23 / 28%);
   background:
@@ -1260,9 +1260,22 @@ kbd {
   left: 0;
   width: 100%;
   text-align: center;
-  color: #a8b99e;
+  color: var(--scope-legend, #a8b99e);
   font: 11px monospace;
   letter-spacing: 2px;
+}
+.sniper-scope[data-skin='lotus-lava'] {
+  --scope-edge: #281016;
+  --scope-rim: #795026;
+  --scope-legend: #eabc73;
+}
+.sniper-scope[data-skin='lotus-lava'] .scope-lens {
+  background:
+    url('./assets/lotus-lava-reticle.png') center / contain no-repeat,
+    radial-gradient(circle at 34% 20%, rgb(159 213 210 / 6%), transparent 55%);
+}
+.sniper-scope[data-skin='lotus-lava'] .scope-lens i {
+  display: none;
 }
 .combat-hud,
 .player-health,

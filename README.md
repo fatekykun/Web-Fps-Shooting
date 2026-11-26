@@ -50,6 +50,41 @@ The skin changes the equipped player's first-person model and sight. Configure
 core brightness, fragment speed, particle intensity, reticle color and animation
 timing in `apps/client/src/game/weapons/RifleSkins.ts`.
 
+Choose **Memento Mori / Mythic** in the same Rifle skin selector to use the
+imported `apps/client/public/models/memento.glb` model. It loads when selected
+and uses the file's animated fragments and rear sight. The same inspect controls
+work for both Mythic skins.
+
+**Memento Mori — Soul Requiem** plays on confirmed rifle eliminations in training
+and private matches. In **Settings → Display**, choose Low, Medium or High under
+**Elimination effect quality**. Medium is the default. High adds more fragments
+and a local light. The 1.79-second sequence uses the supplied WAV as its clock
+when audio is available. Phase timing is in `apps/client/src/game/effects/SoulRequiem.ts`.
+
+### Lotus Lava sniper skin
+
+Select **Armory → SR-04 / Sniper → Sniper skin → Lotus Lava** to equip the
+imported first-person model in training or a private match. The selection is
+saved in this browser. Press **I** or tap **Inspect weapon** on the mobile HUD.
+Lotus Lava uses the authored reticle in both sniper scope styles. The supplied
+shot recording plays with the skin equipped. A confirmed elimination blooms into
+a 3D lotus at the target's feet, synchronized to the 2.45-second kill recording.
+**Elimination effect quality** controls the number of embers and fragments.
+
+### Glorious Blaze shotgun skin
+
+Select **Armory → SG-03 / Shotgun → Shotgun skin → Glorious Blaze**. The saved
+skin uses its own model, iron sights, pump animation and shot recording. In
+training and private rooms, a confirmed Glorious Blaze elimination plays the
+supplied 1.8-second energy pillar and ground sigil with its matching kill cue.
+
+### Neon Blade SMG skin
+
+Select **Armory → SM-02 / SMG → SMG skin → Neon Blade**. The 3D display on
+the weapon reads the same magazine ammo and capacity used by the weapon
+controller. It turns red below 20% and pulses when reduced motion is off.
+Confirmed eliminations play the supplied 1.5-second glitch effect and sound.
+
 ## Run locally
 
 BP-12 adds animated barrel-origin bullet trails for all four weapons in training

@@ -1,4 +1,15 @@
-import type { RifleSkin } from '../weapons/RifleSkins';
+import { normalizeRifleSkin, type RifleSkin } from '../weapons/RifleSkins';
+import {
+  defaultLoadouts,
+  parseLoadoutProfile,
+  type LoadoutProfile,
+} from '@breakpoint/shared/weapons/loadouts';
+import { normalizeSniperSkin, type SniperSkin } from '../weapons/SniperSkins';
+import {
+  normalizeShotgunSkin,
+  type ShotgunSkin,
+} from '../weapons/ShotgunSkins';
+import { normalizeSmgSkin, type SmgSkin } from '../weapons/SmgSkins';
 
 export const bindingActions = [
   'forward',
@@ -31,10 +42,10 @@ export const bindingLabels: Record<BindingAction, string> = {
   dive: 'Dive',
   reload: 'Reload',
   inspect: 'Inspect weapon',
-  rifle: 'Equip rifle',
-  smg: 'Equip SMG',
-  shotgun: 'Equip shotgun',
-  sniper: 'Equip sniper',
+  rifle: 'Equip Loadout 1',
+  smg: 'Equip Loadout 2',
+  shotgun: 'Equip Loadout 3',
+  sniper: 'Equip Loadout 4',
   scoreboard: 'Scoreboard',
 };
 export const defaultBindings: Readonly<Record<BindingAction, string>> =
@@ -57,6 +68,7 @@ export const defaultBindings: Readonly<Record<BindingAction, string>> =
     scoreboard: 'Tab',
   });
 export type ScopeStyle = 'optic' | 'classic';
+export type EliminationQuality = 'low' | 'medium' | 'high';
 export interface SensitivityGroup {
   steering: number;
   ads: number;
@@ -71,6 +83,7 @@ function defaultSensitivityGroup(): SensitivityGroup {
   return { steering: 100, ads: 100, sniper: 100, vertical: 100 };
 }
 export interface UserSettings {
+  loadouts: LoadoutProfile;
   sensitivity: SensitivitySettings;
   touchSensitivity: { camera: number; ads: number; sniper: number };
   touchAimAssist: boolean;
@@ -78,6 +91,10 @@ export interface UserSettings {
   syncAdsFov: boolean;
   scopeStyle: ScopeStyle;
   rifleSkin: RifleSkin;
+  sniperSkin: SniperSkin;
+  shotgunSkin: ShotgunSkin;
+  smgSkin: SmgSkin;
+  eliminationQuality: EliminationQuality;
   autoReload: boolean;
   invertY: boolean;
   reducedMotion: boolean;
@@ -103,6 +120,7 @@ export interface UserSettings {
 export const userSettingsKey = 'breakpoint.settings.v1';
 export function defaultUserSettings(): UserSettings {
   return {
+    loadouts: defaultLoadouts(),
     sensitivity: {
       camera: defaultSensitivityGroup(),
       firing: defaultSensitivityGroup(),
@@ -113,6 +131,10 @@ export function defaultUserSettings(): UserSettings {
     syncAdsFov: false,
     scopeStyle: 'classic',
     rifleSkin: 'standard',
+    sniperSkin: 'standard',
+    shotgunSkin: 'standard',
+    smgSkin: 'standard',
+    eliminationQuality: 'medium',
     autoReload: true,
     invertY: false,
     reducedMotion:
@@ -206,6 +228,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     bindingActions.every((key) => isBindingCode(b[key])) &&
     new Set(bindingActions.map((key) => b[key])).size === bindingActions.length;
   return {
+    loadouts: parseLoadoutProfile(v.loadouts) ?? d.loadouts,
     sensitivity: normalizeSensitivity(v.sensitivity),
     touchSensitivity: {
       camera: number(object(v.touchSensitivity).camera, 100, 1, 300),
@@ -216,7 +239,14 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     fov: number(v.fov, d.fov, 65, 110),
     syncAdsFov: bool('syncAdsFov', d.syncAdsFov),
     scopeStyle: v.scopeStyle === 'optic' ? 'optic' : 'classic',
-    rifleSkin: v.rifleSkin === 'cinder-wyrm' ? 'cinder-wyrm' : 'standard',
+    rifleSkin: normalizeRifleSkin(v.rifleSkin),
+    sniperSkin: normalizeSniperSkin(v.sniperSkin),
+    shotgunSkin: normalizeShotgunSkin(v.shotgunSkin),
+    smgSkin: normalizeSmgSkin(v.smgSkin),
+    eliminationQuality:
+      v.eliminationQuality === 'low' || v.eliminationQuality === 'high'
+        ? v.eliminationQuality
+        : 'medium',
     autoReload: bool('autoReload', d.autoReload),
     invertY: bool('invertY', d.invertY),
     reducedMotion: bool('reducedMotion', d.reducedMotion),

@@ -28,6 +28,7 @@ interface Props {
   onConfigure(settings: MatchSettings): void;
   onTeam(team: Team): void;
   onLobby(): void;
+  onLoadouts(): void;
   onScores(): void;
   initialTab?: 'create' | 'join';
   initialCode?: string;
@@ -46,6 +47,7 @@ export function RoomPanel({
   onConfigure,
   onTeam,
   onLobby,
+  onLoadouts,
   onScores,
   initialTab = 'create',
   initialCode = '',
@@ -340,6 +342,11 @@ export function RoomPanel({
             {room.phase === 'results' && host && (
               <button className="room-button primary" onClick={onLobby}>
                 RETURN TO LOBBY
+              </button>
+            )}
+            {room.phase === 'lobby' && (
+              <button className="room-button" onClick={onLoadouts}>
+                LOADOUTS
               </button>
             )}
             <button className="room-button" onClick={onLeave}>

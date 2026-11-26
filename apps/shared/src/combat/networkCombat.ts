@@ -1,6 +1,8 @@
 import type { Vector3Like } from '../types/movement';
 import type { WeaponId } from '../types/weapons';
 import type { GameMode } from '../config/match';
+import type { LoadoutSlot, WeaponSkin } from '../weapons/loadouts';
+import type { OperatorId } from './operators';
 
 export const playerCombatConfig = Object.freeze({
   health: 100,
@@ -27,6 +29,10 @@ export interface OwnerCombat {
   protected: boolean;
   selected: WeaponId;
   nextWeapon?: WeaponId;
+  skin?: WeaponSkin;
+  operator?: OperatorId;
+  loadoutSlot?: LoadoutSlot;
+  nextLoadoutSlot?: LoadoutSlot;
   ammo: Record<WeaponId, AmmoState>;
   reloading: boolean;
   equipping: boolean;
@@ -50,16 +56,29 @@ export interface ServerShot {
   shooter: string;
   weapon: WeaponId;
   origin: Vector3Like;
+  skin?: WeaponSkin;
   traces: ShotTrace[];
+  sniperSkin?: 'lotus-lava';
+  shotgunSkin?: 'glorious-blaze';
+  smgSkin?: 'neon-blade';
 }
+export const eliminationEffectWeapons = {
+  'soul-requiem': 'rifle',
+  'lotus-lava': 'sniper',
+  'glorious-blaze': 'shotgun',
+  'neon-blade': 'smg',
+} as const satisfies Record<string, WeaponId>;
+export type EliminationEffect = keyof typeof eliminationEffectWeapons;
 export interface KillEvent {
   id: number;
   killer: string;
   victim: string;
   weapon: WeaponId;
+  skin?: WeaponSkin;
   headshot: boolean;
   killerId?: string;
   victimId?: string;
   /** Authoritative location of the defeated character's feet. */
   position?: Vector3Like;
+  effect?: EliminationEffect;
 }

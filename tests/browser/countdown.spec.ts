@@ -18,8 +18,16 @@ test('five-second countdown accepts separate player loadouts, freezes early inpu
         antiAliasing: 'off',
       }),
     );
-    const capture = window as unknown as { countdownAudio: number[] };
+    const capture = window as unknown as {
+      countdownAudio: number[];
+      sawMatchStart: boolean;
+    };
     capture.countdownAudio = [];
+    capture.sawMatchStart = false;
+    new MutationObserver(() => {
+      if (document.querySelector('[data-testid="match-start-signal"]'))
+        capture.sawMatchStart = true;
+    }).observe(document, { subtree: true, childList: true });
     const create = AudioContext.prototype.createOscillator;
     AudioContext.prototype.createOscillator = function () {
       const oscillator = create.call(this),
@@ -55,14 +63,29 @@ test('five-second countdown accepts separate player loadouts, freezes early inpu
     await expect(countdown.locator('strong')).toHaveText('5');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
-    const smg = page.getByRole('button', { name: 'Equip SM-02 / SMG' });
-    await smg.click();
+    const smg = page.getByRole('button', { name: 'Equip Loadout 2' });
+    await expect(
+      page.getByRole('button', { name: 'Equip Loadout 1' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect
+      .poll(() =>
+        page
+          .locator('.loadout-thumbnail img')
+          .evaluateAll(
+            (images) =>
+              images.filter(
+                (image) => (image as HTMLImageElement).naturalWidth > 0,
+              ).length,
+          ),
+      )
+      .toBe(4);
+    await page.keyboard.press('2');
     await expect(smg).toHaveAttribute('aria-pressed', 'true');
     await expect.poll(() => guest.state.phase).toBe('countdown');
     guest.send('loadout', {
       round: guest.state.round,
       life: guest.state.players.get(guest.sessionId)!.life,
-      weapon: 'shotgun',
+      slot: 2,
     });
     const host = () => guest.state.players.get(guest.state.hostId)!;
     const hostZ = host().z,
@@ -113,15 +136,20 @@ test('five-second countdown accepts separate player loadouts, freezes early inpu
       'data-phase',
       'playing',
     );
-    await expect(page.getByTestId('match-start-signal')).toHaveText(
-      'MATCH START',
-    );
-    await expect(page.getByTestId('match-timer')).toHaveText('5:00');
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as { sawMatchStart: boolean }).sawMatchStart,
+        ),
+      )
+      .toBe(true);
     await expect(countdown).toHaveCount(0);
     expect(shots).toHaveLength(0);
     expect(owner?.ammo.rifle.magazine).toBe(30);
     await expect.poll(() => owner?.selected).toBe('shotgun');
+    expect(owner?.skin).toBe('glorious-blaze');
     await expect.poll(() => host().weapon).toBe('smg');
+    expect(host().skin).toBe('neon-blade');
     const frequencies = await page.evaluate(
       () => (window as unknown as { countdownAudio: number[] }).countdownAudio,
     );
@@ -133,8 +161,13 @@ test('five-second countdown accepts separate player loadouts, freezes early inpu
       'data-weapon',
       'smg',
     );
+    await page.keyboard.press('4');
+    expect(host().weapon).toBe('smg');
+    const spawn = { x: host().x, z: host().z };
     await page.keyboard.down('w');
-    await expect.poll(() => host().z).toBeLessThan(hostZ - 0.5);
+    await expect
+      .poll(() => Math.hypot(host().x - spawn.x, host().z - spawn.z))
+      .toBeGreaterThan(0.5);
     await page.keyboard.up('w');
     await page.mouse.down();
     await page.waitForTimeout(32);

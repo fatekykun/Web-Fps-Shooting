@@ -31,6 +31,8 @@ import { Prediction } from './Prediction';
 import { RemoteInterpolation } from './RemoteInterpolation';
 import { resolveServerEndpoint } from './serverEndpoint';
 import { waitForRoomServer } from './serverReadiness';
+import type { LoadoutProfile } from '@breakpoint/shared/weapons/loadouts';
+import { isOperator } from '@breakpoint/shared/operators';
 import type {
   MatchView,
   MatchSettings,
@@ -86,6 +88,7 @@ export class NetworkSession {
     code: string,
     movement: MovementController,
     callbacks: Callbacks,
+    profile: LoadoutProfile,
     settings?: PrivateRoomSettings,
   ): Promise<NetworkSession> {
     if (!parseName(name)) throw new Error('Choose a name of 1–20 characters.');
@@ -100,8 +103,12 @@ export class NetworkSession {
         ? await client.create<WireState>(networkConfig.roomType, {
             name: name.trim(),
             settings,
+            profile,
           })
-        : await client.joinById<WireState>(code, { name: name.trim() });
+        : await client.joinById<WireState>(code, {
+            name: name.trim(),
+            profile,
+          });
     if (!callbacks.isActive()) {
       await room.leave();
       throw new Error('Room connection cancelled.');
@@ -193,6 +200,8 @@ export class NetworkSession {
         alive: player.alive,
         life: player.life,
         weapon: player.weapon,
+        skin: player.skin,
+        operator: isOperator(player.operator) ? player.operator : 'standard',
         protected: player.protected,
         team: player.team,
       }),
@@ -291,6 +300,10 @@ export class NetworkSession {
 
   setReady(ready: boolean): void {
     this.room.send('ready', ready);
+  }
+
+  setLoadoutProfile(profile: LoadoutProfile): void {
+    if (!this.leaving) this.room.send('loadout-profile', profile);
   }
   start(): void {
     this.room.send('start');

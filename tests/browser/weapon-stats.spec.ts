@@ -2,20 +2,18 @@ import { expect, test } from '@playwright/test';
 import { weaponConfigs, weaponOrder } from '@breakpoint/shared';
 import { weaponStatistics } from '@breakpoint/shared/weapons/statistics';
 
-test('Armory shows six configuration-derived statistics and all body/range profiles at compact sizes', async ({
+test('Loadouts show configuration-derived statistics and body/range profiles at compact sizes', async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
-  await page.getByRole('button', { name: 'ARMORY', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Armory' });
+  await page.getByRole('button', { name: 'LOADOUTS', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Loadouts' });
   const stats = page.getByTestId('weapon-statistics');
   for (const id of weaponOrder) {
     const config = weaponConfigs[id];
-    await dialog
-      .getByRole('button', { name: config.name, exact: true })
-      .click();
+    await dialog.getByLabel('Change Weapon').selectOption(id);
     await expect(stats).toHaveAttribute('data-weapon', id);
     await expect(stats.getByRole('meter')).toHaveCount(6);
     for (const stat of weaponStatistics(config)) {
@@ -25,9 +23,10 @@ test('Armory shows six configuration-derived statistics and all body/range profi
       );
       await expect(
         stats.getByRole('meter', { name: stat.label, exact: true }),
-      ).toHaveAttribute('aria-valuenow', String(stat.rating));
+      ).toHaveAttribute('value', String(stat.rating));
     }
   }
+  await expect(stats.getByText('Magazine Capacity')).toBeVisible();
   await dialog
     .getByText('BODY MULTIPLIERS & RANGE PROFILE', { exact: true })
     .click();
@@ -57,7 +56,7 @@ test('Armory shows six configuration-derived statistics and all body/range profi
     ).toBe(true);
     expect(
       await dialog
-        .locator('.dialog-content')
+        .getByTestId('weapon-statistics')
         .evaluate((element) => element.scrollTop > 0),
     ).toBe(true);
   }
@@ -65,12 +64,12 @@ test('Armory shows six configuration-derived statistics and all body/range profi
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(
-    page.getByRole('button', { name: 'ARMORY', exact: true }),
+    page.getByRole('button', { name: 'LOADOUTS', exact: true }),
   ).toBeFocused();
   expect(errors).toEqual([]);
 });
 
-test('Armory opens on the equipped weapon after training and retains normal switching', async ({
+test('training switches between saved slots without changing the saved default', async ({
   page,
 }) => {
   await page.goto('/');
@@ -81,18 +80,18 @@ test('Armory opens on the equipped weapon after training and retains normal swit
   await page.keyboard.press('4');
   await expect(hud).toHaveAttribute('data-weapon', 'sniper');
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'ARMORY', exact: true }).click();
+  await page.getByRole('button', { name: 'LOADOUTS', exact: true }).click();
   await expect(page.getByTestId('weapon-statistics')).toHaveAttribute(
     'data-weapon',
-    'sniper',
+    'rifle',
   );
-  await page.getByRole('button', { name: 'Close armory' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await page.getByRole('button', { name: 'RESUME TRAINING' }).click();
   await page.keyboard.press('2');
   await expect(hud).toHaveAttribute('data-weapon', 'smg');
 });
 
-test('Armory follows authoritative private-room weapon restrictions', async ({
+test('the lobby editor saves any category independently of room restrictions', async ({
   page,
 }) => {
   await page.goto('/');
@@ -103,19 +102,18 @@ test('Armory follows authoritative private-room weapon restrictions', async ({
   await page.getByLabel('Sniper', { exact: true }).check();
   await page.getByRole('button', { name: 'CREATE PRIVATE ROOM' }).click();
   await expect(page.getByTestId('room-code')).toBeVisible();
-  await page.getByRole('button', { name: 'Close rooms' }).click();
-  await page.getByRole('button', { name: 'ARMORY', exact: true }).click();
-  const selector = page.getByRole('group', { name: 'Inspect weapon' });
-  await expect(selector.getByRole('button')).toHaveCount(2);
-  await expect(page.getByTestId('weapon-statistics')).toHaveAttribute(
-    'data-weapon',
-    'shotgun',
-  );
-  await selector
-    .getByRole('button', { name: weaponConfigs.sniper.name, exact: true })
+  await page
+    .getByRole('button', { name: 'LOADOUTS', exact: true })
+    .last()
     .click();
+  const selector = page.getByLabel('Change Weapon');
+  expect(await selector.locator('option').count()).toBe(4);
+  await selector.selectOption('sniper');
   await expect(page.getByTestId('weapon-statistics')).toHaveAttribute(
     'data-weapon',
     'sniper',
   );
+  await page.getByRole('button', { name: 'Save Loadout' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(page.getByTestId('room-code')).toBeVisible();
 });

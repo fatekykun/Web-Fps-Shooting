@@ -34,9 +34,7 @@ export class NetworkCombat {
       this.weapons.switchWeapon(this.allowedWeapons[0]!);
   }
   filterInput(input: WeaponInput): WeaponInput {
-    return input.switchTo && !this.allowedWeapons.includes(input.switchTo)
-      ? { ...input, switchTo: null }
-      : input;
+    return input.switchTo ? { ...input, switchTo: null } : input;
   }
   weapons = new WeaponController(() => {});
   owner: OwnerCombat | null = null;
@@ -62,6 +60,10 @@ export class NetworkCombat {
       owner.protected !== previous.protected ||
       owner.selected !== previous.selected ||
       owner.nextWeapon !== previous.nextWeapon ||
+      owner.skin !== previous.skin ||
+      owner.operator !== previous.operator ||
+      owner.loadoutSlot !== previous.loadoutSlot ||
+      owner.nextLoadoutSlot !== previous.nextLoadoutSlot ||
       owner.reloading !== previous.reloading ||
       owner.equipping !== previous.equipping ||
       owner.cycling !== previous.cycling ||
@@ -80,6 +82,8 @@ export class NetworkCombat {
       this.weapons = new WeaponController(() => {});
       this.weapons.selected = owner.selected;
       this.onLifeChange();
+    } else if (owner.skin && owner.selected !== this.weapons.selected) {
+      this.weapons.selected = owner.selected;
     }
     this.owner = owner;
     if (
