@@ -29,7 +29,10 @@ import {
   type WeaponId,
   type WeaponInput,
 } from '@breakpoint/shared';
-import type { MeleeSkin } from '@breakpoint/shared/weapons/loadouts';
+import {
+  defaultMeleeSkin,
+  type MeleeSkin,
+} from '@breakpoint/shared/weapons/loadouts';
 import { weaponAsset } from './WeaponAssets';
 import type { WeaponController } from './WeaponController';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
@@ -42,7 +45,10 @@ import {
   sniperScopeBlend,
   sniperScopeDiameter,
 } from './SniperScope';
-import { FirstPersonArms } from '../characters/FirstPersonArms';
+import {
+  FirstPersonArms,
+  type MeleeHands,
+} from '../characters/FirstPersonArms';
 import type { OperatorId } from '@breakpoint/shared/operators';
 import { strideRadiansPerMeter } from '@breakpoint/shared/character';
 import { slideMomentum } from '@breakpoint/shared/movement/Sliding';
@@ -66,6 +72,26 @@ const easeUnit = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
   return t * t * (3 - 2 * t);
 };
+
+const meleeHandRollAxis = new Vector3(0, 0, 1);
+const karambitGripTurn = new Quaternion().setFromAxisAngle(
+  new Vector3(0, 1, 0),
+  Math.PI,
+);
+const meleeStances = {
+  'glacier-fang': { grip: [0.31, -0.224, -0.57], tilt: [-0.35, -0.32, 0.68] },
+  'ember-talon': {
+    grip: [0.3, -0.176, -0.5],
+    tilt: [-0.24, Math.PI - 0.14, 0.32],
+  },
+  'void-ronin': { grip: [0.29, -0.248, -0.64], tilt: [-0.49, -0.32, -0.16] },
+} as const satisfies Record<
+  MeleeSkin,
+  {
+    grip: readonly [number, number, number];
+    tilt: readonly [number, number, number];
+  }
+>;
 
 /** Low-poly models are pooled; the active model is one instanced draw. */
 export class WeaponViewmodel {
@@ -92,6 +118,10 @@ export class WeaponViewmodel {
   private readonly material: MeshLambertMaterial;
   private readonly arms: FirstPersonArms;
   private readonly meleeModel = new Group();
+  private readonly meleeHands: MeleeHands = {
+    left: { wrist: new Vector3(), rotation: new Quaternion() },
+    right: { wrist: new Vector3(), rotation: new Quaternion() },
+  };
   private meleeSkin?: MeleeSkin;
   private meleeGeneration = 0;
   meleeSkinStatus: WeaponSkinStatus = 'loading';
@@ -171,10 +201,9 @@ export class WeaponViewmodel {
     this.material = createReadableMaterial({ map: this.texture }, 0.12);
     this.arms = new FirstPersonArms(this.material);
     this.root.add(this.arms.root);
-    this.meleeModel.position.y = -0.018;
-    this.meleeModel.rotation.set(-0.88, 0, -0.25);
+    this.meleeModel.name = 'melee-model';
     this.meleeModel.visible = false;
-    this.arms.bones[5]!.add(this.meleeModel);
+    this.root.add(this.meleeModel);
     const key = new DirectionalLight(0xfff0d9, 1.5);
     key.position.set(-2, 4, 3);
     this.scene.add(new HemisphereLight(0xf1f0dc, 0x8b9e8e, 2.1), key);
@@ -647,27 +676,7 @@ export class WeaponViewmodel {
       this.root.visible = active;
       this.flash.visible = false;
       this.updateAimDot(weapons, false, 0);
-      if (!active) return;
-      this.stridePhase =
-        (this.stridePhase + speed * Math.min(dt, 0.1) * strideRadiansPerMeter) %
-        (Math.PI * 2);
-      const carry = movement === 'sprinting' ? 1 : 0;
-      const bob = Math.min(1, speed / 8) * motion;
-      const progress = Math.min(
-        1,
-        (weapons.time - weapons.current.lastShot) / 0.38,
-      );
-      const strike = Math.sin(Math.PI * easeUnit(progress));
-      this.root.position.set(
-        0.29 - 0.43 * strike + Math.cos(this.stridePhase) * 0.014 * bob,
-        -0.17 -
-          0.2 * weapons.equipLowering +
-          0.08 * strike +
-          Math.sin(this.stridePhase * 2) * 0.012 * bob,
-        -0.7 - 0.19 * strike + 0.05 * carry,
-      );
-      this.root.rotation.set(0.39 * carry, 0.77 * strike, -0.16 - 0.9 * strike);
-      this.arms.update(0, 0, 1, this.stridePhase, bob);
+      if (active) this.updateMelee(weapons, speed, dt, motion, movement);
       return;
     }
     const recoil = this.recoil.sample(recoilTime, this.recoilSample);
@@ -850,6 +859,80 @@ export class WeaponViewmodel {
       );
     }
     this.updateAimDot(weapons, active, ads, cinder, memento ?? neon);
+  }
+
+  private updateMelee(
+    weapons: WeaponController,
+    speed: number,
+    dt: number,
+    motion: number,
+    movement: MovementState,
+  ): void {
+    const skin = this.meleeSkin ?? defaultMeleeSkin;
+    const twoHanded = skin === 'void-ronin';
+    const { grip, tilt } = meleeStances[skin];
+    const step = Math.min(dt, 0.1);
+    this.stridePhase =
+      (this.stridePhase + speed * step * strideRadiansPerMeter) % (Math.PI * 2);
+    const sprinting = Number(movement === 'sprinting');
+    this.sprint += (sprinting - this.sprint) * (1 - Math.exp(-12 * step));
+    const bob = Math.min(1, speed / 8) * motion;
+    const sway = Math.sin(this.stridePhase) * bob;
+    const bounce = Math.cos(this.stridePhase * 2) * bob;
+    const age = weapons.time - weapons.current.lastShot;
+    const windup = easeUnit(age / 0.065) * (1 - easeUnit((age - 0.065) / 0.09));
+    const slash =
+      easeUnit((age - 0.065) / 0.13) * (1 - easeUnit((age - 0.195) / 0.23));
+    const width = Math.min(1, this.camera.aspect / 1.6);
+    const lower = weapons.equipLowering * 0.16 + this.sprint * 0.035;
+    const { left, right } = this.meleeHands;
+
+    this.root.position.set(0, 0, 0);
+    this.root.rotation.set(0, 0, 0);
+    this.meleeModel.position.set(
+      (grip[0] + 0.05 * windup - (twoHanded ? 0.32 : 0.39) * slash) * width +
+        sway * 0.012,
+      grip[1] - lower + bounce * 0.012 + 0.045 * slash,
+      grip[2] + windup * 0.04 - slash * 0.1 + this.sprint * 0.025,
+    );
+    this.meleeModel.rotation.set(
+      tilt[0] - 0.14 * this.sprint - 0.37 * slash,
+      tilt[1] + 0.24 * windup + 0.41 * slash,
+      tilt[2] -
+        0.42 * windup +
+        (twoHanded ? 1.42 : 0.99) * slash +
+        sway * 0.038,
+      'ZYX',
+    );
+
+    // The blade points up its authored Y axis. The katana has room for two
+    // separate grips along the hilt, with the right hand just below the guard.
+    const blade = this.meleeModel.quaternion;
+    right.rotation.copy(blade);
+    if (skin === 'ember-talon') right.rotation.multiply(karambitGripTurn);
+    right.wrist
+      .set(0.058, twoHanded ? 0.064 : 0, 0.032)
+      .applyQuaternion(right.rotation)
+      .add(this.meleeModel.position);
+    left.open = !twoHanded;
+    if (twoHanded) {
+      left.wrist
+        .set(-0.058, -0.06, 0.032)
+        .applyQuaternion(blade)
+        .add(this.meleeModel.position);
+      left.rotation.copy(blade);
+    } else {
+      left.wrist.set(
+        -0.37 * width + 0.031 * sway - 0.056 * slash,
+        -0.248 - lower - 0.024 * bounce - 0.035 * slash,
+        -0.53 - 0.028 * sway - 0.035 * this.sprint,
+      );
+      left.rotation.setFromAxisAngle(
+        meleeHandRollAxis,
+        0.44 - this.sprint * 0.16,
+      );
+    }
+    this.arms.update(0, 0, 0, 0, motion, undefined, this.meleeHands);
   }
 
   dispose(): void {

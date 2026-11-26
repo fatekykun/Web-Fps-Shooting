@@ -1,4 +1,5 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+import { readFile } from 'node:fs/promises';
 import { Box3, InstancedMesh, Matrix4, NearestFilter, Vector3 } from 'three';
 import { WeaponViewmodel } from './WeaponViewmodel';
 import { WeaponController } from './WeaponController';
@@ -284,5 +285,95 @@ it('smoothly exits the reload pose when a remaining round interrupts reload', ()
     expect(Math.abs(root.rotation.z)).toBeLessThan(0.01);
   } finally {
     model.dispose();
+  }
+});
+
+it('frames each melee blade and keeps its gripping hands on the hilt through a swing', async () => {
+  vi.stubGlobal(
+    'fetch',
+    async (path: string) =>
+      new Response(
+        new Uint8Array(
+          await readFile(
+            new URL(
+              `../../../public/models/${path.split('/').at(-1)}`,
+              import.meta.url,
+            ),
+          ),
+        ),
+      ),
+  );
+  const viewmodel = new WeaponViewmodel();
+  const weapons = new WeaponController(() => {});
+  const blade = viewmodel.scene.getObjectByName('melee-model')!;
+  const right = viewmodel.scene.getObjectByName('rightWrist')!;
+  const left = viewmodel.scene.getObjectByName('leftWrist')!;
+  const arms = viewmodel.scene.getObjectByName(
+    'tactical-arms-mesh',
+  ) as InstancedMesh;
+  const project = (point: Vector3) =>
+    blade.localToWorld(point).project(viewmodel.camera);
+  const wristOnBlade = (wrist: typeof right, grip: Vector3, context: string) =>
+    expect(
+      blade
+        .worldToLocal(wrist.getWorldPosition(new Vector3()))
+        .distanceTo(grip),
+      context,
+    ).toBeLessThan(0.001);
+  try {
+    viewmodel.resize(1280, 720);
+    weapons.selected = 'melee';
+    for (const [skin, tip] of [
+      ['glacier-fang', [0, 0.255, 0]],
+      ['ember-talon', [0.105, 0.105, 0]],
+      ['void-ronin', [0.07, 0.94, 0]],
+    ] as const) {
+      // Reset the swing timer between skins so each ready stance is sampled.
+      weapons.current.lastShot = -100;
+      viewmodel.setMeleeSkin(skin);
+      await vi.waitFor(() => expect(viewmodel.meleeSkinStatus).toBe('ready'));
+      expect(blade.children).toHaveLength(1);
+      viewmodel.update(weapons, 0, 1 / 60, true);
+      const hilt = project(new Vector3());
+      const edge = project(new Vector3(...tip));
+      expect(hilt.x).toBeGreaterThan(0.3);
+      expect(edge.y).toBeGreaterThan(hilt.y);
+      expect(edge.y).toBeLessThan(1);
+      if (skin === 'void-ronin') {
+        expect(edge.x).toBeGreaterThan(hilt.x);
+        const grip = blade.worldToLocal(left.getWorldPosition(new Vector3()));
+        expect(grip.y).toBeCloseTo(-0.06, 3);
+      } else {
+        expect(edge.x).toBeLessThan(hilt.x);
+        expect(
+          left.getWorldPosition(new Vector3()).project(viewmodel.camera).x,
+        ).toBeLessThan(-0.5);
+      }
+      const rightGrip = new Vector3(
+        skin === 'ember-talon' ? -0.058 : 0.058,
+        skin === 'void-ronin' ? 0.064 : 0,
+        skin === 'ember-talon' ? -0.032 : 0.032,
+      );
+      const leftGrip = new Vector3(-0.058, -0.06, 0.032);
+      wristOnBlade(right, rightGrip, skin);
+      expect(arms.count).toBe(26);
+
+      for (const age of [0.065, 0.125, 0.195, 0.28, 0.425]) {
+        weapons.current.lastShot = weapons.time - age;
+        viewmodel.update(weapons, 8, 1 / 60, true, 1, 'sprinting');
+        if (age === 0.195)
+          expect(project(new Vector3()).x).toBeLessThan(hilt.x - 0.35);
+        wristOnBlade(right, rightGrip, `${skin} right wrist at ${age}s`);
+        if (skin === 'void-ronin')
+          wristOnBlade(left, leftGrip, `${skin} left wrist at ${age}s`);
+      }
+    }
+    weapons.selected = 'rifle';
+    viewmodel.update(weapons, 0, 1 / 60, true);
+    expect(blade.visible).toBe(false);
+    expect(arms.count).toBe(16);
+  } finally {
+    viewmodel.dispose();
+    vi.unstubAllGlobals();
   }
 });

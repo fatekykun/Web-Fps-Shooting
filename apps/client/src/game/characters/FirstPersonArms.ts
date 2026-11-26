@@ -25,6 +25,17 @@ const armColors = {
   'crimson-officer': [0xbec6c5, 0xcfd5d2, 0x731b32, 0xe2e5df, 0xc2c8c7],
 } as const;
 
+interface MeleeHand {
+  wrist: Vector3;
+  rotation: Quaternion;
+  open?: boolean;
+}
+
+export interface MeleeHands {
+  left: MeleeHand;
+  right: MeleeHand;
+}
+
 /** Grip IK blends to a camera-space free support arm during sprint carry. */
 export class FirstPersonArms {
   readonly root = new Group();
@@ -46,7 +57,10 @@ export class FirstPersonArms {
   private readonly freeRotation = new Quaternion();
   private readonly parentRotation = new Quaternion();
   private readonly freeEuler = new Euler();
+  private readonly fingerEuler = new Euler(0, 0, 0, 'ZYX');
+  private readonly fingerRotation = new Quaternion();
   private colorsReady = false;
+  private melee = false;
   private operator: OperatorId = 'standard';
 
   constructor(material: Material) {
@@ -65,7 +79,7 @@ export class FirstPersonArms {
       wrist.position.y = -foreLength;
       this.bones.push(upper, forearm, wrist);
     }
-    this.mesh = new InstancedMesh(this.geometry, material, 16);
+    this.mesh = new InstancedMesh(this.geometry, material, 26);
     this.mesh.name = 'tactical-arms-mesh';
     this.mesh.frustumCulled = false;
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -81,6 +95,7 @@ export class FirstPersonArms {
     phase = 0,
     motion = 1,
     grips?: { firing: Vector3; support: Vector3 },
+    melee?: MeleeHands,
   ): void {
     const [sleeve, forearmColor, cuff, glove, fingers] =
       armColors[this.operator];
@@ -88,9 +103,12 @@ export class FirstPersonArms {
     this.inverse.copy(this.root.matrixWorld).invert();
     this.root.getWorldQuaternion(this.parentRotation).invert();
     const free = sprintArmPose(phase, motion);
+    const updateColors = !this.colorsReady || this.melee !== !!melee;
+    this.melee = !!melee;
     let instance = 0;
     for (let side = 0; side < 2; side++) {
       const left = side === 0;
+      const hand = left ? melee?.left : melee?.right;
       const upper = this.bones[side * 3]!,
         forearm = this.bones[side * 3 + 1]!,
         wrist = this.bones[side * 3 + 2]!;
@@ -113,6 +131,10 @@ export class FirstPersonArms {
           grip.y - (left ? 0.018 + reload * 0.18 : 0),
           grip.z + (left ? reload * 0.2 : 0),
         );
+      }
+      if (hand) {
+        upper.position.set(left ? -0.25 : 0.27, -0.43, -0.3);
+        this.target.copy(hand.wrist);
       }
       this.direction.copy(this.target).sub(upper.position);
       const distance = Math.min(
@@ -141,8 +163,9 @@ export class FirstPersonArms {
         .invert()
         .multiply(this.foreRotation);
       wrist.quaternion.copy(this.foreRotation).invert();
-      if (left) wrist.rotateZ(reload * 0.6);
-      if (left && carry > 0) {
+      if (hand) wrist.quaternion.multiply(hand.rotation);
+      else if (left) wrist.rotateZ(reload * 0.6);
+      if (!hand && left && carry > 0) {
         // The free arm swings beside the body in camera space, independently
         // of the raised weapon. The firing arm keeps its existing grip IK.
         this.freeShoulder.set(-0.26, -0.2, -0.4).applyMatrix4(this.inverse);
@@ -168,17 +191,18 @@ export class FirstPersonArms {
         position: readonly [number, number, number],
         size: readonly [number, number, number],
         tint: number,
+        rotation = identity,
       ) => {
         this.transform.compose(
           this.target.set(...position),
-          identity,
+          rotation,
           this.scale.set(...size),
         );
         this.transform.premultiply(bone.matrixWorld);
         // Matrices are local to the weapon root, which supplies all ADS/recoil/carry motion.
         this.transform.premultiply(this.inverse);
         this.mesh.setMatrixAt(instance, this.transform);
-        if (!this.colorsReady)
+        if (updateColors)
           this.mesh.setColorAt(instance, this.color.setHex(tint));
         instance++;
       };
@@ -190,6 +214,54 @@ export class FirstPersonArms {
         forearmColor,
       );
       part(forearm, [0, -0.29, 0], [0.12, 0.075, 0.125], cuff);
+      if (hand) {
+        const inward = left ? 1 : -1;
+        part(wrist, [0.026 * inward, 0, -0.012], [0.082, 0.09, 0.064], glove);
+        part(
+          wrist,
+          [0.044 * inward, hand.open ? -0.036 : 0.039, 0.013],
+          [0.027, 0.049, 0.034],
+          fingers,
+          this.fingerRotation.setFromEuler(
+            this.fingerEuler.set(-0.25, 0, -1.1 * inward),
+          ),
+        );
+        for (let finger = 0; finger < 4; finger++) {
+          const y = (finger - 1.5) * 0.02;
+          const length = 0.046 - Math.abs(finger - 1.25) * 0.006;
+          part(
+            wrist,
+            [0.064 * inward, y, -0.01],
+            [0.021, length, 0.024],
+            fingers,
+            this.fingerRotation.setFromEuler(
+              this.fingerEuler.set(
+                hand.open ? -0.23 : -0.58,
+                0,
+                -inward * (Math.PI / 2 - (hand.open ? y * 5 : 0)),
+              ),
+            ),
+          );
+          part(
+            wrist,
+            [
+              (hand.open ? 0.086 : 0.075) * inward,
+              hand.open ? y * 1.19 : y,
+              -0.032,
+            ],
+            [0.019, length * 0.7, 0.022],
+            fingers,
+            this.fingerRotation.setFromEuler(
+              this.fingerEuler.set(
+                hand.open ? -0.78 : -1.45,
+                0,
+                (-inward * Math.PI) / 2,
+              ),
+            ),
+          );
+        }
+        continue;
+      }
       part(wrist, [0, -0.012, 0], [0.09, 0.1, 0.13], glove);
       part(
         wrist,
@@ -205,8 +277,9 @@ export class FirstPersonArms {
           fingers,
         );
     }
+    this.mesh.count = instance;
     this.mesh.instanceMatrix.needsUpdate = true;
-    if (!this.colorsReady && this.mesh.instanceColor)
+    if (updateColors && this.mesh.instanceColor)
       this.mesh.instanceColor.needsUpdate = true;
     this.colorsReady = true;
   }
