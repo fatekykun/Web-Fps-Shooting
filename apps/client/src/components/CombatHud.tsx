@@ -33,6 +33,8 @@ export function CombatHud({
 }) {
   const weapon = weaponConfigs[combat.weapon];
   const melee = combat.weapon === 'melee';
+  const { reserve } = combat;
+  const unlimitedReserve = reserve === 'unlimited';
   const skin =
     combat.weapon === 'sniper'
       ? sniperSkins[combat.sniperSkin ?? 'standard']
@@ -81,7 +83,7 @@ export function CombatHud({
         data-melee-skin-status={combat.meleeSkinStatus}
         data-inspecting={!!combat.inspecting}
         data-ammo={combat.magazine}
-        data-reserve={combat.reserve}
+        data-reserve={reserve}
         data-ads={combat.ads}
         data-fov={combat.fov}
         data-spread={combat.spread}
@@ -105,7 +107,13 @@ export function CombatHud({
         {!melee && (
           <div className="ammo-line">
             <strong>{String(combat.magazine).padStart(2, '0')}</strong>
-            <span>/ {combat.reserve}</span>
+            <span
+              aria-label={
+                unlimitedReserve ? 'Unlimited reserve ammo' : undefined
+              }
+            >
+              / {unlimitedReserve ? '∞' : reserve}
+            </span>
           </div>
         )}
         <div className="weapon-action">
@@ -120,7 +128,7 @@ export function CombatHud({
                   : melee
                     ? 'MELEE READY'
                     : combat.magazine === 0
-                      ? combat.reserve > 0
+                      ? unlimitedReserve || reserve > 0
                         ? `EMPTY · ${keyLabel(bindings.reload)} TO RELOAD`
                         : 'OUT OF AMMO'
                       : combat.ads > 0.5

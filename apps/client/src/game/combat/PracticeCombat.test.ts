@@ -52,6 +52,32 @@ describe('local hitscan against Rapier world and target', () => {
     }
   }
 
+  it.each(['rifle', 'shotgun'] as const)(
+    'keeps reloading the %s after using more than the standard reserve',
+    (weapon) => {
+      setup();
+      combat.weapons.selected = weapon;
+      const config = combat.weapons.config;
+      const reloadTicks = Math.ceil(
+        (config.reloadTime * (config.reloadPerShell ? config.magazine : 1)) /
+          dt,
+      );
+      for (
+        let loaded = 0;
+        loaded <= config.reserve;
+        loaded += config.magazine
+      ) {
+        combat.weapons.current.magazine = 0;
+        step(1);
+        expect(combat.snapshot().reloading).toBe(true);
+        step(reloadTicks);
+        expect(combat.snapshot().magazine).toBe(config.magazine);
+        expect(combat.snapshot().reserve).toBe('unlimited');
+        expect(combat.snapshot().reloading).toBe(false);
+      }
+    },
+  );
+
   it('hits body/head sensors, excludes the player and respects range', () => {
     setup();
     const body = physics.castBullet(

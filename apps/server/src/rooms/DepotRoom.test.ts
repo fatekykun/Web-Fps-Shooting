@@ -193,6 +193,7 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
   const profile = defaultLoadouts();
   profile.slots[0].operator = 'ghost';
   profile.slots[1].operator = 'crimson-officer';
+  profile.slots[1].skin = 'neon-blade';
   target.send('loadout-profile', profile);
   filler.send('ready', true);
   target.send('ready', true);
@@ -211,6 +212,12 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
     damage: 9999,
   });
   await expect.poll(() => owner?.ammo.rifle.magazine).toBe(30);
+  expect(owner).toMatchObject({
+    selected: 'rifle',
+    skin: 'standard',
+    operator: 'standard',
+    loadoutSlot: 0,
+  });
   expect(target.state.players.get(target.sessionId)!.health).toBe(100);
   const hostLife = host.state.players.get(host.sessionId)!.life;
   const targetLife = target.state.players.get(target.sessionId)!.life;

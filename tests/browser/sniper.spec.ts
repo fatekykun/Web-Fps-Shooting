@@ -151,7 +151,7 @@ test('sniper scope, bolt lockout, five-round reload and movement remain responsi
   await expect(hud).toHaveAttribute('data-reloading', 'true');
   await page.clock.runFor(2700);
   await expect(hud).toHaveAttribute('data-ammo', '5');
-  await expect(hud).toHaveAttribute('data-reserve', '15');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
   await page.mouse.down({ button: 'right' });
   await page.keyboard.down('w');
   await page.clock.runFor(800);

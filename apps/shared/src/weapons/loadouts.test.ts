@@ -5,6 +5,23 @@ import {
   parseLoadoutProfile,
 } from './loadouts';
 
+it('gives fresh profiles the standard gun skin and operator and the Glacier Fang Knife', () => {
+  const profile = defaultLoadouts();
+  expect(profile.defaultSlot).toBe(0);
+  expect(profile.slots.map(({ weapon }) => weapon)).toEqual([
+    'rifle',
+    'smg',
+    'shotgun',
+    'sniper',
+  ]);
+  for (const slot of profile.slots)
+    expect(slot).toMatchObject({
+      skin: 'standard',
+      operator: 'standard',
+      meleeSkin: 'glacier-fang',
+    });
+});
+
 it('allows duplicate weapon categories with independently validated skins', () => {
   const profile = defaultLoadouts();
   profile.slots[1] = { weapon: 'rifle', skin: 'cinder-wyrm' };
@@ -42,7 +59,12 @@ it('selects the saved default, an eligible slot, or the room fallback', () => {
   });
   profile.slots[1] = profile.slots[0];
   expect(allowedDefault(profile, ['smg'])).toEqual({
-    equipment: { weapon: 'smg', skin: 'standard' },
+    equipment: {
+      weapon: 'smg',
+      skin: 'standard',
+      operator: 'standard',
+      meleeSkin: 'glacier-fang',
+    },
   });
 });
 
@@ -50,6 +72,7 @@ it('validates operator choices and keeps legacy slots usable', () => {
   const profile = defaultLoadouts();
   profile.slots[0].operator = 'ghost';
   profile.slots[1].operator = 'crimson-officer';
+  profile.slots[3] = { weapon: 'sniper', skin: 'lotus-lava' };
   expect(parseLoadoutProfile(profile)).toEqual(profile);
   expect(
     allowedDefault(profile, ['sniper']).equipment.operator,

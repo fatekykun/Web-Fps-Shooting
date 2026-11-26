@@ -6,13 +6,15 @@ import { avatarParts, standingAnchor } from '@breakpoint/shared/avatar';
 import type { KillEvent } from '@breakpoint/shared/combat';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
 import { enterStartedMatch } from './helpers/matchEntry';
+import { loadoutsWithSkin } from './helpers/loadouts';
 
 async function prepare(page: Page, quality: 'high' | 'medium') {
-  await page.addInitScript((quality) => {
+  const settings = { quality, loadouts: loadoutsWithSkin(0, 'memento-mori') };
+  await page.addInitScript(({ quality, loadouts }) => {
     localStorage.setItem(
       'breakpoint.settings.v1',
       JSON.stringify({
-        rifleSkin: 'memento-mori',
+        loadouts,
         eliminationQuality: quality,
       }),
     );
@@ -61,7 +63,7 @@ async function prepare(page: Page, quality: 'high' | 'medium') {
       };
       requestAnimationFrame(capture);
     };
-  }, quality);
+  }, settings);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {

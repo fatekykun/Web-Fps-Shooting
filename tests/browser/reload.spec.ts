@@ -34,8 +34,8 @@ async function tap(page: Page) {
 }
 
 for (const weapon of [
-  { key: '1', name: 'rifle', magazine: 30, reserve: 120 },
-  { key: '4', name: 'sniper', magazine: 5, reserve: 20 },
+  { key: '1', name: 'rifle', magazine: 30 },
+  { key: '4', name: 'sniper', magazine: 5 },
 ]) {
   test(`fresh ${weapon.name} ADS cancels a partial reload and held ADS allows reloading`, async ({
     page,
@@ -57,7 +57,7 @@ for (const weapon of [
     if (weapon.name === 'sniper')
       await expect(page.getByTestId('sniper-scope')).toHaveCSS('opacity', '1');
     await expect(hud).toHaveAttribute('data-ammo', String(weapon.magazine - 1));
-    await expect(hud).toHaveAttribute('data-reserve', String(weapon.reserve));
+    await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
     await page.clock.runFor(3000);
     await expect(hud).toHaveAttribute('data-ammo', String(weapon.magazine - 1));
     await page.keyboard.press('r');
@@ -95,10 +95,10 @@ test('auto reload starts on empty, partial reloads cancel to fire, and empty rel
   await tap(page);
   await expect(hud).toHaveAttribute('data-reloading', 'false');
   await expect(hud).toHaveAttribute('data-ammo', String(remaining - 1));
-  await expect(hud).toHaveAttribute('data-reserve', '120');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
   await page.clock.runFor(3000);
   await expect(hud).toHaveAttribute('data-ammo', String(remaining - 1));
-  await expect(hud).toHaveAttribute('data-reserve', '120');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
   await page.screenshot({ path: 'test-results/bp06-interrupted.png' });
   await page.mouse.down();
   await page.clock.runFor((remaining - 1) * 100 + 100);
@@ -111,7 +111,7 @@ test('auto reload starts on empty, partial reloads cancel to fire, and empty rel
   await expect(hud).toHaveAttribute('data-ammo', '0');
   await page.clock.runFor(2300);
   await expect(hud).toHaveAttribute('data-ammo', '30');
-  await expect(hud).toHaveAttribute('data-reserve', '90');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
   await expect(hud).toHaveAttribute('data-reloading', 'false');
   await page.keyboard.press('r');
   await page.clock.runFor(200);
@@ -147,7 +147,7 @@ test('auto reload defaults on, persists off, resets on, and manual R still works
   await page.mouse.up();
   await page.clock.runFor(2300);
   await expect(hud).toHaveAttribute('data-ammo', '0');
-  await expect(hud).toHaveAttribute('data-reserve', '120');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
   await expect(hud).toHaveAttribute('data-reloading', 'false');
   await page.keyboard.press('r');
   await page.clock.runFor(300);
@@ -156,7 +156,7 @@ test('auto reload defaults on, persists off, resets on, and manual R still works
   await expect(hud).toHaveAttribute('data-reloading', 'true');
   await page.clock.runFor(2100);
   await expect(hud).toHaveAttribute('data-ammo', '30');
-  await expect(hud).toHaveAttribute('data-reserve', '90');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
 });
 
 test('server honors the auto reload setting and authoritatively cancels or completes reloads', async ({

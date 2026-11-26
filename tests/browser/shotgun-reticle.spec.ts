@@ -130,7 +130,7 @@ test('projects the shotgun cone at high DPI, through movement, ADS and resize', 
   }
 });
 
-test('shows the local shotgun ring in a private room while the server resolves eight pellets', async ({
+test('shows the local shotgun ring in a private room while the server resolves 15 pellets', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -164,7 +164,7 @@ test('shows the local shotgun ring in a private room while the server resolves e
     await expect(weapon).toHaveAttribute('data-weapon', 'shotgun');
     await expect(weapon.locator('.weapon-action')).toHaveText('HIP FIRE');
     await page.mouse.down();
-    await expect.poll(() => shots[0]?.traces.length).toBe(8);
+    await expect.poll(() => shots[0]?.traces.length).toBe(15);
     await page.mouse.up();
     expect(shots[0]?.weapon).toBe('shotgun');
     await expect(weapon).toHaveAttribute('data-ammo', '7');
@@ -193,9 +193,12 @@ for (const distance of [3, 5, 10, 15]) {
       await page.clock.runFor(40);
       await page.mouse.up();
       await expect(range).toHaveAttribute('data-shot', String(volley));
-      await expect(range).toHaveAttribute('data-impacts', '8');
+      await expect(range).toHaveAttribute('data-impacts', '15');
       await expect(range).toHaveAttribute('data-outside', '0');
-      await expect(range).toHaveAttribute('data-markers', String(volley * 8));
+      await expect(range).toHaveAttribute(
+        'data-markers',
+        String(Math.min(volley * 15, 32)),
+      );
       await expect(range).toContainText(`${distance.toFixed(2)} m TO WALL`);
       await page.clock.runFor(1200);
     }

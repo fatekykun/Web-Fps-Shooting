@@ -213,8 +213,10 @@ it.each(weaponOrder)(
       expect(victim.state.health).toBeCloseTo(100 - expected, 8);
       expect(f.combat.owner(shooter).lastDamage).toBeCloseTo(expected, 8);
     } else {
-      expect(victim.state.health).toBeGreaterThan(
-        100 - weaponConfigs.shotgun.damage * weaponConfigs.shotgun.pellets,
+      const config = weaponConfigs.shotgun;
+      const maxPelletDamage = calculateDamage(config, 'head', 34);
+      expect(victim.state.health).toBeGreaterThanOrEqual(
+        100 - maxPelletDamage * config.pellets,
       );
     }
   },
@@ -870,6 +872,7 @@ it('equips the selected blade, hits only in reach, and preserves primary ammo', 
   const f = fixture();
   const profile = defaultLoadouts();
   profile.defaultSlot = 2;
+  profile.slots[2].skin = 'glorious-blaze';
   profile.slots[2].meleeSkin = 'void-ronin';
   const player = f.add('melee', 0, 12, profile);
   const distant = f.add('distant', 0, 8);

@@ -1,5 +1,5 @@
-import { defaultLoadouts } from '@breakpoint/shared/weapons/loadouts';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { loadoutsWithSkin } from './helpers/loadouts';
 
 function trackErrors(page: Page) {
   const errors: string[] = [];
@@ -48,16 +48,6 @@ test('Lotus Lava saves from Loadouts and renders the imported model, inspect and
       .getByTestId('render-resolution')
       .getAttribute('data-world-draws')
       .then(Number);
-  const initial = defaultLoadouts();
-  initial.slots[0].skin = 'standard';
-  initial.slots[3].skin = 'standard';
-  await page.addInitScript((profile) => {
-    if (!localStorage.getItem('breakpoint.settings.v1'))
-      localStorage.setItem(
-        'breakpoint.settings.v1',
-        JSON.stringify({ loadouts: profile }),
-      );
-  }, initial);
   await page.goto('/');
   await enter.click();
   await page.keyboard.press('4');
@@ -126,11 +116,13 @@ test('a failed Lotus Lava download falls back to a working standard sniper', asy
   await page.route('**/models/lotus_inferno_v2.glb', (route) =>
     route.fulfill({ status: 404 }),
   );
-  await page.addInitScript(() =>
-    localStorage.setItem(
-      'breakpoint.settings.v1',
-      JSON.stringify({ sniperSkin: 'lotus-lava' }),
-    ),
+  await page.addInitScript(
+    (loadouts) =>
+      localStorage.setItem(
+        'breakpoint.settings.v1',
+        JSON.stringify({ loadouts }),
+      ),
+    loadoutsWithSkin(3, 'lotus-lava'),
   );
   await page.goto('/');
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
@@ -166,10 +158,11 @@ test.describe('Lotus Lava touch controls', () => {
     page,
   }, testInfo) => {
     const errors = trackErrors(page);
-    await page.addInitScript(() => {
+    const loadouts = loadoutsWithSkin(3, 'lotus-lava');
+    await page.addInitScript((loadouts) => {
       localStorage.setItem(
         'breakpoint.settings.v1',
-        JSON.stringify({ sniperSkin: 'lotus-lava', scopeStyle: 'optic' }),
+        JSON.stringify({ loadouts, scopeStyle: 'optic' }),
       );
       localStorage.setItem(
         'breakpoint.graphics.v2',
@@ -177,7 +170,7 @@ test.describe('Lotus Lava touch controls', () => {
       );
       Element.prototype.requestFullscreen = () =>
         Promise.reject(new Error('Fullscreen denied'));
-    });
+    }, loadouts);
     await page.goto('/');
     await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
     const hud = page.getByTestId('weapon-status');
