@@ -140,7 +140,13 @@ it.each(['crimson_officer_character', 'ghost_character'])(
       expect(target('Foot_R').distanceTo(rightBoot)).toBeGreaterThan(0.3);
 
       update({ halfHeight: 0.2, movement: 'sliding', slideBlend: 1 });
-      expect(target('Hips').y).toBeLessThan(runningHips.y - 0.35);
+      const slideHips = target('Hips');
+      const slideChest = target('Chest');
+      expect(slideHips.y).toBeLessThan(runningHips.y - 0.35);
+      expect(slideChest.y - slideHips.y).toBeGreaterThan(0.25);
+      expect(target('Hand_L').y - tactical.root.position.y).toBeLessThan(0.12);
+      expect(gripError('right')).toBeLessThan(0.035);
+      expect(bounds().min.y).toBeCloseTo(tactical.root.position.y, 1);
       const forward = new Vector3(0, 0, -1).applyQuaternion(
         tactical.root.quaternion,
       );

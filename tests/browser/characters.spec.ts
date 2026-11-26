@@ -224,7 +224,10 @@ test('tactical character poses synchronize through locomotion, landing, slide, r
     slidePressed = true;
     await expect
       .poll(() => actor().slideBlend, { intervals: [25] })
-      .toBeGreaterThan(0.7);
+      .toBeGreaterThan(0.9);
+    const [bracingHand, slidingGrip] = gripErrors(actor());
+    expect(bracingHand).toBeGreaterThan(0.3);
+    expect(slidingGrip).toBeLessThan(0.005);
     await lookAtActor(0.65);
     await page.screenshot({ path: 'test-results/bp11-tactical-slide.png' });
     forward = 0;

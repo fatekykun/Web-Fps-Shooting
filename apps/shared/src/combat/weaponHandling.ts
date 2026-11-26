@@ -30,7 +30,7 @@ function multiply(a: Quat, b: Quat): Quat {
   };
 }
 const inverse = (q: Quat): Quat => ({ x: -q.x, y: -q.y, z: -q.z, w: q.w });
-function rotation(p: JointPose): Quat {
+function rotation(p: Pick<JointPose, 'rx' | 'ry' | 'rz'>): Quat {
   const cx = Math.cos(p.rx / 2),
     sx = Math.sin(p.rx / 2),
     cy = Math.cos(p.ry / 2),
@@ -69,14 +69,7 @@ function setRotation(out: JointPose, q: Quat): void {
   }
 }
 
-function blendRotation(
-  out: JointPose,
-  rx: number,
-  rz: number,
-  weight: number,
-): void {
-  const a = rotation(out),
-    b = rotation({ ...out, rx, ry: 0, rz });
+function blendRotation(a: Quat, b: Quat, weight: number): Quat {
   let dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
   if (dot < 0) {
     b.x *= -1;
@@ -100,8 +93,20 @@ function blendRotation(
   q.y /= n;
   q.z /= n;
   q.w /= n;
-  setRotation(out, q);
+  return q;
 }
+function blendLocalRotation(
+  joint: JointPose,
+  rx: number,
+  rz: number,
+  weight: number,
+): void {
+  setRotation(
+    joint,
+    blendRotation(rotation(joint), rotation({ rx, ry: 0, rz }), weight),
+  );
+}
+
 /** Shortest rotation from the limb's local -Y axis to its solved direction. */
 function limbRotation(v: Vec): Quat {
   const d = normalize(v),
@@ -117,16 +122,59 @@ export const remoteWeaponGrips = {
   left: { x: -0.07, y: 0.015, z: -0.12 },
 } as const;
 
+const mix = (from: number, to: number, weight: number) =>
+  from + (to - from) * weight;
+
+function slideFrame(joints: JointPose[]) {
+  const pelvis = joints[0]!,
+    spine = joints[1]!,
+    chest = joints[2]!;
+  const hips = rotation(pelvis);
+  const torso = multiply(hips, rotation(spine));
+  const spineOffset = rotate(hips, spine);
+  const chestOffset = rotate(torso, chest);
+  const position = {
+    x: pelvis.x + spineOffset.x + chestOffset.x,
+    y: pelvis.y + spineOffset.y + chestOffset.y,
+    z: pelvis.z + spineOffset.z + chestOffset.z,
+  };
+  return { position, toChest: inverse(multiply(torso, rotation(chest))) };
+}
+
+interface ArmPose {
+  reload: number;
+  carry: number;
+  phase: number;
+  slide: number;
+  brace: number;
+  pitch: number;
+}
+
 /** Solve both arms in chest space. Fixed segment lengths also drive server hitboxes. */
 export function solveWeaponArms(
   joints: JointPose[],
-  reload: number,
-  carry = 0,
-  phase = 0,
+  { reload, carry, phase, slide, brace, pitch }: ArmPose,
 ): void {
-  const weapon = joints[21]!,
-    weaponRotation = rotation(weapon);
-  const handRotation = multiply(weaponRotation, {
+  const weapon = joints[21]!;
+  const frame = slide > 0 ? slideFrame(joints) : undefined;
+  if (frame) {
+    // The chest banks into the slide while the muzzle follows the look angle.
+    const raisedWeapon = rotation({
+      rx: pitch,
+      ry: 0,
+      rz: weapon.rz - 0.1,
+    });
+    setRotation(
+      weapon,
+      blendRotation(
+        rotation(weapon),
+        multiply(frame.toChest, raisedWeapon),
+        slide,
+      ),
+    );
+  }
+  const weaponRotation = rotation(weapon);
+  const gripRotation = multiply(weaponRotation, {
     x: Math.SQRT1_2,
     y: 0,
     z: 0,
@@ -143,17 +191,47 @@ export function solveWeaponArms(
       y: grip.y - (left ? reload * 0.19 : 0),
       z: grip.z + (left ? reload * 0.08 : 0),
     });
+    target.x += weapon.x;
+    target.y += weapon.y;
+    target.z += weapon.z;
+    let handRotation = gripRotation;
+    if (left && frame && brace > 0) {
+      const floor = rotate(frame.toChest, {
+        x: -0.43 - frame.position.x,
+        y: 0.074 - frame.position.y,
+        z: 0.12 - frame.position.z,
+      });
+      target.x = mix(target.x, floor.x, brace);
+      target.y = mix(target.y, floor.y, brace);
+      target.z = mix(target.z, floor.z, brace);
+      const floorPalm = rotation({
+        rx: Math.PI / 2,
+        ry: 0,
+        rz: -0.5,
+      });
+      handRotation = blendRotation(
+        gripRotation,
+        multiply(frame.toChest, floorPalm),
+        brace,
+      );
+    }
     const palm = rotate(handRotation, { x: 0, y: -0.055, z: 0 });
     const delta = {
-      x: weapon.x + target.x - palm.x - shoulder.x,
-      y: weapon.y + target.y - palm.y - shoulder.y,
-      z: weapon.z + target.z - palm.z - shoulder.z,
+      x: target.x - palm.x - shoulder.x,
+      y: target.y - palm.y - shoulder.y,
+      z: target.z - palm.z - shoulder.z,
     };
     const direction = normalize(delta),
       distance = clamp(length(delta), 0.025, 0.5399);
     const along = (0.28 ** 2 - 0.26 ** 2 + distance ** 2) / (2 * distance);
     const height = Math.sqrt(Math.max(0, 0.28 ** 2 - along ** 2));
     const pole = { x: left ? -1 : 1, y: -0.7, z: 0.3 };
+    if (left && frame && brace > 0) {
+      const outward = rotate(frame.toChest, { x: -1, y: 0.1, z: 0.45 });
+      pole.x = mix(pole.x, outward.x, brace);
+      pole.y = mix(pole.y, outward.y, brace);
+      pole.z = mix(pole.z, outward.z, brace);
+    }
     const dot =
       pole.x * direction.x + pole.y * direction.y + pole.z * direction.z;
     const bend = normalize({
@@ -177,9 +255,9 @@ export function solveWeaponArms(
     setRotation(wrist, multiply(inverse(foreRotation), handRotation));
     if (left && carry > 0) {
       const free = sprintArmPose(phase);
-      blendRotation(upper, free.upperPitch, free.upperRoll, carry);
-      blendRotation(forearm, free.elbowPitch, 0, carry);
-      blendRotation(wrist, free.wristPitch, 0, carry);
+      blendLocalRotation(upper, free.upperPitch, free.upperRoll, carry);
+      blendLocalRotation(forearm, free.elbowPitch, 0, carry);
+      blendLocalRotation(wrist, free.wristPitch, 0, carry);
     }
   }
 }

@@ -181,10 +181,16 @@ it('bends elbows and knees and lowers posture without squashing limb dimensions'
   }
 });
 
-it('slides feet-first with a low seated pelvis, one extended leg, a tucked leg and a level head', () => {
+it('slides feet-first with a banked torso, a braced arm and a level head', () => {
   const rig = createRigTransforms();
   evaluateRig({ ...base, halfHeight: 0.2, slideBlend: 1 }, rig);
-  expect(rig[0]!.y).toBeLessThan(0.3);
+  const hips = rig[0]!;
+  const chest = rig[2]!;
+  expect(hips.y).toBeLessThan(0.3);
+  expect(chest.y - hips.y).toBeGreaterThan(0.28);
+  expect(chest.x - hips.x).toBeLessThan(-0.12);
+  expect(rig[8]!.y).toBeLessThan(0.1);
+  expect(rig[8]!.z).toBeGreaterThan(hips.z);
   expect(rig[20]!.z).toBeLessThan(rig[0]!.z - 0.5);
   expect(Math.abs(rig[16]!.z - rig[0]!.z)).toBeLessThan(0.25);
   const facing = rotatePoint(rig[4]!, 0, 0, -1, { x: 0, y: 0, z: 0 });

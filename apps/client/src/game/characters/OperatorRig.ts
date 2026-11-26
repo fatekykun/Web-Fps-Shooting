@@ -11,7 +11,9 @@ import {
 } from 'three';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import {
+  characterSlide,
   rigJoints,
+  slideBrace,
   type CharacterPose,
   type JointName,
 } from '@breakpoint/shared/character';
@@ -121,6 +123,8 @@ export class OperatorRig {
   private readonly model: Object3D;
   private readonly hips: Bone;
   private readonly restHips: Vector3;
+  private readonly supportShoulder: Bone;
+  private readonly restSupportShoulder: Quaternion;
   private readonly bindings: Binding[];
   private readonly arms: [Arm, Arm];
   private readonly boots: ReturnType<typeof bindBoot>[];
@@ -151,6 +155,8 @@ export class OperatorRig {
     this.bindings = bodyJoints.map(([name, joint]) => bind(model, name, joint));
     this.hips = this.bindings[0]!.bone;
     this.restHips = this.hips.position.clone();
+    this.supportShoulder = operatorBone(model, 'Shoulder_L');
+    this.restSupportShoulder = this.supportShoulder.quaternion.clone();
     this.arms = [
       bindArm(model, 'left', this.scale),
       bindArm(model, 'right', this.scale),
@@ -173,9 +179,8 @@ export class OperatorRig {
   update(rig: TacticalSkeleton, pose: CharacterPose): void {
     this.root.matrix.copy(rig.root.matrixWorld);
     this.root.matrixWorldNeedsUpdate = true;
-    const slide =
-      pose.slideBlend ??
-      Number(pose.movement === 'sliding' || pose.movement === 'backsliding');
+    const slide = characterSlide(pose);
+    const brace = slideBrace(pose, slide);
     const air = pose.airBlend ?? 0;
     const dive = pose.diveBlend ?? Number(pose.movement === 'diving');
     const prone = pose.proneBlend ?? Number(pose.movement === 'prone');
@@ -213,26 +218,40 @@ export class OperatorRig {
     const carry =
       (pose.carryBlend ?? pose.sprintBlend ?? 0) *
       (1 - (pose.aimBlend ?? 0)) ** 3 *
-      (1 - reload);
+      (1 - reload) *
+      (1 - slide);
+    // Lower the authored clavicle toward the brace point before solving reach.
+    this.supportShoulder.quaternion.copy(this.restSupportShoulder);
+    this.supportShoulder.rotateZ(-0.7 * brace);
     const [left, right] = this.arms;
     this.prepareWrist(rig, left);
     this.prepareWrist(rig, right);
+    // The authored gloves are thinner than the block hand used for the rig.
+    left.wrist.y -= brace * 0.025;
     this.weaponMatrix.copy(rig.bones[weaponJoint]!.matrixWorld);
     this.weaponBack.set(0, 0, 1).transformDirection(this.weaponMatrix);
     // Slide the cosmetic weapon along its bore to give the shorter authored
     // arms a grip while keeping its aim direction and line of fire aligned.
     const setback = Math.min(
       0.18,
-      Math.max(this.gripSetback(right), this.gripSetback(left) * (1 - carry)),
+      Math.max(
+        this.gripSetback(right),
+        this.gripSetback(left) * (1 - carry) * (1 - brace),
+      ),
     );
     this.weaponMatrix.setPosition(
       this.scratch
         .setFromMatrixPosition(this.weaponMatrix)
         .addScaledVector(this.weaponBack, setback),
     );
-    left.wrist.addScaledVector(this.weaponBack, setback);
+    left.wrist.addScaledVector(this.weaponBack, setback * (1 - brace));
     right.wrist.addScaledVector(this.weaponBack, setback);
-    this.poseArm(rig, left, carry, 1 - reload * 0.75 - carry * 0.7);
+    this.poseArm(
+      rig,
+      left,
+      carry,
+      (1 - reload * 0.75 - carry * 0.7) * (1 - brace),
+    );
     this.poseArm(rig, right, 0, 1);
     this.root.updateMatrixWorld(true);
   }
