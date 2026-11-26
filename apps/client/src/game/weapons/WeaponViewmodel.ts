@@ -24,10 +24,13 @@ import {
 import {
   degreesToRadians,
   weaponOrder,
+  type GunId,
   type MovementState,
   type WeaponId,
   type WeaponInput,
 } from '@breakpoint/shared';
+import type { MeleeSkin } from '@breakpoint/shared/weapons/loadouts';
+import { weaponAsset } from './WeaponAssets';
 import type { WeaponController } from './WeaponController';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import type { GraphicsSettings } from '../rendering/graphicsConfig';
@@ -88,6 +91,10 @@ export class WeaponViewmodel {
   private readonly lowTexture: DataTexture;
   private readonly material: MeshLambertMaterial;
   private readonly arms: FirstPersonArms;
+  private readonly meleeModel = new Group();
+  private meleeSkin?: MeleeSkin;
+  private meleeGeneration = 0;
+  meleeSkinStatus: WeaponSkinStatus = 'loading';
   private readonly flashMaterial = new MeshBasicMaterial({ color: 0xffc26b });
   private readonly flash = new InstancedMesh(
     this.geometry,
@@ -164,6 +171,10 @@ export class WeaponViewmodel {
     this.material = createReadableMaterial({ map: this.texture }, 0.12);
     this.arms = new FirstPersonArms(this.material);
     this.root.add(this.arms.root);
+    this.meleeModel.position.y = -0.018;
+    this.meleeModel.rotation.set(-0.88, 0, -0.25);
+    this.meleeModel.visible = false;
+    this.arms.bones[5]!.add(this.meleeModel);
     const key = new DirectionalLight(0xfff0d9, 1.5);
     key.position.set(-2, 4, 3);
     this.scene.add(new HemisphereLight(0xf1f0dc, 0x8b9e8e, 2.1), key);
@@ -180,7 +191,7 @@ export class WeaponViewmodel {
     this.scene.add(this.root);
   }
 
-  private build(id: WeaponId): void {
+  private build(id: GunId): void {
     const barrelLength = weaponMuzzles[id].barrelLength;
     const barrelZ = -0.18 - barrelLength / 2;
     const parts: WeaponPart[] = [
@@ -252,7 +263,7 @@ export class WeaponViewmodel {
   }
 
   /** For an independent showcase instance containing the original procedural geometry. */
-  showcaseModel(weapon: WeaponId, molten = false): Group | InstancedMesh {
+  showcaseModel(weapon: GunId, molten = false): Group | InstancedMesh {
     if (molten) this.setRifleSkin('cinder-wyrm');
     const model = molten ? this.cinder!.model : this.models.get(weapon)!;
     model.visible = true;
@@ -419,6 +430,25 @@ export class WeaponViewmodel {
     }
   }
 
+  setMeleeSkin(skin: MeleeSkin): void {
+    if (this.meleeSkin === skin) return;
+    this.meleeSkin = skin;
+    this.meleeSkinStatus = 'loading';
+    const generation = ++this.meleeGeneration;
+    this.meleeModel.clear();
+    void weaponAsset(skin).then(
+      (asset) => {
+        if (generation !== this.meleeGeneration) return;
+        this.meleeModel.add(asset.scene.clone(true));
+        this.meleeSkinStatus = 'ready';
+      },
+      () => {
+        if (generation !== this.meleeGeneration) return;
+        this.meleeSkinStatus = 'unavailable';
+      },
+    );
+  }
+
   requestInspect(): void {
     this.inspectRequested = true;
   }
@@ -454,7 +484,7 @@ export class WeaponViewmodel {
 
   /** Match the barrel's screen position across the separate viewmodel/world FOVs. */
   muzzleWorldPosition(
-    id: WeaponId,
+    id: GunId,
     camera: PerspectiveCamera,
     out: Vector3,
     worldFov = camera.fov,
@@ -481,7 +511,11 @@ export class WeaponViewmodel {
     const optic = mounted?.reticle ?? cinder?.reticle;
     const reticle =
       mounted?.sight ??
-      (cinder ? cinderReticle : weaponSights[weapons.selected].reticle);
+      (cinder
+        ? cinderReticle
+        : weapons.selected === 'melee'
+          ? undefined
+          : weaponSights[weapons.selected].reticle);
     const mark = optic ?? this.aimDot;
     this.aimDot.visible = false;
     if (this.cinder) this.cinder.reticle.visible = false;
@@ -538,7 +572,7 @@ export class WeaponViewmodel {
       this.recoilWeapon = weapons.selected;
     }
     this.recoil.step(dt);
-    if (!fired) return;
+    if (!fired || weapons.selected === 'melee') return;
     const { springStiffness, springDamping, weaponAdsMultiplier } =
       weapons.config.recoil;
     const frequency = Math.sqrt(springStiffness);
@@ -608,6 +642,34 @@ export class WeaponViewmodel {
     if (this.blaze) this.blaze.model.visible = !!blaze;
     this.models.get('smg')!.visible = this.selected === 'smg' && !neon;
     if (this.neon) this.neon.model.visible = !!neon;
+    this.meleeModel.visible = weapons.selected === 'melee';
+    if (weapons.selected === 'melee') {
+      this.root.visible = active;
+      this.flash.visible = false;
+      this.updateAimDot(weapons, false, 0);
+      if (!active) return;
+      this.stridePhase =
+        (this.stridePhase + speed * Math.min(dt, 0.1) * strideRadiansPerMeter) %
+        (Math.PI * 2);
+      const carry = movement === 'sprinting' ? 1 : 0;
+      const bob = Math.min(1, speed / 8) * motion;
+      const progress = Math.min(
+        1,
+        (weapons.time - weapons.current.lastShot) / 0.38,
+      );
+      const strike = Math.sin(Math.PI * easeUnit(progress));
+      this.root.position.set(
+        0.29 - 0.43 * strike + Math.cos(this.stridePhase) * 0.014 * bob,
+        -0.17 -
+          0.2 * weapons.equipLowering +
+          0.08 * strike +
+          Math.sin(this.stridePhase * 2) * 0.012 * bob,
+        -0.7 - 0.19 * strike + 0.05 * carry,
+      );
+      this.root.rotation.set(0.39 * carry, 0.77 * strike, -0.16 - 0.9 * strike);
+      this.arms.update(0, 0, 1, this.stridePhase, bob);
+      return;
+    }
     const recoil = this.recoil.sample(recoilTime, this.recoilSample);
     const kick = recoil.pitch * motion;
     const lateral = recoil.yaw * motion;
@@ -791,6 +853,8 @@ export class WeaponViewmodel {
   }
 
   dispose(): void {
+    ++this.meleeGeneration;
+    this.meleeModel.clear();
     this.arms.dispose();
     this.cinder?.dispose();
     this.mementoRequest?.abort();

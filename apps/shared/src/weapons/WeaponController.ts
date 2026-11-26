@@ -5,6 +5,7 @@ import {
   weaponConfigs,
   weaponOrder,
   type AccuracyContext,
+  type GunId,
   type WeaponConfig,
   type WeaponId,
   type WeaponInput,
@@ -31,12 +32,14 @@ export interface ShotEvent {
 /** Shared weapon timing and inventory rules. The server alone resolves multiplayer hits/damage. */
 export class WeaponController {
   readonly recoil = new Recoil();
-  readonly ammo: Record<WeaponId, WeaponAmmo> = {
+  readonly ammo: Record<GunId, WeaponAmmo> = {
     rifle: this.createAmmo('rifle'),
     smg: this.createAmmo('smg'),
     shotgun: this.createAmmo('shotgun'),
     sniper: this.createAmmo('sniper'),
   };
+  private readonly melee = this.createAmmo('melee');
+  private primary: GunId = 'rifle';
   selected: WeaponId = 'rifle';
   ads = 0;
   spread = (weaponConfigs.rifle.hipSpread * Math.PI) / 180;
@@ -61,7 +64,7 @@ export class WeaponController {
     return weaponConfigs[this.selected];
   }
   get current() {
-    return this.ammo[this.selected];
+    return this.selected === 'melee' ? this.melee : this.ammo[this.selected];
   }
   get reloading(): boolean {
     return this.reloadEnd > 0;
@@ -111,15 +114,19 @@ export class WeaponController {
     input: { sprint?: boolean; slidePressed?: boolean; divePressed?: boolean },
     state: string,
   ): number {
-    return aim &&
+    if (this.selected === 'melee') return 1;
+    return (
+      combatConfig.gunMovementScale *
+      (aim &&
       !this.reloading &&
       !this.equipping &&
       state === 'walking' &&
       !input.sprint &&
       !input.slidePressed &&
       !input.divePressed
-      ? (this.config.scopedMovementScale ?? 1)
-      : 1;
+        ? (this.config.scopedMovementScale ?? 1)
+        : 1)
+    );
   }
 
   private createAmmo(id: WeaponId): WeaponAmmo {
@@ -138,7 +145,10 @@ export class WeaponController {
   }
 
   sampleAds(dt: number, aiming: boolean): number {
-    const target = aiming && !this.reloading && !this.equipping ? 1 : 0;
+    const target =
+      this.selected !== 'melee' && aiming && !this.reloading && !this.equipping
+        ? 1
+        : 0;
     return (
       target +
       (this.ads - target) *
@@ -148,7 +158,13 @@ export class WeaponController {
 
   switchWeapon(id: WeaponId): void {
     if (id === this.selected) return;
-    if (this.config.scopeMagnification || weaponConfigs[id].scopeMagnification)
+    if (id === 'melee' && this.selected !== 'melee')
+      this.primary = this.selected;
+    if (
+      id === 'melee' ||
+      this.config.scopeMagnification ||
+      weaponConfigs[id].scopeMagnification
+    )
       this.ads = 0;
     this.selected = id;
     this.reloadEnd = 0;
@@ -156,6 +172,10 @@ export class WeaponController {
     this.clearTriggerBuffer();
     this.recoil.resetPattern();
     this.onChange();
+  }
+
+  toggleMelee(): void {
+    this.switchWeapon(this.selected === 'melee' ? this.primary : 'melee');
   }
 
   reload(): boolean {
@@ -202,7 +222,9 @@ export class WeaponController {
         );
     }
     this.recoil.step(dt);
-    if (input.switchTo) this.switchWeapon(input.switchTo);
+    if (input.switchTo === 'melee') this.toggleMelee();
+    else if (input.switchTo) this.switchWeapon(input.switchTo);
+    const melee = this.selected === 'melee';
     if (this.reloading && this.time + 1e-9 >= this.reloadEnd) {
       const { magazine, reloadPerShell, reloadTime } = this.config;
       const completed = reloadPerShell
@@ -235,7 +257,12 @@ export class WeaponController {
       this.reloadEnd = 0;
       this.onChange();
     }
-    if (this.autoReload && this.current.magazine === 0 && !this.reloading)
+    if (
+      !melee &&
+      this.autoReload &&
+      this.current.magazine === 0 &&
+      !this.reloading
+    )
       this.reload();
     this.spread = this.spreadFor(context);
     this.fireBuffer = input.firePressed
@@ -251,7 +278,7 @@ export class WeaponController {
       (this.config.automatic && !this.config.burstSize && input.fire);
     if (
       !wantsFire ||
-      this.current.magazine === 0 ||
+      (!melee && this.current.magazine === 0) ||
       this.time + 1e-9 < this.current.nextShot
     )
       return;
@@ -263,7 +290,7 @@ export class WeaponController {
             this.current.magazine - 1,
             Math.max(0, Math.floor(this.config.burstSize ?? 1) - 1),
           );
-    this.current.magazine--;
+    if (!melee) this.current.magazine--;
     this.current.nextShot = this.time + this.config.fireInterval;
     this.current.lastShot = this.time;
     this.current.cycleEnd = this.time + (this.config.boltCycleTime ?? 0);
@@ -273,6 +300,10 @@ export class WeaponController {
     this.shot.sequence = this.shotsFired;
     // The bullet leaves along the current aim; its recoil impulse moves subsequent aim.
     this.onShot(this.shot);
+    if (melee) {
+      this.onChange();
+      return;
+    }
     this.current.bloom = Math.min(
       this.config.maxBloom,
       this.current.bloom + this.config.bloomPerShot,

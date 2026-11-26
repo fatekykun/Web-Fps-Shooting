@@ -1,6 +1,7 @@
 import {
   movementConfig,
   weaponOrder,
+  type WeaponId,
   type MovementInput,
   type WeaponInput,
 } from '@breakpoint/shared';
@@ -79,7 +80,7 @@ export class InputManager {
     private readonly onError: (message: string) => void,
     private readonly onScoreboard: (open: boolean) => void = () => {},
     private readonly getWeapon: () => WeaponController | null = () => null,
-    private readonly getAllowedWeapons: () => readonly (typeof weaponOrder)[number][] = () =>
+    private readonly getAllowedWeapons: () => readonly WeaponId[] = () =>
       weaponOrder,
     private readonly touchAimScale: (ads: number) => number = () => 1,
     private readonly cycleLoadout?: () => void,

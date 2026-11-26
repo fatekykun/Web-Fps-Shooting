@@ -24,7 +24,7 @@ async function sprint(page: Page) {
   await page.keyboard.down('w');
   await page.clock.runFor(1200);
   expect(Number(await page.getByTestId('speed').textContent())).toBeGreaterThan(
-    7.5,
+    6.5,
   );
 }
 
@@ -271,7 +271,7 @@ test('backslide and dolphin dive recover to a standing sprint', async ({
     'sprinting',
   );
   expect(Number(await page.getByTestId('speed').textContent())).toBeGreaterThan(
-    7.5,
+    6.5,
   );
   await page.keyboard.press('x');
   await page.clock.runFor(300);

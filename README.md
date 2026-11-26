@@ -389,13 +389,20 @@ server-owned in both match modes; only enemies take damage in TDM.
 
 ## Combat controls and tuning
 
-| Input            | Action                                                                |
-| ---------------- | --------------------------------------------------------------------- |
-| Left mouse       | Fire; rifle/SMG repeat while held, shotgun/sniper require new presses |
-| Hold right mouse | Aim down sights; release to return to hip fire                        |
-| R                | Reload; shotguns insert one shell at a time                           |
-| 1 / 2 / 3 / 4    | Rifle / SMG / shotgun / sniper; independent ammo inventories          |
-| Hold Tab online  | Show the live scoreboard                                              |
+| Input            | Action                                                       |
+| ---------------- | ------------------------------------------------------------ |
+| Left mouse       | Fire or swing melee. Rifle and SMG fire while held.          |
+| Hold right mouse | Aim down sights; release to return to hip fire               |
+| R                | Reload; shotguns insert one shell at a time                  |
+| 1 / 2 / 3 / 4    | Rifle / SMG / shotgun / sniper; independent ammo inventories |
+| Q                | Switch between the equipped firearm and melee weapon         |
+| Hold Tab online  | Show the live scoreboard                                     |
+
+Each saved loadout can carry a Glacier Fang Knife, Ember Talon Karambit, or
+Void Ronin Katana. Pick and preview the blade in **Loadouts → Melee Weapon**.
+Firearms reduce ground movement speed by 15%, including sprint speed
+(6.8 m/s with a gun, 8 m/s with melee). Private rooms restricted to specific
+firearms keep those restrictions.
 
 In offline training, aim at the blue **HOLO-01** in the central lane. Its eleven
 body regions have separate hitboxes. Hits flash the target and show a native-resolution marker, damage

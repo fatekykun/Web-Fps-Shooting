@@ -2,7 +2,12 @@ import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 import { Client, type Room } from '@colyseus/sdk';
 import type { AddressInfo } from 'node:net';
 import { matchDefaults, playerLimits } from '@breakpoint/shared/match';
-import { weaponOrder, weaponConfigs, type WeaponId } from '@breakpoint/shared';
+import {
+  weaponOrder,
+  weaponConfigs,
+  type GunId,
+  type WeaponId,
+} from '@breakpoint/shared';
 import type { OwnerCombat } from '@breakpoint/shared/combat';
 import type { Correction } from '@breakpoint/shared/network';
 import { createGameServer } from '../server';
@@ -71,10 +76,10 @@ it.each(playerLimits)(
   20000,
 );
 it.each([
-  { allowed: ['sniper'] as WeaponId[] },
-  { allowed: ['shotgun'] as WeaponId[] },
-  { allowed: ['shotgun', 'sniper'] as WeaponId[] },
-  { allowed: ['rifle', 'smg'] as WeaponId[] },
+  { allowed: ['sniper'] as GunId[] },
+  { allowed: ['shotgun'] as GunId[] },
+  { allowed: ['shotgun', 'sniper'] as GunId[] },
+  { allowed: ['rifle', 'smg'] as GunId[] },
 ])(
   'synchronizes and enforces $allowed for all peers and ignores join/configuration overrides',
   async ({ allowed }) => {
@@ -163,7 +168,7 @@ it.each([
     expect(owner!.ammo[choice].magazine).toBe(
       weaponConfigs[choice].magazine - 1,
     );
-    for (const id of weaponOrder) {
+    for (const id of [...weaponOrder, 'melee'] as const) {
       guest.send('input', [packet(id)]);
       await expect
         .poll(() => guest.state.players.get(guest.sessionId)!.ack)

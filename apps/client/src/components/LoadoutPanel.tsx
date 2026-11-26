@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { weaponConfigs, type WeaponId } from '@breakpoint/shared';
 import {
+  allowsMelee,
+  defaultMeleeSkin,
   loadoutSlots,
   skinDefinitions,
   weaponCategories,
@@ -96,6 +98,14 @@ export function LoadoutPanel({
                 <span className="loadout-category">
                   {operators[equipment.operator ?? 'standard'].name}
                 </span>
+                {allowsMelee(allowedWeapons) && (
+                  <span className="loadout-category">
+                    {
+                      skinDefinitions[equipment.meleeSkin ?? defaultMeleeSkin]
+                        .name
+                    }
+                  </span>
+                )}
                 <div className="loadout-thumbnail">
                   <img
                     src={weaponThumbnail(equipment)}

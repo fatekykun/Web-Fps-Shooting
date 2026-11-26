@@ -39,6 +39,8 @@ import {
   isLoadoutSlot,
   type LoadoutSlot,
   type WeaponSkin,
+  defaultMeleeSkin,
+  isMeleeSkin,
 } from '@breakpoint/shared/weapons/loadouts';
 import {
   sniperZoom,
@@ -380,6 +382,8 @@ export class Game {
 
   private applySkin(weapon: WeaponId, skin: WeaponSkin): void {
     this.equippedSkin = skin;
+    if (weapon === 'melee')
+      this.viewmodel.setMeleeSkin(isMeleeSkin(skin) ? skin : defaultMeleeSkin);
     if (weapon === 'rifle')
       this.viewmodel.setRifleSkin(normalizeRifleSkin(skin));
     if (weapon === 'smg') this.viewmodel.setSmgSkin(normalizeSmgSkin(skin));
@@ -469,6 +473,16 @@ export class Game {
     return {
       ...combat.snapshot(),
       operator: this.operator,
+      meleeSkin:
+        combat.weapons.selected === 'melee'
+          ? isMeleeSkin(this.equippedSkin)
+            ? this.equippedSkin
+            : defaultMeleeSkin
+          : undefined,
+      meleeSkinStatus:
+        combat.weapons.selected === 'melee'
+          ? this.viewmodel.meleeSkinStatus
+          : undefined,
       fov: this.camera.camera.fov,
       rifleSkin:
         combat.weapons.selected === 'rifle'
@@ -579,16 +593,17 @@ export class Game {
           if (!this.disposed && generation === this.networkGeneration) {
             if (!this.networkCombat.shot(shot)) return;
             const remote = shot.shooter !== this.session?.view?.selfId;
-            for (const trace of shot.traces)
-              this.trails.spawn(
-                shot.weapon,
-                shot.origin,
-                trace.end,
-                remote ? shot.shooter : undefined,
-                remote
-                  ? networkConfig.interpolationDelay / networkConfig.tickRate
-                  : 0,
-              );
+            if (shot.weapon !== 'melee')
+              for (const trace of shot.traces)
+                this.trails.spawn(
+                  shot.weapon,
+                  shot.origin,
+                  trace.end,
+                  remote ? shot.shooter : undefined,
+                  remote
+                    ? networkConfig.interpolationDelay / networkConfig.tickRate
+                    : 0,
+                );
             if (remote) {
               const spatial = spatialAudio(
                 shot.origin,
@@ -599,10 +614,12 @@ export class Game {
                 shot.weapon,
                 spatial.gain,
                 spatial.pan,
-                shot.skin ??
-                  shot.smgSkin ??
-                  shot.shotgunSkin ??
-                  shot.sniperSkin,
+                !isMeleeSkin(shot.skin)
+                  ? (shot.skin ??
+                      shot.smgSkin ??
+                      shot.shotgunSkin ??
+                      shot.sniperSkin)
+                  : undefined,
               );
             }
           }
@@ -865,8 +882,19 @@ export class Game {
 
   private readonly simulate = (dt: number): void => {
     if (!this.session && this.input.weapon.switchTo) {
-      const slot = weaponOrder.indexOf(this.input.weapon.switchTo);
-      if (isLoadoutSlot(slot)) this.equipTraining(slot);
+      const next = this.input.weapon.switchTo;
+      if (next === 'melee') {
+        if (this.combat.weapons.selected === 'melee')
+          this.equipTraining(this.trainingSlot);
+        else {
+          const equipment = this.userSettings.loadouts.slots[this.trainingSlot];
+          this.applySkin('melee', equipment.meleeSkin ?? defaultMeleeSkin);
+          this.combat.weapons.switchWeapon('melee');
+        }
+      } else {
+        const slot = weaponOrder.indexOf(next);
+        if (isLoadoutSlot(slot)) this.equipTraining(slot);
+      }
       this.input.weapon.switchTo = null;
     }
     const priorVerticalSpeed = this.movement.velocity.y;
@@ -1200,6 +1228,7 @@ export class Game {
   }
 
   private readonly resolveMuzzle: MuzzleResolver = (weapon, source, out) => {
+    if (weapon === 'melee') return false;
     if (source !== undefined)
       return this.remotes.muzzleWorldPosition(source, weapon, out);
     const weapons = (this.session ? this.networkCombat : this.combat).weapons;

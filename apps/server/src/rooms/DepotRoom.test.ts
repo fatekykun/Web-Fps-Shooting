@@ -139,7 +139,7 @@ it('runs a private eight-player room through capacity, readiness, movement, host
   };
   sprint(host, 3, -Math.PI / 2);
   await expect.poll(() => correction?.ack).toBe(50);
-  await expect.poll(() => heard.length).toBeGreaterThan(2);
+  await expect.poll(() => heard.length).toBeGreaterThanOrEqual(2);
   expect(
     heard.every(
       (step) =>

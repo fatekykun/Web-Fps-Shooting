@@ -124,7 +124,7 @@ export class WeaponShowcase {
     const wasCharacter = this.character;
     this.releaseModel();
     this.character = !!operator && !!asset;
-    if (operator && !asset) {
+    if ((operator || equipment.weapon === 'melee') && !asset) {
       this.wake();
       return 'fallback';
     }
@@ -132,7 +132,7 @@ export class WeaponShowcase {
       this.model = this.character
         ? cloneRig(asset.scene)
         : asset.scene.clone(true);
-    else {
+    else if (equipment.weapon !== 'melee') {
       this.procedural = new WeaponViewmodel();
       this.model = this.procedural.showcaseModel(
         equipment.weapon,
@@ -141,8 +141,9 @@ export class WeaponShowcase {
     }
     this.stage.position.set(0, 0, 0);
     this.stage.scale.setScalar(1);
-    const model = this.model;
+    const model = this.model!;
     model.removeFromParent();
+    if (equipment.weapon === 'melee') model.rotation.z -= 0.8;
     model.updateMatrixWorld(true);
     // Disable the baked Neon text only in this preview so it cannot be mistaken for live ammo.
     const placeholder = model.getObjectByName('Ammo_Display_Static_33');

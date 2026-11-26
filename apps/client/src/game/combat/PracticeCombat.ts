@@ -18,10 +18,13 @@ import type { SmgSkin } from '../weapons/SmgSkins';
 import { TrainingDummy } from './TrainingDummy';
 import { PooledImpacts } from '../effects/PooledImpacts';
 import type { OwnerCombat, KillEvent } from '@breakpoint/shared/combat';
+import type { MeleeSkin } from '@breakpoint/shared/weapons/loadouts';
 import type { OperatorId } from '@breakpoint/shared/operators';
 
 export interface CombatSnapshot {
   operator?: OperatorId;
+  meleeSkin?: MeleeSkin;
+  meleeSkinStatus?: WeaponSkinStatus;
   rifleSkin?: RifleSkin;
   rifleSkinStatus?: WeaponSkinStatus;
   sniperSkin?: SniperSkin;
@@ -140,7 +143,7 @@ export class PracticeCombat {
         this.direction,
         shot.config.range,
       );
-      if (this.onTrace) {
+      if (this.onTrace && shot.config.id !== 'melee') {
         const end = hit?.point ?? {
           x: this.origin.x + this.direction.x * shot.config.range,
           y: this.origin.y + this.direction.y * shot.config.range,
@@ -158,7 +161,7 @@ export class PracticeCombat {
           hit.point.z - this.origin.z,
         );
         damage += calculateDamage(shot.config, region, meters);
-        critical ||= region === 'head';
+        critical ||= shot.config.id !== 'melee' && region === 'head';
       }
     }
     if (damage > 0) {

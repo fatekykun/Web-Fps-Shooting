@@ -272,7 +272,7 @@ export class MovementController {
         else walk(this.velocity, input, dt);
         break;
       case 'sprinting':
-        sprint(this.velocity, input, dt);
+        sprint(this.velocity, input, dt, groundSpeedScale);
         break;
       case 'crouching':
       case 'prone':

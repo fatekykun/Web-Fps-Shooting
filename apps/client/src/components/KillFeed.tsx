@@ -2,6 +2,7 @@ import { weaponConfigs, type WeaponCategory } from '@breakpoint/shared';
 import type { KillEvent } from '@breakpoint/shared/combat';
 
 const weaponLabels: Record<WeaponCategory, string> = {
+  melee: 'MELEE',
   rifle: 'Assault rifle',
   smg: 'Submachine gun',
   shotgun: 'Shotgun',

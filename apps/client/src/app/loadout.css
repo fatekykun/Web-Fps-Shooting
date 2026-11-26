@@ -379,7 +379,7 @@
 }
 .loadout-editor .dialog-footer {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 0.8fr) auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
   column-gap: 10px;
   align-items: end;
 }
@@ -461,7 +461,7 @@
     padding-inline: 5px;
   }
   .loadout-editor .dialog-footer {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     row-gap: 7px;
   }
   .loadout-editor .equipment-commands {
@@ -484,7 +484,7 @@
     padding: 7px 14px;
   }
   .loadout-editor .dialog-footer {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
     padding: 6px 14px;
   }
   .loadout-editor .equipment-commands {
@@ -495,18 +495,31 @@
         132px,
         0.8fr
       );
+    grid-template-rows: minmax(155px, 1fr);
     gap: 7px;
     align-content: stretch;
   }
   .equipment-identity {
     grid-column: auto;
     display: block;
+    max-height: 100%;
+    overflow: auto;
+  }
+  .equipment-character,
+  .equipment-preview-mode {
+    margin-top: 5px;
+  }
+  .loadout-editor .equipment-character select {
+    min-height: 32px;
+  }
+  .equipment-preview-mode button {
+    padding: 4px 3px;
   }
   .equipment-identity h3 {
     margin: 5px 0;
   }
   .equipment-identity p {
-    margin-top: 8px;
+    margin: 4px 0;
   }
   .equipment-slots button {
     min-height: 34px;

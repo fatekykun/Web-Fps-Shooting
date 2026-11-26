@@ -9,6 +9,10 @@ import {
   type WeaponInput,
   type MovementInput,
 } from '@breakpoint/shared';
+import {
+  defaultLoadouts,
+  type LoadoutProfile,
+} from '@breakpoint/shared/weapons/loadouts';
 import type { KillEvent, ServerShot } from '@breakpoint/shared/combat';
 import { ServerCombat } from './ServerCombat';
 import { ServerPlayer } from '../players/ServerPlayer';
@@ -297,8 +301,9 @@ function fixture() {
   );
   let tick = 0;
   const sequences = new Map<string, number>();
-  function add(id: string, x: number, z: number) {
+  function add(id: string, x: number, z: number, profile?: LoadoutProfile) {
     const player = new ServerPlayer(new PlayerState({ id, name: id }));
+    player.loadoutProfile = profile;
     worlds.push(player);
     player.movement.physics.restore({ x, y: 0.885, z }, 0.55, true);
     player.movement.synchronize();
@@ -861,6 +866,79 @@ it('reloads the server sniper inventory only after the full magazine reload and 
   });
 });
 
+it('equips the selected blade, hits only in reach, and preserves primary ammo', () => {
+  const f = fixture();
+  const profile = defaultLoadouts();
+  profile.defaultSlot = 2;
+  profile.slots[2].meleeSkin = 'void-ronin';
+  const player = f.add('melee', 0, 12, profile);
+  const distant = f.add('distant', 0, 8);
+  const idle = { ...trigger, fire: false, firePressed: false };
+  const ammo = f.combat.owner(player).ammo.shotgun;
+
+  f.controls(player, { ...idle, switchTo: 'melee' });
+  f.step(20);
+  expect(f.combat.owner(player)).toMatchObject({
+    selected: 'melee',
+    skin: 'void-ronin',
+    loadoutSlot: 2,
+  });
+  expect(player.state.skin).toBe('void-ronin');
+
+  f.controls(player, trigger, 0, -0.14);
+  f.step();
+  expect(distant.state.health).toBe(100);
+  expect(f.shots[0]).toMatchObject({ weapon: 'melee', skin: 'void-ronin' });
+  f.controls(player, trigger);
+  f.step();
+  expect(f.shots).toHaveLength(1);
+
+  const nearby = f.add('nearby', 0, 10.5);
+  f.controls(player, { ...idle, aim: true, reloadPressed: true });
+  f.step(40);
+  expect(f.combat.owner(player)).toMatchObject({ ads: 0, reloading: false });
+  f.controls(player, trigger, 0, -0.14);
+  f.step();
+  expect(nearby.state.health).toBe(25);
+  expect(f.combat.owner(player).ammo.shotgun).toEqual(ammo);
+
+  f.controls(player, { ...idle, switchTo: 'melee' });
+  f.step(20);
+  expect(f.combat.owner(player)).toMatchObject({
+    selected: 'shotgun',
+    skin: 'glorious-blaze',
+    ammo: { shotgun: ammo },
+  });
+});
+
+it('uses 85 percent sprint speed with a firearm and full speed with melee', () => {
+  const f = fixture();
+  const player = f.add('runner', 0, 12, defaultLoadouts());
+  const idle = { ...trigger, fire: false, firePressed: false };
+  const movement = { forward: 1, sprint: true };
+  const speed = () =>
+    Math.hypot(player.movement.velocity.x, player.movement.velocity.z);
+  for (let i = 0; i < 35; i++) {
+    f.controls(player, idle, 0, 0, player.state.life, movement);
+    f.step();
+  }
+  expect(speed()).toBeCloseTo(6.8, 2);
+  f.controls(
+    player,
+    { ...idle, switchTo: 'melee' },
+    0,
+    0,
+    player.state.life,
+    movement,
+  );
+  f.step();
+  for (let i = 0; i < 35; i++) {
+    f.controls(player, idle, 0, 0, player.state.life, movement);
+    f.step();
+  }
+  expect(speed()).toBeCloseTo(8, 2);
+});
+
 it('allows server-authoritative sniper ADS while sprinting, sliding and slide-jumping', () => {
   const f = fixture(),
     player = f.add('moving-sniper', 0, 12);
@@ -878,7 +956,7 @@ it('allows server-authoritative sniper ADS while sprinting, sliding and slide-ju
   expect(f.combat.owner(player).ads).toBeGreaterThan(0.99);
   expect(
     Math.hypot(player.movement.velocity.x, player.movement.velocity.z),
-  ).toBeGreaterThan(7.5);
+  ).toBeGreaterThan(6.5);
   f.controls(player, aim, 0, 0, player.state.life, {
     forward: 1,
     sprint: true,

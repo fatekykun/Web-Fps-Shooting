@@ -1,5 +1,5 @@
 import type { Vector3Like } from '../types/movement';
-import type { WeaponId } from '../types/weapons';
+import type { GunId, WeaponId } from '../types/weapons';
 import type { GameMode } from '../config/match';
 import type { LoadoutSlot, WeaponSkin } from '../weapons/loadouts';
 import type { OperatorId } from './operators';
@@ -33,7 +33,7 @@ export interface OwnerCombat {
   operator?: OperatorId;
   loadoutSlot?: LoadoutSlot;
   nextLoadoutSlot?: LoadoutSlot;
-  ammo: Record<WeaponId, AmmoState>;
+  ammo: Record<GunId, AmmoState>;
   reloading: boolean;
   equipping: boolean;
   reloadProgress: number;

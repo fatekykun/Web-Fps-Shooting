@@ -12,11 +12,13 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
+  defaultMeleeSkin,
+  isMeleeSkin,
   parseEquipment,
   type Equipment,
   type WeaponSkin,
 } from '@breakpoint/shared/weapons/loadouts';
-import type { WeaponId } from '@breakpoint/shared';
+import type { GunId, WeaponId } from '@breakpoint/shared';
 import { WeaponViewmodel } from '../weapons/WeaponViewmodel';
 import { weaponAsset } from '../weapons/WeaponAssets';
 import { weaponMuzzles } from '../weapons/WeaponMuzzles';
@@ -26,6 +28,30 @@ const muzzleAnchors: Partial<Record<WeaponSkin, string>> = {
   'lotus-lava': 'muzzle_vfx',
   'neon-blade': 'Muzzle_Anchor',
 };
+
+function gunModelTransform(
+  source: Object3D,
+  weapon: GunId,
+  skin: WeaponSkin,
+): Matrix4 {
+  const bounds = new Box3().setFromObject(source);
+  const anchorName = muzzleAnchors[skin];
+  const end =
+    (anchorName
+      ? source.getObjectByName(anchorName)?.getWorldPosition(new Vector3())
+      : undefined) ??
+    (skin === 'glorious-blaze'
+      ? new Vector3(0, 0.0234, -0.6816)
+      : new Vector3(...weaponMuzzles[weapon].firstPerson));
+  const tip = new Vector3(...weaponMuzzles[weapon].remote);
+  const length = Math.max(0.01, bounds.max.z - bounds.min.z);
+  const scale = (Math.abs(tip.z) + 0.13) / length;
+  const normalized = new Matrix4()
+    .makeRotationY(skin === 'memento-mori' ? Math.PI : 0)
+    .scale(new Vector3(scale, scale, scale));
+  normalized.setPosition(tip.sub(end.applyMatrix4(normalized)));
+  return normalized;
+}
 
 /** One pool per visible finish. Character pose and skin geometry have separate lifetimes. */
 export class RemoteWeaponSkins {
@@ -48,9 +74,13 @@ export class RemoteWeaponSkins {
     skin: WeaponSkin | undefined,
     pose: Matrix4,
   ): boolean {
+    if (weapon === 'melee') skin = isMeleeSkin(skin) ? skin : defaultMeleeSkin;
     if (!skin || skin === 'standard') return false;
     if (!this.models.has(skin)) {
-      const equipment = parseEquipment({ weapon, skin });
+      const equipment =
+        weapon === 'melee'
+          ? { weapon, skin }
+          : parseEquipment({ weapon, skin });
       if (!equipment) return false;
       this.models.set(skin, undefined);
       void this.load(equipment).catch(() => {});
@@ -74,28 +104,16 @@ export class RemoteWeaponSkins {
     const asset = await weaponAsset(skin);
     if (this.disposed) return;
     let source: Object3D | undefined = asset?.scene;
-    if (!source && skin === 'cinder-wyrm') {
+    if (!source && weapon === 'rifle' && skin === 'cinder-wyrm') {
       this.molten = new WeaponViewmodel();
       source = this.molten.showcaseModel(weapon, true);
     }
     if (!source) return;
     source.updateMatrixWorld(true);
-    const bounds = new Box3().setFromObject(source);
-    const anchorName = muzzleAnchors[skin];
-    const end =
-      (anchorName
-        ? source.getObjectByName(anchorName)?.getWorldPosition(new Vector3())
-        : undefined) ??
-      (skin === 'glorious-blaze'
-        ? new Vector3(0, 0.0234, -0.6816)
-        : new Vector3(...weaponMuzzles[weapon].firstPerson));
-    const tip = new Vector3(...weaponMuzzles[weapon].remote);
-    const length = Math.max(0.01, bounds.max.z - bounds.min.z);
-    const scale = (Math.abs(tip.z) + 0.13) / length;
-    const normalized = new Matrix4()
-      .makeRotationY(skin === 'memento-mori' ? Math.PI : 0)
-      .scale(new Vector3(scale, scale, scale));
-    normalized.setPosition(tip.sub(end.applyMatrix4(normalized)));
+    const normalized =
+      weapon === 'melee'
+        ? new Matrix4().makeRotationX(-0.55)
+        : gunModelTransform(source, weapon, skin);
     const groups = new Map<
       string,
       { material: Material; geometry: BufferGeometry[] }

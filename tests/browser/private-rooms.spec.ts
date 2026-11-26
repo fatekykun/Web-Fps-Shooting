@@ -1,7 +1,7 @@
 import { enterStartedMatch } from './helpers/matchEntry';
 import { expect, test } from '@playwright/test';
 import { Client, type Room } from '@colyseus/sdk';
-import { weaponOrder, weaponConfigs, type WeaponId } from '@breakpoint/shared';
+import { weaponOrder, weaponConfigs, type GunId } from '@breakpoint/shared';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
 
 test('private room controls preserve unrestricted defaults, validate one/two choices and retain settings on mode changes', async ({
@@ -72,10 +72,10 @@ test('private room controls preserve unrestricted defaults, validate one/two cho
 });
 
 for (const scenario of [
-  { allowed: ['sniper'] as WeaponId[], cap: 2, mode: 'ffa' },
-  { allowed: ['shotgun'] as WeaponId[], cap: 4, mode: 'ffa' },
-  { allowed: ['shotgun', 'sniper'] as WeaponId[], cap: 6, mode: 'tdm' },
-  { allowed: ['rifle', 'smg'] as WeaponId[], cap: 8, mode: 'ffa' },
+  { allowed: ['sniper'] as GunId[], cap: 2, mode: 'ffa' },
+  { allowed: ['shotgun'] as GunId[], cap: 4, mode: 'ffa' },
+  { allowed: ['shotgun', 'sniper'] as GunId[], cap: 6, mode: 'tdm' },
+  { allowed: ['rifle', 'smg'] as GunId[], cap: 8, mode: 'ffa' },
 ]) {
   test(`private ${scenario.allowed.join('+')} room enforces loadouts, gameplay and ${scenario.cap}-player occupancy`, async ({
     page,
@@ -167,7 +167,7 @@ for (const scenario of [
           await expect(hud).toHaveAttribute('data-weapon', before!);
         }
       }
-      const selected = (await hud.getAttribute('data-weapon')) as WeaponId;
+      const selected = (await hud.getAttribute('data-weapon')) as GunId;
       await page.waitForTimeout(350);
       await page.mouse.down({ button: 'right' });
       await expect

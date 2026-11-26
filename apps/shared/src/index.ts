@@ -21,6 +21,7 @@ export {
 } from './combat/spread';
 export type {
   WeaponId,
+  GunId,
   WeaponInput,
   WeaponConfig,
   WeaponCategory,

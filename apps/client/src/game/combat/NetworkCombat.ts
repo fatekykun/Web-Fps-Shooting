@@ -10,6 +10,7 @@ import {
   type ServerShot,
   type KillEvent,
 } from '@breakpoint/shared/combat';
+import { allowsMelee } from '@breakpoint/shared/weapons/loadouts';
 import { WeaponController } from '../weapons/WeaponController';
 import { PooledImpacts } from '../effects/PooledImpacts';
 import type { MovementController } from '../movement/MovementController';
@@ -30,11 +31,17 @@ export class NetworkCombat {
   allowedWeapons: readonly WeaponId[] = weaponOrder;
   setAllowedWeapons(weapons: readonly WeaponId[]): void {
     this.allowedWeapons = weapons.length ? weapons : weaponOrder;
-    if (!this.allowedWeapons.includes(this.weapons.selected))
+    if (
+      !this.allowedWeapons.includes(this.weapons.selected) &&
+      !(this.weapons.selected === 'melee' && allowsMelee(this.allowedWeapons))
+    )
       this.weapons.switchWeapon(this.allowedWeapons[0]!);
   }
   filterInput(input: WeaponInput): WeaponInput {
-    return input.switchTo ? { ...input, switchTo: null } : input;
+    return input.switchTo &&
+      !(input.switchTo === 'melee' && allowsMelee(this.allowedWeapons))
+      ? { ...input, switchTo: null }
+      : input;
   }
   weapons = new WeaponController(() => {});
   owner: OwnerCombat | null = null;
@@ -82,6 +89,11 @@ export class NetworkCombat {
       this.weapons = new WeaponController(() => {});
       this.weapons.selected = owner.selected;
       this.onLifeChange();
+    } else if (
+      owner.selected !== this.weapons.selected &&
+      (owner.selected === 'melee' || this.weapons.selected === 'melee')
+    ) {
+      this.weapons.switchWeapon(owner.selected);
     } else if (owner.skin && owner.selected !== this.weapons.selected) {
       this.weapons.selected = owner.selected;
     }
@@ -143,23 +155,28 @@ export class NetworkCombat {
     while (this.feed[0] && this.feed[0].remaining <= 0) this.feed.shift();
     if (count !== this.feed.length) this.onChange();
     this.impacts.step(dt);
-    this.weapons.step(dt, this.owner?.alive ? this.filterInput(input) : idle, {
-      speed: Math.hypot(movement.velocity.x, movement.velocity.z),
-      grounded: movement.physics.grounded,
-      verticalSpeed: movement.velocity.y,
-    });
+    this.weapons.step(
+      dt,
+      this.owner?.alive ? { ...input, switchTo: null } : idle,
+      {
+        speed: Math.hypot(movement.velocity.x, movement.velocity.z),
+        grounded: movement.physics.grounded,
+        verticalSpeed: movement.velocity.y,
+      },
+    );
   }
   snapshot(): CombatSnapshot {
     const w = this.weapons,
       owner = this.owner,
       id = owner?.selected ?? w.selected;
     const config = weaponConfigs[id];
+    const ammo = id === 'melee' ? undefined : owner?.ammo[id];
     return {
       allowedWeapons: this.allowedWeapons,
       weapon: id,
       name: config.name,
-      magazine: owner?.ammo[id].magazine ?? config.magazine,
-      reserve: owner?.ammo[id].reserve ?? config.reserve,
+      magazine: ammo?.magazine ?? config.magazine,
+      reserve: ammo?.reserve ?? config.reserve,
       reloading: owner?.reloading ?? false,
       equipping: owner?.equipping ?? false,
       reloadProgress: owner?.reloadProgress ?? 0,

@@ -65,7 +65,8 @@ const shotBySkin = {
 >;
 const moltenLavaKill = 'molten-lava-kill';
 type ShotSampleId =
-  WeaponId | (typeof shotBySkin)[keyof typeof shotBySkin]['sample'];
+  | Exclude<WeaponId, 'melee'>
+  | (typeof shotBySkin)[keyof typeof shotBySkin]['sample'];
 type SampleId =
   | ShotSampleId
   | 'hitmarker'
@@ -428,6 +429,10 @@ export class AudioEngine {
   }
   /** True when a recorded sniper report plays with the bolt cycle included. */
   shot(weapon: WeaponId, gain = 1, pan = 0, skin?: EquippedSkin): boolean {
+    if (weapon === 'melee') {
+      this.noise(0.145, 0.13 * gain, 1750, pan);
+      return false;
+    }
     const custom = skin && skin !== 'standard' ? shotBySkin[skin] : undefined;
     const requested = custom?.weapon === weapon ? custom.sample : weapon;
     const id = this.sampleBuffers.has(requested) ? requested : weapon;
