@@ -12,6 +12,23 @@ GitHub CI, an eight-client smoke test and a browser profiling tool. Cloud publis
 and real eight-human/target-device checks require the hosting accounts and live URLs.
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the exact launch steps and friends playtest.
 
+## Install BREAKPOINT
+
+Open the deployed HTTPS game and choose **Install app** in the main menu.
+On Android, accept the browser prompt or use **Install app** in the
+browser menu. On iPhone or iPad, open the game in Safari and choose
+**Share → Add to Home Screen**, enable **Open as Web App** if offered,
+then tap **Add**. Launch BREAKPOINT from its home-screen icon.
+
+On a desktop or laptop, accept the browser prompt when offered. You can also
+install from the Chrome or Edge browser menu, or use **File → Add to Dock**
+in Safari on a Mac.
+
+Open the game online once so the app can cache the files for offline Training.
+Some optional skins and effects need a connection. Private rooms use the online
+room server. Close all open game windows and reopen the app to activate a
+downloaded update.
+
 ## Mobile and tablet controls (BP-13)
 
 Phones and tablets automatically receive a landscape touch HUD. Rotate sideways

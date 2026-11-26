@@ -1,0 +1,30 @@
+{
+  "id": "./",
+  "name": "BREAKPOINT",
+  "short_name": "BREAKPOINT",
+  "description": "A tactical FPS with solo Training and private multiplayer matches.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#141917",
+  "theme_color": "#141917",
+  "icons": [
+    {
+      "src": "./icons/breakpoint-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/breakpoint-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/breakpoint-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

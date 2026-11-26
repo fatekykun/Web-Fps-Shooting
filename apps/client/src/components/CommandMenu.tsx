@@ -2,6 +2,7 @@ import type { RoomView } from '@breakpoint/shared/network';
 import { arenas } from '@breakpoint/shared/maps';
 import { isMatchActive } from '@breakpoint/shared/match';
 import { keyLabel, type UserSettings } from '../game/settings/userSettings';
+import { InstallGame } from './InstallGame';
 
 export function CommandMenu({
   ready,
@@ -46,6 +47,7 @@ export function CommandMenu({
           {room ? 'LOBBY' : 'PLAY'}
           <i aria-hidden="true">↗</i>
         </button>
+        {!room && <InstallGame />}
         {!room && (
           <>
             <button

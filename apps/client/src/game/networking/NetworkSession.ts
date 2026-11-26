@@ -91,6 +91,8 @@ export class NetworkSession {
     profile: LoadoutProfile,
     settings?: PrivateRoomSettings,
   ): Promise<NetworkSession> {
+    if (navigator.onLine === false)
+      throw new Error('Private rooms require an internet connection.');
     if (!parseName(name)) throw new Error('Choose a name of 1–20 characters.');
     code = code.trim().toUpperCase();
     if (mode === 'join' && !codePattern.test(code))
