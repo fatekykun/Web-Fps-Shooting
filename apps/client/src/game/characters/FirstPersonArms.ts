@@ -115,6 +115,7 @@ export class FirstPersonArms {
     if (gloves) {
       gloves.left.visible = gloves.right.visible = !!melee;
       gloves.left.geometry = melee?.left.open ? gloves.open : gloves.grip;
+      gloves.left.scale.y = melee?.left.open ? 1 : -1;
       if (updateColors) gloves.material.color.setHex(glove);
     }
     let instance = 0;
@@ -145,7 +146,7 @@ export class FirstPersonArms {
         );
       }
       if (hand) {
-        upper.position.set(left ? -0.25 : 0.27, -0.43, -0.3);
+        upper.position.set(left ? -0.23 : 0.38, -0.48, -0.28);
         this.target.copy(hand.wrist);
       }
       this.direction.copy(this.target).sub(upper.position);
@@ -159,11 +160,12 @@ export class FirstPersonArms {
       const height = Math.sqrt(Math.max(0, upperLength ** 2 - along ** 2));
       this.bend.set(left ? -0.3 : 0.3, -1, 0);
       if (hand) {
-        // Favor the direction away from the palm when placing the elbow.
+        // Project the palm-to-wrist axis into the elbow's bend plane. A small
+        // downward bias keeps the sleeves entering from below the camera.
         this.target
-          .set(left ? -0.7 : 0.7, -0.5, 0.28)
+          .set(left ? -1 : 1, hand.open ? -0.12 : 0.48, 0.24)
           .applyQuaternion(hand.rotation);
-        this.bend.addScaledVector(this.target, 0.45);
+        this.bend.multiplyScalar(0.24).add(this.target);
         this.target.copy(hand.wrist);
       }
       this.bend
@@ -178,6 +180,18 @@ export class FirstPersonArms {
       upper.quaternion.copy(this.upperRotation);
       this.direction.copy(this.target).sub(this.elbow).normalize();
       this.foreRotation.setFromUnitVectors(down, this.direction);
+      if (hand) {
+        // Keep the cuff's outer face in the same plane as the back of the glove.
+        const back = this.bend.set(0, 0, 1).applyQuaternion(hand.rotation);
+        back.addScaledVector(this.direction, -back.dot(this.direction));
+        if (back.lengthSq() > 1e-6) {
+          const up = this.target.copy(this.direction).negate();
+          const across = this.elbow.crossVectors(up, back).normalize();
+          this.foreRotation.setFromRotationMatrix(
+            this.transform.makeBasis(across, up, back.normalize()),
+          );
+        }
+      }
       forearm.quaternion
         .copy(this.upperRotation)
         .invert()
@@ -274,7 +288,9 @@ export class FirstPersonArms {
     const right = new Mesh(grip, material);
     left.name = 'left-melee-glove';
     right.name = 'right-melee-glove';
-    right.scale.x = -1;
+    // The grip mesh was authored thumb-up. Reflect its Y axis so the thumb
+    // stays on the same side of each hand as in the open glove.
+    right.scale.set(-1, -1, 1);
     left.visible = right.visible = false;
     this.bones[2]!.add(left);
     this.bones[5]!.add(right);

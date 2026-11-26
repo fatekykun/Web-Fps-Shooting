@@ -3,6 +3,7 @@ import {
   CircleGeometry,
   Color,
   DataTexture,
+  Euler,
   Group,
   HemisphereLight,
   DirectionalLight,
@@ -74,23 +75,45 @@ const easeUnit = (value: number) => {
   return t * t * (3 - 2 * t);
 };
 
-const meleeHandRollAxis = new Vector3(0, 0, 1);
-const karambitGripTurn = new Quaternion().setFromAxisAngle(
-  new Vector3(0, 1, 0),
+const knifeGrip = new Quaternion().setFromAxisAngle(
+  new Vector3(0, 0, 1),
   Math.PI,
 );
+const karambitGrip = new Quaternion().setFromAxisAngle(
+  new Vector3(0, 1, 0),
+  3.6,
+);
+const katanaGrip = new Quaternion().setFromAxisAngle(
+  new Vector3(1, 0, 0),
+  Math.PI,
+);
+
 const meleeStances = {
-  'glacier-fang': { grip: [0.31, -0.224, -0.57], tilt: [-0.35, -0.32, 0.68] },
-  'ember-talon': {
-    grip: [0.3, -0.176, -0.5],
-    tilt: [-0.24, Math.PI - 0.14, 0.32],
+  'glacier-fang': {
+    grip: [0.285, -0.195, -0.57],
+    tilt: [-0.17, -0.4, 1.55],
+    hand: knifeGrip,
+    swing: { x: 0.36, depth: 0.08, roll: 0.92 },
   },
-  'void-ronin': { grip: [0.29, -0.248, -0.64], tilt: [-0.49, -0.32, -0.16] },
+  'ember-talon': {
+    grip: [0.295, -0.13, -0.55],
+    tilt: [0.15, -0.37, 2.79],
+    hand: karambitGrip,
+    swing: { x: 0.25, depth: 0.06, roll: -0.6 },
+  },
+  'void-ronin': {
+    grip: [0.288, -0.231, -0.64],
+    tilt: [-0.54, -0.28, -0.1],
+    hand: katanaGrip,
+    swing: { x: 0.27, depth: 0.035, roll: 0.62 },
+  },
 } as const satisfies Record<
   MeleeSkin,
   {
     grip: readonly [number, number, number];
     tilt: readonly [number, number, number];
+    hand: Quaternion;
+    swing: { x: number; depth: number; roll: number };
   }
 >;
 
@@ -119,6 +142,8 @@ export class WeaponViewmodel {
   private readonly material: MeshLambertMaterial;
   private readonly arms: FirstPersonArms;
   private readonly meleeModel = new Group();
+  private readonly freeHandTilt = new Euler(0, 0, 0, 'ZYX');
+  private readonly gripCenter = new Vector3();
   private readonly meleeHands: MeleeHands = {
     left: { wrist: new Vector3(), rotation: new Quaternion() },
     right: { wrist: new Vector3(), rotation: new Quaternion() },
@@ -874,7 +899,7 @@ export class WeaponViewmodel {
   ): void {
     const skin = this.meleeSkin ?? defaultMeleeSkin;
     const twoHanded = skin === 'void-ronin';
-    const { grip, tilt } = meleeStances[skin];
+    const { grip, tilt, hand, swing } = meleeStances[skin];
     const step = Math.min(dt, 0.1);
     this.stridePhase =
       (this.stridePhase + speed * step * strideRadiansPerMeter) % (Math.PI * 2);
@@ -894,53 +919,55 @@ export class WeaponViewmodel {
     this.root.position.set(0, 0, 0);
     this.root.rotation.set(0, 0, 0);
     this.meleeModel.position.set(
-      (grip[0] + 0.05 * windup - (twoHanded ? 0.32 : 0.39) * slash) * width +
-        sway * 0.012,
+      (grip[0] + 0.05 * windup - swing.x * slash) * width + sway * 0.012,
       grip[1] - lower + bounce * 0.012 + 0.045 * slash,
-      grip[2] + windup * 0.04 - slash * 0.1 + this.sprint * 0.025,
+      grip[2] + windup * 0.04 - swing.depth * slash + this.sprint * 0.025,
     );
     this.meleeModel.rotation.set(
       tilt[0] - 0.14 * this.sprint - 0.37 * slash,
       tilt[1] + 0.24 * windup + 0.41 * slash,
-      tilt[2] -
-        0.42 * windup +
-        (twoHanded ? 1.42 : 0.99) * slash +
-        sway * 0.038,
+      tilt[2] - 0.42 * windup + swing.roll * slash + sway * 0.038,
       'ZYX',
     );
 
-    // The blade points up its authored Y axis. The katana has room for two
-    // separate grips along the hilt, with the right hand just below the guard.
-    const blade = this.meleeModel.quaternion;
-    right.rotation.copy(blade);
-    if (skin === 'ember-talon') right.rotation.multiply(karambitGripTurn);
-    right.wrist
-      .set(
-        meleeGrip.across,
-        (twoHanded ? 0.066 : 0) - meleeGrip.rise,
-        meleeGrip.depth,
-      )
-      .applyQuaternion(right.rotation)
-      .add(this.meleeModel.position);
+    this.placeMeleeGrip(right, hand, false, twoHanded ? 0.066 : 0);
     left.open = !twoHanded;
     if (twoHanded) {
-      left.wrist
-        .set(-meleeGrip.across, -0.062 - meleeGrip.rise, meleeGrip.depth)
-        .applyQuaternion(blade)
-        .add(this.meleeModel.position);
-      left.rotation.copy(blade);
+      this.placeMeleeGrip(left, katanaGrip, true, -0.039);
     } else {
       left.wrist.set(
-        -0.37 * width + 0.031 * sway - 0.056 * slash,
-        -0.248 - lower - 0.024 * bounce - 0.035 * slash,
-        -0.53 - 0.028 * sway - 0.035 * this.sprint,
+        -0.36 * width + 0.031 * sway - 0.056 * slash,
+        -0.254 - lower - 0.024 * bounce - 0.035 * slash,
+        -0.5 - 0.028 * sway - 0.035 * this.sprint,
       );
-      left.rotation.setFromAxisAngle(
-        meleeHandRollAxis,
-        0.62 - this.sprint * 0.16,
+      left.rotation.setFromEuler(
+        this.freeHandTilt.set(0.5, 0.31, 0.4 - this.sprint * 0.11),
       );
     }
     this.arms.update(0, 0, 0, 0, motion, undefined, this.meleeHands);
+  }
+
+  private placeMeleeGrip(
+    hand: MeleeHands['right'],
+    gripRotation: Quaternion,
+    left: boolean,
+    along: number,
+  ): void {
+    const blade = this.meleeModel;
+    hand.rotation.copy(blade.quaternion).multiply(gripRotation);
+    // Rotate the wrist around the hilt contact, which stays fixed in blade space.
+    const center = this.gripCenter
+      .set(0, along, 0)
+      .applyQuaternion(blade.quaternion)
+      .add(blade.position);
+    hand.wrist
+      .set(
+        left ? -meleeGrip.across : meleeGrip.across,
+        meleeGrip.rise,
+        meleeGrip.depth,
+      )
+      .applyQuaternion(hand.rotation)
+      .add(center);
   }
 
   dispose(): void {
