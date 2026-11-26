@@ -9,6 +9,8 @@ import {
 import { FootstepBank } from './FootstepBank';
 import { matchDefaults } from '@breakpoint/shared/match';
 import type { CombatSnapshot } from '../combat/PracticeCombat';
+import type { MovementController } from '../movement/MovementController';
+import { WeaponController } from '../weapons/WeaponController';
 
 function matchView(
   phase: RoomView['phase'],
@@ -116,6 +118,38 @@ class Node {
   start = vi.fn();
   stop = vi.fn();
 }
+const reloadSamples = [
+  {
+    weapon: 'rifle',
+    skin: 'cinder-wyrm',
+    file: 'molten_lava_reload.wav',
+    duration: 2.05,
+  },
+  {
+    weapon: 'rifle',
+    skin: 'memento-mori',
+    file: 'memento_mori_reload.wav',
+    duration: 2,
+  },
+  {
+    weapon: 'sniper',
+    skin: 'lotus-lava',
+    file: 'lotus_lava_reload.wav',
+    duration: 2.65,
+  },
+  {
+    weapon: 'shotgun',
+    skin: 'glorious-blaze',
+    file: 'glorious_blaze_shell_reload.wav',
+    duration: 0.8,
+  },
+  {
+    weapon: 'smg',
+    skin: 'neon-blade',
+    file: 'neon_legend_reload.wav',
+    duration: 1.8,
+  },
+] as const;
 class Context {
   static instances: Context[] = [];
   state = 'suspended';
@@ -181,6 +215,7 @@ class Context {
         this.decodedBlazeKill,
         this.decodedNeonShot,
         this.decodedNeonKill,
+        ...reloadSamples,
       ][data.byteLength - 1]!,
   );
   resume = vi.fn(async () => {
@@ -419,6 +454,7 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     '/audio/Glorious_Blaze_Kill_V4_Isolated.wav',
     '/audio/neon_legend_shot.wav',
     '/audio/neon_legend_kill.wav',
+    ...reloadSamples.map(({ file }) => `/audio/${file}`),
   ];
   const fetchShot = vi.fn(
     async (path: string) =>
@@ -650,6 +686,102 @@ it('preloads samples once and plays spatialized shots and local hit confirmation
     expect(
       context.nodes.filter((node) => node.buffer === context.decodedNeonKill),
     ).toHaveLength(1);
+  } finally {
+    audio.dispose();
+  }
+});
+
+const idleMovement = { physics: { grounded: true } } as MovementController;
+
+async function unlockWithReloadSamples(audio: AudioEngine): Promise<Context> {
+  vi.stubGlobal('AudioContext', Context);
+  vi.stubGlobal('fetch', async (path: string) => {
+    const index = reloadSamples.findIndex(
+      ({ file }) => path === `/audio/${file}`,
+    );
+    return index >= 0
+      ? new Response(new ArrayBuffer(18 + index))
+      : new Response(null, { status: 404 });
+  });
+  audio.configure({ ...defaultUserSettings(), footstepVolume: 0 });
+  await audio.unlock();
+  const context = Context.instances[0]!;
+  await vi.waitFor(() =>
+    expect(context.decodeAudioData).toHaveBeenCalledTimes(reloadSamples.length),
+  );
+  return context;
+}
+
+it.each(reloadSamples)(
+  'plays the $skin reload recording at the weapon reload pace',
+  async (sample) => {
+    const audio = new AudioEngine();
+    try {
+      const context = await unlockWithReloadSamples(audio);
+      const weapons = new WeaponController(() => {});
+      weapons.selected = sample.weapon;
+      weapons.synchronizeReload(true, 0.25);
+      audio.observe(0, weapons, idleMovement, true, 0, 'standard', sample.skin);
+      audio.observe(0, weapons, idleMovement, true, 0, 'standard', sample.skin);
+      const sources = context.nodes.filter((node) => node.buffer === sample);
+      expect(sources).toHaveLength(1);
+      expect(sources[0]!.start.mock.calls[0]?.[1]).toBeCloseTo(
+        sample.duration * 0.25,
+      );
+      expect(sources[0]!.playbackRate.value).toBeCloseTo(
+        sample.duration / weapons.config.reloadTime,
+      );
+      expect(sources[0]!.stop.mock.calls[0]?.[0]).toBeCloseTo(
+        weapons.config.reloadTime * 0.75,
+      );
+
+      weapons.synchronizeReload(false, 0);
+      audio.observe(0, weapons, idleMovement, true, 0, 'standard', sample.skin);
+      expect(sources[0]!.stop).toHaveBeenLastCalledWith();
+    } finally {
+      audio.dispose();
+    }
+  },
+);
+
+it('plays one cue per Glorious Blaze shell and restarts it after firing the last shell', async () => {
+  const audio = new AudioEngine();
+  try {
+    const context = await unlockWithReloadSamples(audio);
+    const weapons = new WeaponController(() => {});
+    const sample = reloadSamples[3];
+    weapons.selected = sample.weapon;
+    weapons.current.magazine = 0;
+    weapons.reload();
+    const observe = () =>
+      audio.observe(0, weapons, idleMovement, true, 0, sample.skin);
+    const shells = () => context.nodes.filter((node) => node.buffer === sample);
+    const idle = {
+      fire: false,
+      aim: false,
+      firePressed: false,
+      reloadPressed: false,
+      switchTo: null,
+    };
+    const grounded = { speed: 0, grounded: true, verticalSpeed: 0 };
+
+    observe();
+    expect(shells()).toHaveLength(1);
+    weapons.step(weapons.config.reloadTime, idle, grounded);
+    observe();
+    expect(weapons.current.magazine).toBe(1);
+    expect(shells()).toHaveLength(2);
+    weapons.step(0, { ...idle, firePressed: true }, grounded);
+    observe();
+    expect(weapons.current.magazine).toBe(0);
+    expect(weapons.reloading).toBe(true);
+    expect(shells()).toHaveLength(3);
+    expect(shells()[1]!.stop).toHaveBeenLastCalledWith();
+
+    weapons.switchWeapon('melee');
+    observe();
+    expect(shells()).toHaveLength(3);
+    expect(shells()[2]!.stop).toHaveBeenLastCalledWith();
   } finally {
     audio.dispose();
   }
