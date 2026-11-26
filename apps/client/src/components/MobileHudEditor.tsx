@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { ArenaId } from '@breakpoint/shared/maps';
 import { MobileHUD } from './MobileHUD';
 import {
@@ -43,31 +43,15 @@ export function MobileHudEditor({
 }) {
   const [layout, setLayout] = useState(imported ?? initial);
   const [selected, setSelected] = useState<MobileHudControlId>('fire');
+  const [showAdjustments, setShowAdjustments] = useState(true);
   const [confirm, setConfirm] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
-  const stage = useRef<HTMLDivElement>(null);
-  const screen = useRef<HTMLDivElement>(null);
+  const adjustmentsId = useId();
   const dirty = JSON.stringify(layout) !== JSON.stringify(initial);
   useLayoutEffect(() => {
     const element = dialog.current!;
-    const preview = screen.current!;
-    const frame = stage.current!;
-    const size = () => {
-      const ratio = Math.min(
-        frame.clientWidth / preview.offsetWidth,
-        frame.clientHeight / preview.offsetHeight,
-      );
-      preview.style.setProperty('--preview-scale', String(ratio));
-    };
     element.showModal();
-    size();
-    const observer = new ResizeObserver(size);
-    observer.observe(frame);
-    observer.observe(preview);
-    return () => {
-      observer.disconnect();
-      element.close();
-    };
+    return () => element.close();
   }, []);
   useEffect(() => {
     if (!dirty) return;
@@ -91,7 +75,7 @@ export function MobileHudEditor({
     <dialog
       ref={dialog}
       className="hud-editor"
-      aria-label="Controller Settings"
+      aria-label="HUD editor"
       onCancel={(event) => {
         event.preventDefault();
         if (confirm) setConfirm(false);
@@ -99,44 +83,44 @@ export function MobileHudEditor({
       }}
     >
       <div className="hud-editor-content" inert={confirm}>
-        <header>
-          <div>
-            <span className="eyebrow">TOUCH CONTROLS / CUSTOM LAYOUT</span>
-            <h2>CONTROLLER SETTINGS</h2>
-          </div>
+        <header className="hud-editor-bar">
+          <h2>HUD Layout</h2>
           <button
-            className="icon-button"
-            aria-label="Exit HUD editor"
-            onClick={requestExit}
+            type="button"
+            className="room-button"
+            aria-expanded={showAdjustments}
+            aria-controls={adjustmentsId}
+            onClick={() => setShowAdjustments(!showAdjustments)}
           >
-            ×
+            Adjust
+          </button>
+          <button
+            type="button"
+            className="room-button"
+            aria-label="Reset default layout"
+            onClick={() => setLayout(defaultMobileHudLayout())}
+          >
+            Reset
+          </button>
+          <button type="button" className="room-button" onClick={requestExit}>
+            Discard
+          </button>
+          <button
+            type="button"
+            className="room-button primary"
+            onClick={() => onSave(layout)}
+          >
+            Save
           </button>
         </header>
-        <div ref={stage} className="hud-editor-stage">
-          <div ref={screen} className="hud-editor-screen">
-            <MobileHUD
-              tablet={tablet}
-              layout={layout}
-              minimap={{ map }}
-              multiplayer={multiplayer}
-              editor={{
-                selected,
-                select: setSelected,
-                position: (id, x, y) =>
-                  setLayout((current) => ({
-                    ...current,
-                    [id]: { ...current[id], x, y },
-                  })),
-              }}
-            />
-          </div>
-          <span className="hud-editor-hint">
-            SELECT A CONTROL · DRAG TO POSITION
-          </span>
-        </div>
-        <aside className="hud-editor-tools">
-          <label>
-            CONTROL
+        <aside
+          id={adjustmentsId}
+          className="hud-editor-tools"
+          aria-label="Selected control settings"
+          hidden={!showAdjustments}
+        >
+          <label className="hud-control-choice">
+            Control
             <select
               aria-label="Selected control"
               value={selected}
@@ -151,8 +135,10 @@ export function MobileHudEditor({
               ))}
             </select>
           </label>
-          <label>
-            SIZE <output>{layout[selected].scale}%</output>
+          <label className="hud-size">
+            <span>
+              Size <output>{layout[selected].scale}%</output>
+            </span>
             <input
               aria-label={
                 selected === 'minimap' ? 'Minimap size' : 'Button size'
@@ -165,10 +151,11 @@ export function MobileHudEditor({
             />
           </label>
           <fieldset>
-            <legend>OPACITY</legend>
+            <legend>Opacity</legend>
             {hudOpacityOptions.map((value) => (
               <button
                 key={value}
+                type="button"
                 aria-pressed={layout[selected].opacity === value}
                 onClick={() => patch({ opacity: value })}
               >
@@ -183,23 +170,26 @@ export function MobileHudEditor({
               disabled={selected === 'pause'}
               onChange={(e) => patch({ visible: e.target.checked })}
             />{' '}
-            {selected === 'minimap' ? 'SHOW MINIMAP' : 'SHOW CONTROL'}
+            {selected === 'minimap' ? 'Show minimap' : 'Show control'}
           </label>
-          <button
-            className="text-button"
-            onClick={() => setLayout(defaultMobileHudLayout())}
-          >
-            RESET DEFAULT LAYOUT
-          </button>
         </aside>
-        <footer>
-          <button className="room-button" onClick={requestExit}>
-            DISCARD
-          </button>
-          <button className="enter-button" onClick={() => onSave(layout)}>
-            SAVE
-          </button>
-        </footer>
+        <div className="hud-editor-screen">
+          <MobileHUD
+            tablet={tablet}
+            layout={layout}
+            minimap={{ map }}
+            multiplayer={multiplayer}
+            editor={{
+              selected,
+              select: setSelected,
+              position: (id, x, y) =>
+                setLayout((current) => ({
+                  ...current,
+                  [id]: { ...current[id], x, y },
+                })),
+            }}
+          />
+        </div>
       </div>
       {confirm && (
         <div
@@ -211,7 +201,7 @@ export function MobileHudEditor({
           <button className="room-button" onClick={() => setConfirm(false)}>
             KEEP EDITING
           </button>
-          <button className="enter-button" onClick={onDiscard}>
+          <button className="room-button primary" onClick={onDiscard}>
             DISCARD CHANGES
           </button>
         </div>

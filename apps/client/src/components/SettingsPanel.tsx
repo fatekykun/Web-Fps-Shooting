@@ -164,6 +164,57 @@ export function SettingsPanel({
     onChange({ ...settings, ...values });
   const reticle = (values: Partial<UserSettings['crosshair']>) =>
     change({ crosshair: { ...settings.crosshair, ...values } });
+  const mouseSensitivity = (
+    <>
+      <p className="settings-note">
+        100 is the default. Steering, ADS and sniper values control horizontal
+        turning; vertical turning has its own value. Zoom scaling is retained.
+        Hold LMB to use firing sensitivity; release to use camera sensitivity.
+      </p>
+      {(['camera', 'firing'] as const).map((group) => (
+        <fieldset key={group} className="sensitivity-group">
+          <legend>{group.toUpperCase()} SENSITIVITY</legend>
+          <div className="setting-grid">
+            {(
+              Object.keys(
+                sensitivityLabels,
+              ) as (keyof typeof sensitivityLabels)[]
+            ).map((key) => (
+              <Range
+                key={key}
+                label={`${group === 'camera' ? 'Camera' : 'Firing'} ${sensitivityLabels[key]}`}
+                value={settings.sensitivity[group][key]}
+                min={1}
+                max={300}
+                display={String(settings.sensitivity[group][key])}
+                onChange={(value) =>
+                  change({
+                    sensitivity: {
+                      ...settings.sensitivity,
+                      [group]: {
+                        ...settings.sensitivity[group],
+                        [key]: value,
+                      },
+                    },
+                  })
+                }
+              />
+            ))}
+          </div>
+        </fieldset>
+      ))}
+      <button
+        className="text-button"
+        onClick={() =>
+          change({
+            sensitivity: defaultUserSettings().sensitivity,
+          })
+        }
+      >
+        RESET SENSITIVITY
+      </button>
+    </>
+  );
   return (
     <TacticalDialog
       title="FIELD SETTINGS"
@@ -245,7 +296,7 @@ export function SettingsPanel({
                 className="enter-button controller-settings-button"
                 onClick={onControllerSettings}
               >
-                CONTROLLER SETTINGS / CUSTOMIZE TOUCH HUD
+                CUSTOMIZE TOUCH HUD
               </button>
             )}
             <div className="setting-grid">
@@ -257,46 +308,54 @@ export function SettingsPanel({
                 display={`${settings.fov}°`}
                 onChange={(fov) => change({ fov })}
               />
+              <div>
+                <div className="scope-style-setting">
+                  <label htmlFor={`${id}-sync-ads-fov`}>Sync ADS FOV</label>
+                  <select
+                    id={`${id}-sync-ads-fov`}
+                    aria-describedby={`${id}-sync-ads-fov-note`}
+                    value={settings.syncAdsFov ? 'on' : 'off'}
+                    onChange={(event) =>
+                      change({ syncAdsFov: event.target.value === 'on' })
+                    }
+                  >
+                    <option value="off">OFF</option>
+                    <option value="on">ON</option>
+                  </select>
+                </div>
+                <p className="settings-note" id={`${id}-sync-ads-fov-note`}>
+                  Synchronizes aiming field of view with your configured camera
+                  FOV.
+                </p>
+              </div>
             </div>
-            <div className="scope-style-setting">
-              <label htmlFor={`${id}-sync-ads-fov`}>Sync ADS FOV</label>
-              <select
-                id={`${id}-sync-ads-fov`}
-                aria-describedby={`${id}-sync-ads-fov-note`}
-                value={settings.syncAdsFov ? 'on' : 'off'}
-                onChange={(event) =>
-                  change({ syncAdsFov: event.target.value === 'on' })
-                }
-              >
-                <option value="off">OFF</option>
-                <option value="on">ON</option>
-              </select>
+            <div className="setting-grid">
+              <label className="setting-toggle">
+                <input
+                  type="checkbox"
+                  checked={settings.invertY}
+                  onChange={(event) =>
+                    change({ invertY: event.target.checked })
+                  }
+                />{' '}
+                Invert vertical look (mouse and touch)
+              </label>
+              <div>
+                <label className="setting-toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoReload}
+                    onChange={(event) =>
+                      change({ autoReload: event.target.checked })
+                    }
+                  />{' '}
+                  Auto Reload
+                </label>
+                <p className="settings-note">
+                  Reloads empty magazines when spare ammo is available.
+                </p>
+              </div>
             </div>
-            <p className="settings-note" id={`${id}-sync-ads-fov-note`}>
-              Synchronizes aiming field of view with your configured camera FOV.
-            </p>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.invertY}
-                onChange={(event) => change({ invertY: event.target.checked })}
-              />{' '}
-              Invert vertical look (mouse and touch)
-            </label>
-            <label className="setting-toggle">
-              <input
-                type="checkbox"
-                checked={settings.autoReload}
-                onChange={(event) =>
-                  change({ autoReload: event.target.checked })
-                }
-              />{' '}
-              Auto Reload
-            </label>
-            <p className="settings-note">
-              Reload empty magazines automatically when reserve ammo is
-              available. R always reloads manually.
-            </p>
             <div className="section-heading">
               <h3>KEYBOARD BINDINGS</h3>
               <span>MOUSE BUTTONS / ESC FIXED</span>
@@ -329,55 +388,8 @@ export function SettingsPanel({
         )}
         {tab === 'SENSITIVITY' && (
           <>
-            <p className="settings-note">
-              100 is the default. Steering, ADS and sniper values control
-              horizontal turning; vertical turning has its own value. Zoom
-              scaling is retained. Hold LMB to use firing sensitivity; release
-              to use camera sensitivity.
-            </p>
-            {(['camera', 'firing'] as const).map((group) => (
-              <fieldset key={group} className="sensitivity-group">
-                <legend>{group.toUpperCase()} SENSITIVITY</legend>
-                <div className="setting-grid">
-                  {(
-                    Object.keys(
-                      sensitivityLabels,
-                    ) as (keyof typeof sensitivityLabels)[]
-                  ).map((key) => (
-                    <Range
-                      key={key}
-                      label={`${group === 'camera' ? 'Camera' : 'Firing'} ${sensitivityLabels[key]}`}
-                      value={settings.sensitivity[group][key]}
-                      min={1}
-                      max={300}
-                      display={String(settings.sensitivity[group][key])}
-                      onChange={(value) =>
-                        change({
-                          sensitivity: {
-                            ...settings.sensitivity,
-                            [group]: {
-                              ...settings.sensitivity[group],
-                              [key]: value,
-                            },
-                          },
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-              </fieldset>
-            ))}
-            <button
-              className="text-button"
-              onClick={() =>
-                change({
-                  sensitivity: defaultUserSettings().sensitivity,
-                })
-              }
-            >
-              RESET SENSITIVITY
-            </button>
-            <fieldset className="sensitivity-group">
+            {!showGyro && mouseSensitivity}
+            <fieldset className="sensitivity-group touch-sensitivity">
               <legend>TOUCH CAMERA</legend>
               <label className="setting-toggle">
                 <input
@@ -394,9 +406,7 @@ export function SettingsPanel({
                 Slows touch aiming near visible targets on phones and tablets.
               </p>
               <p className="settings-note">
-                Independent touchscreen turning. ADS and sniper values blend
-                with zoom. Sprint and ADS buttons toggle; fire and jump are
-                held.
+                Touch ADS and sniper sensitivity blend with zoom.
               </p>
               <div className="setting-grid">
                 {(['camera', 'ads', 'sniper'] as const).map((key) => (
@@ -532,6 +542,7 @@ export function SettingsPanel({
                 />
               </fieldset>
             )}
+            {showGyro && mouseSensitivity}
           </>
         )}
         {tab === 'DISPLAY' && (

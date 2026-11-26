@@ -224,6 +224,30 @@
       height: var(--menu-height);
     }
 
+    :is(.settings-panel, .controller-settings-panel) .dialog-header h2 {
+      font-size: 16px;
+    }
+
+    :is(.settings-panel, .controller-settings-panel)
+      .dialog-header
+      .icon-button {
+      width: 38px;
+      height: 38px;
+      font-size: 19px;
+    }
+
+    :is(.settings-panel, .controller-settings-panel)
+      :is(.settings-tabs button, .dialog-footer .text-button, .room-button) {
+      min-height: 36px;
+      padding: 4px 7px;
+      font-size: 10px;
+    }
+
+    .controller-settings-panel .dialog-content {
+      padding: 8px 12px;
+      font-size: 11px;
+    }
+
     .settings-panel .dialog-content {
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
@@ -239,24 +263,51 @@
       min-height: 0;
       overflow-y: auto;
       overscroll-behavior: contain;
-      padding: 8px 12px;
+      padding: 6px 10px;
+      font-size: 11px;
     }
 
     .settings-page :is(.setting-grid, .binding-grid) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px 16px;
+      gap: 5px 12px;
+      align-items: start;
     }
 
-    .settings-page[data-tab='AUDIO'] .setting-grid {
+    .settings-page[data-tab='AUDIO'] .setting-grid,
+    .settings-page .touch-sensitivity .setting-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    .settings-page .controller-settings-button {
-      width: min(100%, 350px);
-      min-height: 44px;
-      margin: 0 0 8px;
-      padding: 6px 10px;
-      letter-spacing: 0.5px;
+    :is(.settings-page, .controller-settings-panel)
+      .controller-settings-button {
+      width: min(100%, 250px);
+      min-height: 36px;
+      margin: 0 0 5px;
+      padding: 5px 9px;
+      font-size: 10px;
+      letter-spacing: 0.4px;
+    }
+
+    .settings-page .setting-range,
+    .settings-page .binding-row,
+    .settings-page .setting-toggle {
+      font-size: 11px;
+    }
+
+    .settings-page .settings-note {
+      margin: 4px 0 6px;
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
+    .settings-page .scope-style-setting {
+      gap: 4px;
+    }
+
+    .settings-page .scope-style-setting select {
+      min-height: 36px;
+      margin: 0;
+      padding: 4px 6px;
     }
 
     .settings-page .setting-range input {
@@ -265,7 +316,7 @@
     }
 
     .settings-page .setting-toggle {
-      min-height: 38px;
+      min-height: 32px;
       margin: 0;
     }
 
@@ -275,8 +326,13 @@
     }
 
     .settings-page .sensitivity-group {
-      margin: 10px 0;
-      padding-top: 8px;
+      margin: 8px 0;
+      padding-top: 4px;
+    }
+
+    .settings-page :is(.binding-row button, .text-button) {
+      min-height: 32px;
+      padding-block: 3px;
     }
 
     .settings-panel .graphics-controls {
@@ -301,7 +357,7 @@
     }
 
     .graphics-controls :is(select, .adaptive-toggle) {
-      min-height: 44px;
+      min-height: 36px;
     }
 
     .graphics-controls select {

@@ -148,14 +148,40 @@ test.describe('phone touch controls', () => {
     await prepare(page);
     await page.goto('/');
     await page.getByRole('button', { name: 'SETTINGS', exact: true }).tap();
-    await page
-      .getByRole('button', { name: /CONTROLLER SETTINGS \/ CUSTOMIZE/ })
-      .tap();
+    await page.getByRole('button', { name: 'CUSTOMIZE TOUCH HUD' }).tap();
     const controller = page.getByRole('dialog', {
       name: 'Controller Settings',
       exact: true,
     });
     await controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
+    const editor = page.getByRole('dialog', { name: 'HUD editor' });
+    const screen = editor.locator('.hud-editor-screen');
+    const adjustments = editor.getByRole('complementary', {
+      name: 'Selected control settings',
+    });
+    const adjust = editor.getByRole('button', { name: 'Adjust' });
+    const frame = (await screen.boundingBox())!;
+    expect(frame).toEqual({ x: 0, y: 0, ...phone.viewport });
+    const panel = (await adjustments.boundingBox())!;
+    expect(panel.x + panel.width / 2).toBeCloseTo(frame.width / 2, 0);
+    expect(panel.y + panel.height / 2).toBeCloseTo(frame.height / 2, 0);
+    await adjust.tap();
+    await expect(adjustments).toBeHidden();
+    expect(await screen.boundingBox()).toEqual(frame);
+    await adjust.tap();
+    await expect(adjustments).toBeVisible();
+    await page.setViewportSize({ width: 640, height: 280 });
+    expect(await screen.boundingBox()).toEqual({
+      x: 0,
+      y: 0,
+      width: 640,
+      height: 280,
+    });
+    await expect(adjustments).toBeInViewport({ ratio: 1 });
+    await expect(
+      editor.getByRole('button', { name: 'Save', exact: true }),
+    ).toBeInViewport({ ratio: 1 });
+    await page.setViewportSize(phone.viewport);
     const slider = page.getByRole('slider', { name: 'Button size' });
     await slider.focus();
     await page.keyboard.press('End');
@@ -165,12 +191,11 @@ test.describe('phone touch controls', () => {
     await expect(fire).toHaveAttribute('data-selected', 'true');
     await expect(fire.locator('svg[data-control-icon="fire"]')).toBeVisible();
     const before = await fire.boundingBox();
-    const frame = await page.locator('.hud-editor-screen').boundingBox();
     const fingers = new Fingers(await context.newCDPSession(page));
     await fingers.down(1, await point(page, 'fire'));
     await fingers.move(1, {
-      x: frame!.x + frame!.width * 0.3,
-      y: frame!.y + frame!.height * 0.2,
+      x: frame.x + frame.width * 0.3,
+      y: frame.y + frame.height * 0.2,
     });
     await fingers.up(1);
     expect((await fire.boundingBox())!.x).toBeLessThan(before!.x - 40);
@@ -182,8 +207,9 @@ test.describe('phone touch controls', () => {
     await expect(
       page.getByRole('dialog', { name: 'ROTATE YOUR DEVICE' }),
     ).toBeHidden();
+    expect(await screen.boundingBox()).toEqual(frame);
     await expect(slider).toHaveValue('200');
-    const save = page.getByRole('button', { name: 'SAVE', exact: true });
+    const save = page.getByRole('button', { name: 'Save', exact: true });
     await save.press('Enter');
     await expect(
       controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }),
@@ -194,7 +220,7 @@ test.describe('phone touch controls', () => {
     expect(saved).toMatchObject({ scale: 200, opacity: 30 });
     expect(saved.x).toBeCloseTo(0.3, 1);
     await controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
-    await page.getByRole('button', { name: 'RESET DEFAULT LAYOUT' }).tap();
+    await page.getByRole('button', { name: 'Reset default layout' }).tap();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('alertdialog')).toBeVisible();
     await page.getByRole('button', { name: 'DISCARD CHANGES' }).tap();
