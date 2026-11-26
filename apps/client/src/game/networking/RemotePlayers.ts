@@ -195,16 +195,15 @@ export class RemotePlayers {
     const pose = this.poses[this.playerCount]!;
     pose.id = player.id;
     pose.weapon = player.weapon;
-    pose.customBody = this.updateOperator(player, rig);
+    const operator = this.updateOperator(player, rig);
+    pose.customBody = !!operator;
+    const weaponMatrix =
+      operator?.weaponMatrix ?? rig.bones[weaponJoint]!.matrixWorld;
     pose.muzzle
       .set(...weaponMuzzles[player.weapon].remote)
-      .applyMatrix4(rig.bones[21]!.matrixWorld);
+      .applyMatrix4(weaponMatrix);
     const palette = avatarPalette(player);
-    const custom = this.skins.append(
-      player.weapon,
-      player.skin,
-      rig.bones[weaponJoint]!.matrixWorld,
-    );
+    const custom = this.skins.append(player.weapon, player.skin, weaponMatrix);
     for (const definition of parts) {
       this.part.position.set(...definition.position);
       this.part.scale.set(...definition.size);
@@ -214,7 +213,11 @@ export class RemotePlayers {
         this.part.scale.z = -0.27 - tip[2];
       }
       this.part.updateMatrix();
-      this.part.matrix.premultiply(rig.bones[definition.joint]!.matrixWorld);
+      this.part.matrix.premultiply(
+        definition.joint === weaponJoint
+          ? weaponMatrix
+          : rig.bones[definition.joint]!.matrixWorld,
+      );
       const teamPatch =
         definition.name === 'unit-patch' && player.team !== 'none';
       if (
@@ -244,14 +247,14 @@ export class RemotePlayers {
   private updateOperator(
     player: PublicPlayer,
     tactical: TacticalSkeleton,
-  ): boolean {
+  ): OperatorRig | undefined {
     const id = player.operator;
     const previous = this.operators.get(player.slot);
     if (previous && previous.id !== id) {
       previous.rig.dispose();
       this.operators.delete(player.slot);
     }
-    if (!id || id === 'standard') return false;
+    if (!id || id === 'standard') return undefined;
     if (!this.operatorModels.has(id)) {
       this.operatorModels.set(id, undefined);
       void operatorAsset(id).then((asset) => {
@@ -259,21 +262,21 @@ export class RemotePlayers {
       });
     }
     const asset = this.operatorModels.get(id);
-    if (!asset) return false;
+    if (!asset) return undefined;
     let rig = this.operators.get(player.slot)?.rig;
     if (!rig) {
       try {
         rig = new OperatorRig(asset.scene);
       } catch {
         this.operatorModels.set(id, undefined);
-        return false;
+        return undefined;
       }
       this.operators.set(player.slot, { id, rig });
       this.scene.add(rig.root);
     }
-    rig.update(tactical);
+    rig.update(tactical, player);
     rig.root.visible = true;
-    return true;
+    return rig;
   }
 
   private clearOperators(): void {

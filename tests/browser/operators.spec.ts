@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { movementConfig } from '@breakpoint/shared';
 import { defaultLoadouts } from '@breakpoint/shared/weapons/loadouts';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
-import { enterStartedMatch } from './helpers/matchEntry';
+import { enterStartedMatch, reserveSpawnSlot } from './helpers/matchEntry';
 
 test('saves different operators per slot and synchronizes the chosen character at spawn', async ({
   page,
@@ -72,10 +72,13 @@ test('saves different operators per slot and synchronizes the chosen character a
   await page.getByRole('button', { name: 'CREATE PRIVATE ROOM' }).click();
   const profile = defaultLoadouts();
   profile.slots[0].operator = 'ghost';
-  const peer = await new Client('http://127.0.0.1:2567').joinById<RoomState>(
-    (await page.getByTestId('room-code').textContent())!,
-    { name: 'Operator guest', profile },
-  );
+  const client = new Client('http://127.0.0.1:2567');
+  const code = (await page.getByTestId('room-code').textContent())!;
+  const filler = await reserveSpawnSlot(client, code);
+  const peer = await client.joinById<RoomState>(code, {
+    name: 'Operator guest',
+    profile,
+  });
   for (const kind of ['shot', 'kill', 'correction', 'notice'])
     peer.onMessage(kind, () => {});
   try {
@@ -113,8 +116,11 @@ test('saves different operators per slot and synchronizes the chosen character a
         ),
       )
       .toBeGreaterThan(0);
+    await expect(page.getByText('MATCH START', { exact: true })).toBeHidden();
+    await page.screenshot({ path: testInfo.outputPath('ghost-in-match.png') });
     expect(shaderErrors).toEqual([]);
   } finally {
     await peer.leave();
+    await filler.leave();
   }
 });

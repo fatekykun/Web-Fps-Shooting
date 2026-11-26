@@ -11,7 +11,46 @@ import { operators, type ImportedOperator } from '@breakpoint/shared/operators';
 
 const assets = new Map<ImportedOperator, Promise<GLTF | undefined>>();
 
-/** Combine primitives that share a rig. Bake their tints while retaining the face texture. */
+function createBatchMaterial(
+  source: MeshStandardMaterial,
+): MeshStandardMaterial {
+  const material = source.clone();
+  material.color.set(0xffffff);
+  material.vertexColors = true;
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nattribute vec2 operatorSurface;\nvarying vec2 vOperatorSurface;',
+      )
+      .replace(
+        '#include <color_vertex>',
+        '#include <color_vertex>\nvOperatorSurface = operatorSurface;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec2 vOperatorSurface;',
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        '#include <roughnessmap_fragment>\nroughnessFactor = vOperatorSurface.x;',
+      )
+      .replace(
+        '#include <metalnessmap_fragment>',
+        '#include <metalnessmap_fragment>\nmetalnessFactor = vOperatorSurface.y;',
+      )
+      .replace(
+        '#include <opaque_fragment>',
+        `float rim = 1.0 - abs(dot(normal, normalize(vViewPosition)));
+        outgoingLight += diffuseColor.rgb * 0.12 * rim * rim * rim;
+        #include <opaque_fragment>`,
+      );
+  };
+  return material;
+}
+
+/** Batch the operators' opaque primitives while keeping their authored surface values. */
 function batch(asset: GLTF): GLTF {
   const meshes: SkinnedMesh<BufferGeometry, MeshStandardMaterial>[] = [];
   asset.scene.traverse((node) => {
@@ -37,8 +76,7 @@ function batch(asset: GLTF): GLTF {
   const color = new Color();
   for (const mesh of meshes) {
     const source = mesh.material;
-    const key =
-      source.map?.uuid ?? (source.metalness > 0.25 ? 'metal' : 'matte');
+    const key = `${source.side}:${source.map?.uuid ?? ''}`;
     let group = groups.get(key);
     if (!group) {
       group = { source, pieces: [] };
@@ -46,8 +84,10 @@ function batch(asset: GLTF): GLTF {
     }
     const piece = mesh.geometry.clone();
     const original = piece.getAttribute('color');
-    const colors = new Float32Array(piece.getAttribute('position').count * 3);
-    for (let i = 0; i < colors.length / 3; i++) {
+    const count = piece.getAttribute('position').count;
+    const colors = new Float32Array(count * 3);
+    const surface = new Float32Array(count * 2);
+    for (let i = 0; i < count; i++) {
       color.copy(source.color);
       if (original) {
         color.r *= original.getX(i);
@@ -55,8 +95,11 @@ function batch(asset: GLTF): GLTF {
         color.b *= original.getZ(i);
       }
       color.toArray(colors, i * 3);
+      surface[i * 2] = source.roughness;
+      surface[i * 2 + 1] = source.metalness;
     }
     piece.setAttribute('color', new BufferAttribute(colors, 3));
+    piece.setAttribute('operatorSurface', new BufferAttribute(surface, 2));
     group.pieces.push(piece);
   }
   const batches: SkinnedMesh[] = [];
@@ -64,14 +107,7 @@ function batch(asset: GLTF): GLTF {
     const combined = mergeGeometries(pieces);
     for (const piece of pieces) piece.dispose();
     if (!combined) continue;
-    const material = new MeshStandardMaterial({
-      vertexColors: true,
-      map: source.map,
-      roughness: source.roughness,
-      metalness: source.metalness,
-      emissive: 0x15191c,
-      emissiveIntensity: 0.2,
-    });
+    const material = createBatchMaterial(source);
     const mesh = new SkinnedMesh(combined, material);
     mesh.copy(first, false);
     mesh.geometry = combined;

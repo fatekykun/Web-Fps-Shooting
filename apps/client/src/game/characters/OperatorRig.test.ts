@@ -1,84 +1,130 @@
 import { readFile } from 'node:fs/promises';
 import { expect, it } from 'vitest';
-import { Box3, Vector3 } from 'three';
+import { Bone, Box3, Texture, Vector3 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { rigJoints, type JointName } from '@breakpoint/shared/character';
+import {
+  rigJoints,
+  type CharacterPose,
+  type JointName,
+} from '@breakpoint/shared/character';
 import { OperatorRig } from './OperatorRig';
 import { TacticalSkeleton } from './TacticalSkeleton';
 
-it('binds an authored operator to the moving weapon hands and lowers her into slide and prone', async () => {
-  const bytes = await readFile(
-    new URL(
-      '../../../public/models/crimson_officer_character.glb',
-      import.meta.url,
-    ),
-  );
-  const { scene } = await new GLTFLoader().parseAsync(
-    new Uint8Array(bytes).buffer,
-    '',
-  );
-  const operator = new OperatorRig(scene);
-  const tactical = new TacticalSkeleton();
-  const target = (name: string) =>
-    operator.root.getObjectByName(name)!.getWorldPosition(new Vector3());
-  const anchor = (name: JointName) =>
-    tactical.bones[
-      rigJoints.findIndex((joint) => joint.name === name)
-    ]!.getWorldPosition(new Vector3());
-  try {
-    tactical.root.position.set(3, 0.4, -6);
-    tactical.root.rotation.y = 1.1;
-    tactical.update({
-      pitch: 0,
-      halfHeight: 0.55,
-      movement: 'sprinting',
-      sprintBlend: 1,
-      carryBlend: 1,
-      gaitAmount: 1,
-      gaitPhase: Math.PI / 2,
-    });
-    operator.update(tactical);
-    const runningHips = target('Hips');
-    const bounds = new Box3();
-    const runningHeight = bounds
-      .setFromObject(operator.root, true)
-      .getSize(new Vector3()).y;
-    expect(target('Hand_R').distanceTo(anchor('rightWrist'))).toBeLessThan(
-      0.00001,
+it.each(['crimson_officer_character', 'ghost_character'])(
+  '%s preserves the authored bones and follows the synchronized pose',
+  async (file) => {
+    const bytes = await readFile(
+      new URL(`../../../public/models/${file}.glb`, import.meta.url),
     );
-    expect(target('Hand_L').distanceTo(target('Hand_R'))).toBeGreaterThan(0.2);
-    tactical.update({
-      pitch: 0,
-      halfHeight: 0.2,
-      movement: 'sliding',
-      slideBlend: 1,
+    const loader = new GLTFLoader().register(() => ({
+      name: 'Test texture',
+      loadTexture: async () => new Texture(),
+    }));
+    const { scene } = await loader.parseAsync(new Uint8Array(bytes).buffer, '');
+    const operator = new OperatorRig(scene);
+    const tactical = new TacticalSkeleton();
+    const bindOffsets = new Map<string, Vector3>();
+    scene.traverse((node) => {
+      if (node instanceof Bone && node.name !== 'Hips')
+        bindOffsets.set(node.name, node.position.clone());
     });
-    operator.update(tactical);
-    expect(target('Hips').y).toBeLessThan(runningHips.y - 0.35);
-    const forward = new Vector3(0, 0, -1).applyQuaternion(
-      tactical.root.quaternion,
-    );
-    expect(
-      Math.abs(target('Foot_R').sub(target('Foot_L')).dot(forward)),
-    ).toBeGreaterThan(0.15);
-    tactical.update({
-      pitch: 0,
-      halfHeight: 0.15,
-      movement: 'prone',
-      proneBlend: 1,
-    });
-    operator.update(tactical);
-    const torso = target('Chest').sub(target('Hips'));
-    expect(Math.hypot(torso.x, torso.z)).toBeGreaterThan(Math.abs(torso.y) * 2);
-    const proneHeight = bounds
-      .setFromObject(operator.root, true)
-      .getSize(new Vector3()).y;
-    expect(proneHeight).toBeLessThan(runningHeight * 0.65);
-    expect(target('Hand_L').distanceTo(anchor('leftWrist'))).toBeLessThan(
-      0.00001,
-    );
-  } finally {
-    operator.dispose();
-    tactical.dispose();
-  }
-});
+    const target = (name: string) =>
+      operator.root.getObjectByName(name)!.getWorldPosition(new Vector3());
+    const anchor = (name: JointName) =>
+      tactical.bones[rigJoints.findIndex((joint) => joint.name === name)]!;
+    const update = (pose: Partial<CharacterPose> = {}) => {
+      const state = { pitch: 0, halfHeight: 0.55, ...pose };
+      tactical.update(state);
+      operator.update(tactical, state);
+    };
+    const size = new Vector3();
+    const bounds = () => new Box3().setFromObject(operator.root, true);
+    const gripError = (side: 'left' | 'right') => {
+      const mesh = operator.root.children[0]!;
+      const hand = mesh.getObjectByName(side === 'left' ? 'Hand_L' : 'Hand_R')!;
+      const palm = hand.localToWorld(
+        new Vector3(side === 'left' ? 0.018 : -0.018, -0.048, 0),
+      );
+      const grip = anchor(side === 'left' ? 'leftWrist' : 'rightWrist');
+      const weapon = anchor('weapon').getWorldPosition(new Vector3());
+      const drawnWeapon = new Vector3().setFromMatrixPosition(
+        operator.weaponMatrix,
+      );
+      const targetGrip = grip
+        .localToWorld(new Vector3(0, -0.055, 0))
+        .add(drawnWeapon.sub(weapon));
+      return palm.distanceTo(targetGrip);
+    };
+    try {
+      tactical.root.position.set(3, 0.4, -6);
+      tactical.root.rotation.y = 1.1;
+      update();
+      const standingHeight = bounds().getSize(size).y;
+      expect(standingHeight).toBeCloseTo(1.7, 1);
+      expect(bounds().min.y).toBeCloseTo(tactical.root.position.y, 1);
+      expect(gripError('left')).toBeLessThan(0.035);
+      expect(gripError('right')).toBeLessThan(0.035);
+
+      update({ aimBlend: 1, pitch: 0.45 });
+      expect(gripError('left')).toBeLessThan(0.035);
+      expect(gripError('right')).toBeLessThan(0.035);
+
+      const sourceWeapon = anchor('weapon');
+      const barrelAxis = new Vector3(0, 0, 1).transformDirection(
+        sourceWeapon.matrixWorld,
+      );
+      const setback = new Vector3()
+        .setFromMatrixPosition(operator.weaponMatrix)
+        .sub(sourceWeapon.getWorldPosition(new Vector3()));
+      expect(setback.dot(barrelAxis)).toBeGreaterThan(0);
+      expect(setback.cross(barrelAxis).length()).toBeLessThan(1e-5);
+
+      update({ reloadBlend: 1, reloadProgress: 0.5 });
+      expect(gripError('left')).toBeLessThan(0.035);
+      expect(gripError('right')).toBeLessThan(0.035);
+
+      update({
+        movement: 'sprinting',
+        sprintBlend: 1,
+        carryBlend: 1,
+        gaitAmount: 1,
+        gaitPhase: Math.PI / 2,
+      });
+      const runningHips = target('Hips');
+      const rightBoot = target('Foot_R');
+      expect(gripError('left')).toBeGreaterThan(0.15);
+      expect(gripError('right')).toBeLessThan(0.035);
+      expect(bounds().min.y).toBeCloseTo(tactical.root.position.y, 1);
+      update({
+        movement: 'sprinting',
+        sprintBlend: 1,
+        carryBlend: 1,
+        gaitAmount: 1,
+        gaitPhase: (3 * Math.PI) / 2,
+      });
+      expect(target('Foot_R').distanceTo(rightBoot)).toBeGreaterThan(0.3);
+
+      update({ halfHeight: 0.2, movement: 'sliding', slideBlend: 1 });
+      expect(target('Hips').y).toBeLessThan(runningHips.y - 0.35);
+      const forward = new Vector3(0, 0, -1).applyQuaternion(
+        tactical.root.quaternion,
+      );
+      expect(
+        Math.abs(target('Foot_R').sub(target('Foot_L')).dot(forward)),
+      ).toBeGreaterThan(0.15);
+
+      update({ halfHeight: 0.15, movement: 'prone', proneBlend: 1 });
+      const torso = target('Chest').sub(target('Hips'));
+      expect(Math.hypot(torso.x, torso.z)).toBeGreaterThan(
+        Math.abs(torso.y) * 2,
+      );
+      expect(bounds().getSize(size).y).toBeLessThan(standingHeight * 0.65);
+
+      for (const [name, offset] of bindOffsets)
+        expect(operator.root.getObjectByName(name)!.position).toEqual(offset);
+    } finally {
+      operator.dispose();
+      tactical.dispose();
+    }
+  },
+);
