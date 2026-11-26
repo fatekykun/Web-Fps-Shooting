@@ -20,6 +20,7 @@ import {
   type OwnerCombat,
   type ServerShot,
   type KillEvent,
+  type EliminationEffect,
 } from '@breakpoint/shared/combat';
 import type { ServerPlayer } from '../players/ServerPlayer';
 import type { GameMode } from '@breakpoint/shared/match';
@@ -56,9 +57,18 @@ interface PendingShot {
   yaw: number;
   pitch: number;
   seed: number;
-  soulRequiem: boolean;
-  lotusLava: boolean;
-  gloriousBlaze: boolean;
+  effect?: EliminationEffect;
+}
+
+function shotEffect(
+  player: ServerPlayer,
+  weapon: WeaponId,
+): EliminationEffect | undefined {
+  if (weapon === 'rifle' && player.soulRequiem) return 'soul-requiem';
+  if (weapon === 'sniper' && player.lotusLava) return 'lotus-lava';
+  if (weapon === 'shotgun' && player.gloriousBlaze) return 'glorious-blaze';
+  if (weapon === 'smg' && player.neonBlade) return 'neon-blade';
+  return undefined;
 }
 
 /** Receives validated controls, never client hits, ammo, rays, timestamps or damage. */
@@ -283,9 +293,7 @@ export class ServerCombat {
       player,
       shot: { ...shot },
       seed: loadout.seed,
-      soulRequiem: shot.config.id === 'rifle' && player.soulRequiem,
-      lotusLava: shot.config.id === 'sniper' && player.lotusLava,
-      gloriousBlaze: shot.config.id === 'shotgun' && player.gloriousBlaze,
+      effect: shotEffect(player, shot.config.id),
       origin: {
         x: position.x,
         y: position.y + player.movement.eyeOffset,
@@ -306,25 +314,17 @@ export class ServerCombat {
     yaw,
     pitch,
     seed,
-    soulRequiem,
-    lotusLava,
-    gloriousBlaze,
+    effect,
   }: PendingShot): void {
-    const effect = gloriousBlaze
-      ? 'glorious-blaze'
-      : lotusLava
-        ? 'lotus-lava'
-        : soulRequiem
-          ? 'soul-requiem'
-          : undefined;
     const event: ServerShot = {
       id: ++this.shotId,
       shooter: player.state.id,
       weapon: shot.config.id,
       origin,
       traces: [],
-      ...(lotusLava ? { sniperSkin: 'lotus-lava' as const } : {}),
-      ...(gloriousBlaze ? { shotgunSkin: 'glorious-blaze' as const } : {}),
+      ...(effect === 'lotus-lava' ? { sniperSkin: effect } : {}),
+      ...(effect === 'glorious-blaze' ? { shotgunSkin: effect } : {}),
+      ...(effect === 'neon-blade' ? { smgSkin: effect } : {}),
     };
     const damage = new Map<
       ServerPlayer,

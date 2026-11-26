@@ -53,9 +53,15 @@ export interface ServerShot {
   traces: ShotTrace[];
   sniperSkin?: 'lotus-lava';
   shotgunSkin?: 'glorious-blaze';
+  smgSkin?: 'neon-blade';
 }
-export type EliminationEffect =
-  'soul-requiem' | 'lotus-lava' | 'glorious-blaze';
+export const eliminationEffectWeapons = {
+  'soul-requiem': 'rifle',
+  'lotus-lava': 'sniper',
+  'glorious-blaze': 'shotgun',
+  'neon-blade': 'smg',
+} as const satisfies Record<string, WeaponId>;
+export type EliminationEffect = keyof typeof eliminationEffectWeapons;
 export interface KillEvent {
   id: number;
   killer: string;

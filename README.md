@@ -78,6 +78,13 @@ skin uses its own model, iron sights, pump animation and shot recording. In
 training and private rooms, a confirmed Glorious Blaze elimination plays the
 supplied 1.8-second energy pillar and ground sigil with its matching kill cue.
 
+### Neon Blade SMG skin
+
+Select **Armory → SM-02 / SMG → SMG skin → Neon Blade**. The 3D display on
+the weapon reads the same magazine ammo and capacity used by the weapon
+controller. It turns red below 20% and pulses when reduced motion is off.
+Confirmed eliminations play the supplied 1.5-second glitch effect and sound.
+
 ## Run locally
 
 BP-12 adds animated barrel-origin bullet trails for all four weapons in training

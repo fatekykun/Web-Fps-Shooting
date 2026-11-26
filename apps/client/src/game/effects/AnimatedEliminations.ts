@@ -49,6 +49,17 @@ export const blazeElimination: EliminationAsset = {
   },
 };
 
+export const neonElimination: EliminationAsset = {
+  name: 'neon-blade',
+  file: 'neon_legend_kill_effect.glb',
+  duration: 1.5,
+  quality(name) {
+    return /^(Pixel_Fragment|Glitch_Streak)/.test(name)
+      ? particleQuality(name)
+      : 0;
+  },
+};
+
 function particleQuality(name: string): number {
   return Math.floor(Number(name.match(/\d+$/)?.[0] ?? 0) / 3) % 3;
 }

@@ -55,6 +55,8 @@ import type { LotusLava } from './LotusLava';
 import type { SniperSkin } from './SniperSkins';
 import type { ShotgunSkin } from './ShotgunSkins';
 import type { GloriousBlaze } from './GloriousBlaze';
+import type { NeonBlade } from './NeonBlade';
+import type { SmgSkin } from './SmgSkins';
 
 const easeUnit = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
@@ -110,7 +112,7 @@ export class WeaponViewmodel {
   private memento?: MementoMori;
   private mementoRequest?: AbortController;
   private mementoUnavailable = false;
-  private mementoSightAimed = false;
+  private mountedSightAimed = false;
   private rifleSkin: RifleSkin = 'standard';
   private sniperSkin: SniperSkin = 'standard';
   private lotus?: LotusLava;
@@ -120,6 +122,10 @@ export class WeaponViewmodel {
   private blaze?: GloriousBlaze;
   private blazeRequest?: AbortController;
   private blazeUnavailable = false;
+  private smgSkin: SmgSkin = 'standard';
+  private neon?: NeonBlade;
+  private neonRequest?: AbortController;
+  private neonUnavailable = false;
   private inspectRequested = false;
   private inspectTime: number | null = null;
   private inspectPose = 0;
@@ -249,7 +255,7 @@ export class WeaponViewmodel {
     return (
       this.aimDot.visible ||
       !!this.cinder?.reticle.visible ||
-      this.mementoSightAimed
+      this.mountedSightAimed
     );
   }
 
@@ -266,6 +272,11 @@ export class WeaponViewmodel {
   get shotgunSkinStatus(): WeaponSkinStatus {
     if (this.shotgunSkin !== 'glorious-blaze' || this.blaze) return 'ready';
     return this.blazeUnavailable ? 'unavailable' : 'loading';
+  }
+
+  get smgSkinStatus(): WeaponSkinStatus {
+    if (this.smgSkin !== 'neon-blade' || this.neon) return 'ready';
+    return this.neonUnavailable ? 'unavailable' : 'loading';
   }
 
   scopeDiameter(ads: number): number {
@@ -367,6 +378,34 @@ export class WeaponViewmodel {
     }
   }
 
+  setSmgSkin(skin: SmgSkin): void {
+    if (this.smgSkin === skin) return;
+    this.smgSkin = skin;
+    if (this.selected === 'smg') this.resetInspect();
+    if (skin === 'neon-blade' && !this.neon && !this.neonRequest)
+      void this.loadNeon();
+  }
+
+  private async loadNeon(): Promise<void> {
+    const request = new AbortController();
+    this.neonRequest = request;
+    this.neonUnavailable = false;
+    try {
+      const { NeonBlade } = await import('./NeonBlade');
+      if (request.signal.aborted) return;
+      const skin = await NeonBlade.load(request.signal);
+      if (request.signal.aborted) skin.dispose();
+      else {
+        this.neon = skin;
+        this.root.add(skin.model, skin.reticle);
+      }
+    } catch {
+      if (!request.signal.aborted) this.neonUnavailable = true;
+    } finally {
+      this.neonRequest = undefined;
+    }
+  }
+
   requestInspect(): void {
     this.inspectRequested = true;
   }
@@ -424,19 +463,20 @@ export class WeaponViewmodel {
     active: boolean,
     ads: number,
     cinder?: CinderWyrm,
-    memento?: MementoMori,
+    mounted?: Pick<MementoMori, 'sight' | 'reticle'>,
   ): void {
-    const optic = memento?.reticle ?? cinder?.reticle;
+    const optic = mounted?.reticle ?? cinder?.reticle;
     const reticle =
-      memento?.sight ??
+      mounted?.sight ??
       (cinder ? cinderReticle : weaponSights[weapons.selected].reticle);
     const mark = optic ?? this.aimDot;
     this.aimDot.visible = false;
     if (this.cinder) this.cinder.reticle.visible = false;
     if (this.memento) this.memento.reticle.visible = false;
-    this.mementoSightAimed = false;
+    if (this.neon) this.neon.reticle.visible = false;
+    this.mountedSightAimed = false;
     if (!active || !reticle) return;
-    if (memento) {
+    if (mounted) {
       // Match the authored mount in hip-fire and inspect. The same mesh can
       // drift onto the aim ray as the rifle is raised to the eye.
       mark.position.set(...reticle.center);
@@ -463,7 +503,7 @@ export class WeaponViewmodel {
         reticle.halfWindow[0] &&
       Math.abs(aimPoint.y - reticle.center[1]) + reticle.radius <
         reticle.halfWindow[1];
-    if (memento) {
+    if (mounted) {
       if (!insideWindow) return;
       const blend = easeUnit((ads - 0.74) / 0.21);
       mark.position.lerp(aimPoint, blend);
@@ -471,7 +511,7 @@ export class WeaponViewmodel {
         this.sightRotation.copy(this.root.quaternion).invert(),
         blend,
       );
-      this.mementoSightAimed = ads >= 0.95;
+      this.mountedSightAimed = ads >= 0.95;
     } else {
       mark.position.copy(aimPoint);
       mark.visible = insideWindow;
@@ -540,7 +580,11 @@ export class WeaponViewmodel {
       this.selected === 'shotgun' && this.shotgunSkin === 'glorious-blaze'
         ? this.blaze
         : undefined;
-    const customWeapon = customRifle ?? lotus ?? blaze;
+    const neon =
+      this.selected === 'smg' && this.smgSkin === 'neon-blade'
+        ? this.neon
+        : undefined;
+    const customWeapon = customRifle ?? lotus ?? blaze ?? neon;
     this.models.get('rifle')!.visible =
       this.selected === 'rifle' && !customRifle;
     if (this.cinder) this.cinder.model.visible = !!cinder;
@@ -549,6 +593,8 @@ export class WeaponViewmodel {
     this.models.get('sniper')!.visible = this.selected === 'sniper' && !lotus;
     this.models.get('shotgun')!.visible = this.selected === 'shotgun' && !blaze;
     if (this.blaze) this.blaze.model.visible = !!blaze;
+    this.models.get('smg')!.visible = this.selected === 'smg' && !neon;
+    if (this.neon) this.neon.model.visible = !!neon;
     const recoil = this.recoil.sample(recoilTime, this.recoilSample);
     const kick = recoil.pitch * motion;
     const lateral = recoil.yaw * motion;
@@ -558,6 +604,7 @@ export class WeaponViewmodel {
       lotus?.adsPose ??
       memento?.adsPose ??
       blaze?.adsPose ??
+      neon?.adsPose ??
       weaponSights[weapons.selected].ads;
     const raise = scoped ? sniperRaise(ads) : ads;
     this.root.visible =
@@ -710,7 +757,7 @@ export class WeaponViewmodel {
         carry * (1 - reload),
         this.stridePhase,
         motion,
-        lotus?.grips ?? blaze?.grips,
+        lotus?.grips ?? blaze?.grips ?? neon?.grips,
       );
     }
     this.flash.position.set(...weaponMuzzles[weapons.selected].firstPerson);
@@ -719,8 +766,15 @@ export class WeaponViewmodel {
       cinder?.update(dt, reload, ads, shotAge, inspect, motion);
       memento?.update(dt, reload, ads, inspect, motion);
       lotus?.update(reload);
+      neon?.update(
+        reload,
+        weapons.current.magazine,
+        weapons.config.magazine,
+        weapons.time,
+        motion < 1,
+      );
     }
-    this.updateAimDot(weapons, active, ads, cinder, memento);
+    this.updateAimDot(weapons, active, ads, cinder, memento ?? neon);
   }
 
   dispose(): void {
@@ -732,6 +786,8 @@ export class WeaponViewmodel {
     this.lotus?.dispose();
     this.blazeRequest?.abort();
     this.blaze?.dispose();
+    this.neonRequest?.abort();
+    this.neon?.dispose();
     for (const mesh of this.models.values()) mesh.dispose();
     this.flash.dispose();
     this.dotGeometry.dispose();

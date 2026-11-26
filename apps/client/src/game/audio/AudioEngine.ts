@@ -3,6 +3,7 @@ import type { WeaponController } from '../weapons/WeaponController';
 import { isMoltenLavaRifle, type RifleSkin } from '../weapons/RifleSkins';
 import type { SniperSkin } from '../weapons/SniperSkins';
 import type { ShotgunSkin } from '../weapons/ShotgunSkins';
+import type { SmgSkin } from '../weapons/SmgSkins';
 import type { EliminationEffect } from '@breakpoint/shared/combat';
 import type { MovementController } from '../movement/MovementController';
 import type { CombatSnapshot } from '../combat/PracticeCombat';
@@ -51,20 +52,20 @@ type Cue =
   | 'equip'
   | 'jump';
 type MatchCue = 'countdown' | 'match-start';
-const rifleShotBySkin = {
-  standard: 'rifle',
-  'cinder-wyrm': 'molten-lava-shot',
-  'memento-mori': 'memento-mori-shot',
-} as const satisfies Record<RifleSkin, string>;
+type EquippedSkin = RifleSkin | SniperSkin | ShotgunSkin | SmgSkin;
+const shotBySkin = {
+  'cinder-wyrm': { weapon: 'rifle', sample: 'molten-lava-shot' },
+  'memento-mori': { weapon: 'rifle', sample: 'memento-mori-shot' },
+  'lotus-lava': { weapon: 'sniper', sample: 'lotus-lava-shot' },
+  'glorious-blaze': { weapon: 'shotgun', sample: 'glorious-blaze-shot' },
+  'neon-blade': { weapon: 'smg', sample: 'neon-blade-shot' },
+} as const satisfies Record<
+  Exclude<EquippedSkin, 'standard'>,
+  { weapon: WeaponId; sample: string }
+>;
 const moltenLavaKill = 'molten-lava-kill';
-const lotusLavaShot = 'lotus-lava-shot';
-const gloriousBlazeShot = 'glorious-blaze-shot';
 type ShotSampleId =
-  | WeaponId
-  | (typeof rifleShotBySkin)[RifleSkin]
-  | typeof lotusLavaShot
-  | typeof gloriousBlazeShot;
-type EquippedSkin = RifleSkin | SniperSkin | ShotgunSkin;
+  WeaponId | (typeof shotBySkin)[keyof typeof shotBySkin]['sample'];
 type SampleId =
   | ShotSampleId
   | 'hitmarker'
@@ -87,12 +88,13 @@ const shotSamples: Record<
     gain: 0.51,
     detune: 0,
   },
-  [lotusLavaShot]: { file: 'lotus_lava_gunshot.wav', gain: 0.51, detune: 0 },
-  [gloriousBlazeShot]: {
+  'lotus-lava-shot': { file: 'lotus_lava_gunshot.wav', gain: 0.51, detune: 0 },
+  'glorious-blaze-shot': {
     file: 'Glorious_Blaze_Shot_V2.wav',
     gain: 0.65,
     detune: 0,
   },
+  'neon-blade-shot': { file: 'neon_legend_shot.wav', gain: 0.39, detune: 0 },
   shotgun: { file: 'sg-03-shotgun-shot.wav', gain: 0.69, detune: 0 },
   sniper: { file: 'sr-04-sniper-shot.wav', gain: 0.72, detune: 0 },
   smg: { file: 'sm-02-smg-shot.wav', gain: 0.36, detune: 12 },
@@ -218,6 +220,7 @@ export class AudioEngine {
           'memento_mori_reference_kill.wav',
         );
         void this.loadSample(context, 'lotus-lava', 'lotus_lava_kill.wav');
+        void this.loadSample(context, 'neon-blade', 'neon_legend_kill.wav');
         void this.loadSample(
           context,
           'glorious-blaze',
@@ -425,17 +428,8 @@ export class AudioEngine {
   }
   /** True when a recorded sniper report plays with the bolt cycle included. */
   shot(weapon: WeaponId, gain = 1, pan = 0, skin?: EquippedSkin): boolean {
-    const requested =
-      weapon === 'shotgun' && skin === 'glorious-blaze'
-        ? gloriousBlazeShot
-        : weapon === 'sniper' && skin === 'lotus-lava'
-          ? lotusLavaShot
-          : weapon === 'rifle' &&
-              skin &&
-              skin !== 'lotus-lava' &&
-              skin !== 'glorious-blaze'
-            ? rifleShotBySkin[skin]
-            : weapon;
+    const custom = skin && skin !== 'standard' ? shotBySkin[skin] : undefined;
+    const requested = custom?.weapon === weapon ? custom.sample : weapon;
     const id = this.sampleBuffers.has(requested) ? requested : weapon;
     const sample = shotSamples[id];
     const buffer = this.sampleBuffers.get(id);
@@ -608,7 +602,10 @@ export class AudioEngine {
             snapshot.sniperSkinStatus === 'ready') ||
           (snapshot.weapon === 'shotgun' &&
             snapshot.shotgunSkin === 'glorious-blaze' &&
-            snapshot.shotgunSkinStatus === 'ready'));
+            snapshot.shotgunSkinStatus === 'ready') ||
+          (snapshot.weapon === 'smg' &&
+            snapshot.smgSkin === 'neon-blade' &&
+            snapshot.smgSkinStatus === 'ready'));
       if (snapshot.hitSequence > this.hit && !customDummyElimination)
         this.cue(
           snapshot.dummyResetting &&

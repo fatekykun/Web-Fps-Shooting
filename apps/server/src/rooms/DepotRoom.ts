@@ -141,6 +141,10 @@ export class DepotRoom extends Room<{ state: RoomState }> {
       if (player && typeof enabled === 'boolean')
         player.gloriousBlaze = enabled;
     });
+    this.onMessage('neon-blade', (client, enabled: unknown) => {
+      const player = this.simulations.get(client.sessionId);
+      if (player && typeof enabled === 'boolean') player.neonBlade = enabled;
+    });
     this.onMessage('loadout', (client, payload: unknown) => {
       const player = this.simulations.get(client.sessionId);
       if (

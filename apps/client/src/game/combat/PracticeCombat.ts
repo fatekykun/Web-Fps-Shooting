@@ -14,6 +14,7 @@ import { WeaponController, type ShotEvent } from '../weapons/WeaponController';
 import type { RifleSkin, WeaponSkinStatus } from '../weapons/RifleSkins';
 import type { SniperSkin } from '../weapons/SniperSkins';
 import type { ShotgunSkin } from '../weapons/ShotgunSkins';
+import type { SmgSkin } from '../weapons/SmgSkins';
 import { TrainingDummy } from './TrainingDummy';
 import { PooledImpacts } from '../effects/PooledImpacts';
 import type { OwnerCombat, KillEvent } from '@breakpoint/shared/combat';
@@ -25,6 +26,8 @@ export interface CombatSnapshot {
   sniperSkinStatus?: WeaponSkinStatus;
   shotgunSkin?: ShotgunSkin;
   shotgunSkinStatus?: WeaponSkinStatus;
+  smgSkin?: SmgSkin;
+  smgSkinStatus?: WeaponSkinStatus;
   inspecting?: boolean;
   allowedWeapons?: readonly WeaponId[];
   weapon: WeaponId;

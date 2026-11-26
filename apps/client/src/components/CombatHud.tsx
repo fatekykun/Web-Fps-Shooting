@@ -5,6 +5,7 @@ import { KillFeed } from './KillFeed';
 import { rifleSkins } from '../game/weapons/RifleSkins';
 import { sniperSkins } from '../game/weapons/SniperSkins';
 import { shotgunSkins } from '../game/weapons/ShotgunSkins';
+import { smgSkins } from '../game/weapons/SmgSkins';
 import {
   defaultBindings,
   keyLabel,
@@ -29,13 +30,17 @@ export function CombatHud({
       ? sniperSkins[combat.sniperSkin ?? 'standard']
       : combat.weapon === 'shotgun'
         ? shotgunSkins[combat.shotgunSkin ?? 'standard']
-        : rifleSkins[combat.rifleSkin ?? 'standard'];
+        : combat.weapon === 'smg'
+          ? smgSkins[combat.smgSkin ?? 'standard']
+          : rifleSkins[combat.rifleSkin ?? 'standard'];
   const skinStatus =
     combat.weapon === 'sniper'
       ? combat.sniperSkinStatus
       : combat.weapon === 'shotgun'
         ? combat.shotgunSkinStatus
-        : combat.rifleSkinStatus;
+        : combat.weapon === 'smg'
+          ? combat.smgSkinStatus
+          : combat.rifleSkinStatus;
   const mythic = skin.mythic && skinStatus === 'ready';
   const name = mythic
     ? `${combat.name.split(' / ')[0]} / ${skin.name.toUpperCase()}`
@@ -55,6 +60,8 @@ export function CombatHud({
         data-sniper-skin-status={combat.sniperSkinStatus}
         data-shotgun-skin={combat.shotgunSkin}
         data-shotgun-skin-status={combat.shotgunSkinStatus}
+        data-smg-skin={combat.smgSkin}
+        data-smg-skin-status={combat.smgSkinStatus}
         data-inspecting={!!combat.inspecting}
         data-ammo={combat.magazine}
         data-reserve={combat.reserve}

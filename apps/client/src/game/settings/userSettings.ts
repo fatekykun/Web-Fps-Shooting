@@ -4,6 +4,7 @@ import {
   normalizeShotgunSkin,
   type ShotgunSkin,
 } from '../weapons/ShotgunSkins';
+import { normalizeSmgSkin, type SmgSkin } from '../weapons/SmgSkins';
 
 export const bindingActions = [
   'forward',
@@ -86,6 +87,7 @@ export interface UserSettings {
   rifleSkin: RifleSkin;
   sniperSkin: SniperSkin;
   shotgunSkin: ShotgunSkin;
+  smgSkin: SmgSkin;
   eliminationQuality: EliminationQuality;
   autoReload: boolean;
   invertY: boolean;
@@ -124,6 +126,7 @@ export function defaultUserSettings(): UserSettings {
     rifleSkin: 'standard',
     sniperSkin: 'standard',
     shotgunSkin: 'standard',
+    smgSkin: 'standard',
     eliminationQuality: 'medium',
     autoReload: true,
     invertY: false,
@@ -231,6 +234,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     rifleSkin: normalizeRifleSkin(v.rifleSkin),
     sniperSkin: normalizeSniperSkin(v.sniperSkin),
     shotgunSkin: normalizeShotgunSkin(v.shotgunSkin),
+    smgSkin: normalizeSmgSkin(v.smgSkin),
     eliminationQuality:
       v.eliminationQuality === 'low' || v.eliminationQuality === 'high'
         ? v.eliminationQuality
