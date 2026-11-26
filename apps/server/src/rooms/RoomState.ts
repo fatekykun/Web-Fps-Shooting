@@ -35,6 +35,7 @@ export const PlayerState = schema(
     life: t.uint32().default(1),
     weapon: t.string().default('rifle'),
     skin: t.string().default('standard'),
+    operator: t.string().default('standard'),
     protected: t.boolean().default(false),
     team: t.string().default('none'),
     crouchBlend: t.float32().default(0),

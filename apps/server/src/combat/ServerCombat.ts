@@ -14,6 +14,7 @@ import {
   type ShotEvent,
 } from '@breakpoint/shared/weapons/WeaponController';
 import { intersectAvatar, standingAnchor } from '@breakpoint/shared/avatar';
+import { isOperator } from '@breakpoint/shared/operators';
 import {
   playerCombatConfig,
   spawnProtectionByMode,
@@ -216,6 +217,7 @@ export class ServerCombat {
     loadout.skin = choice.equipment.skin;
     loadout.weapons.selected = player.state.weapon = choice.equipment.weapon;
     player.state.skin = choice.equipment.skin;
+    player.state.operator = choice.equipment.operator ?? 'standard';
   }
 
   selectLoadout(player: ServerPlayer, value: unknown): void {
@@ -518,6 +520,9 @@ export class ServerCombat {
       selected: w.selected,
       ...(l.nextWeapon === undefined ? {} : { nextWeapon: l.nextWeapon }),
       ...(l.skin === undefined ? {} : { skin: l.skin }),
+      operator: isOperator(player.state.operator)
+        ? player.state.operator
+        : 'standard',
       ...(l.slot === undefined ? {} : { loadoutSlot: l.slot }),
       ...(l.nextSlot === undefined ? {} : { nextLoadoutSlot: l.nextSlot }),
       ammo: {

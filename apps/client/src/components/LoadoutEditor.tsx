@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { weaponConfigs, weaponOrder, type WeaponId } from '@breakpoint/shared';
 import {
   loadoutSlots,
@@ -14,6 +14,7 @@ import { weaponStatistics } from '@breakpoint/shared/weapons/statistics';
 import { TacticalDialog } from './TacticalDialog';
 import { WeaponPreview } from './WeaponPreview';
 import { WeaponDamageDetails } from './WeaponDamageDetails';
+import { isOperator, operators } from '@breakpoint/shared/operators';
 
 export function LoadoutEditor({
   profile,
@@ -30,12 +31,16 @@ export function LoadoutEditor({
   const [drafts, setDrafts] = useState(profile.slots);
   const [message, setMessage] = useState('');
   const [inspecting, setInspecting] = useState(false);
+  const [previewCharacter, setPreviewCharacter] = useState(false);
+  const characterField = useId();
   const draft = drafts[slot];
+  const operator = draft.operator ?? 'standard';
   const config = weaponConfigs[draft.weapon];
   const definition = skinDefinitions[draft.skin];
   const dirty = (index: LoadoutSlot) =>
     drafts[index].weapon !== profile.slots[index].weapon ||
-    drafts[index].skin !== profile.slots[index].skin;
+    drafts[index].skin !== profile.slots[index].skin ||
+    drafts[index].operator !== profile.slots[index].operator;
   const edit = (next: Equipment) => {
     const updated = [...drafts] as LoadoutProfile['slots'];
     updated[slot] = next;
@@ -65,7 +70,11 @@ export function LoadoutEditor({
             <select
               value={draft.weapon}
               onChange={({ target }) =>
-                edit({ weapon: target.value as WeaponId, skin: 'standard' })
+                edit({
+                  ...draft,
+                  weapon: target.value as WeaponId,
+                  skin: 'standard',
+                })
               }
             >
               {weaponOrder.map((id) => (
@@ -142,9 +151,52 @@ export function LoadoutEditor({
           <h3>{definition.name}</h3>
           <span className="equipment-rarity">{definition.rarity}</span>
           <p>{weaponCategories[draft.weapon]}</p>
+          <div className="equipment-character">
+            <label htmlFor={characterField}>Character</label>
+            <select
+              id={characterField}
+              value={operator}
+              onChange={({ target: { value } }) => {
+                if (!isOperator(value)) return;
+                edit({ ...draft, operator: value });
+                setPreviewCharacter(value !== 'standard');
+              }}
+            >
+              {Object.entries(operators).map(([id, entry]) => (
+                <option key={id} value={id}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {operator !== 'standard' && (
+            <div
+              className="equipment-preview-mode"
+              role="group"
+              aria-label="Preview mode"
+            >
+              <button
+                type="button"
+                aria-pressed={!previewCharacter}
+                onClick={() => setPreviewCharacter(false)}
+              >
+                Weapon
+              </button>
+              <button
+                type="button"
+                aria-pressed={previewCharacter}
+                onClick={() => setPreviewCharacter(true)}
+              >
+                Character
+              </button>
+            </div>
+          )}
         </section>
         <WeaponPreview
           equipment={draft}
+          operator={
+            previewCharacter && operator !== 'standard' ? operator : undefined
+          }
           reducedMotion={reducedMotion}
           inspecting={inspecting}
           onInspect={() => setInspecting(!inspecting)}

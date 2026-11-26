@@ -2,6 +2,7 @@ import type { Vector3Like } from '../types/movement';
 import type { WeaponId } from '../types/weapons';
 import type { GameMode } from '../config/match';
 import type { LoadoutSlot, WeaponSkin } from '../weapons/loadouts';
+import type { OperatorId } from './operators';
 
 export const playerCombatConfig = Object.freeze({
   health: 100,
@@ -29,6 +30,7 @@ export interface OwnerCombat {
   selected: WeaponId;
   nextWeapon?: WeaponId;
   skin?: WeaponSkin;
+  operator?: OperatorId;
   loadoutSlot?: LoadoutSlot;
   nextLoadoutSlot?: LoadoutSlot;
   ammo: Record<WeaponId, AmmoState>;

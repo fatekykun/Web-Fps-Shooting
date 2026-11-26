@@ -4,6 +4,7 @@ import {
   type Equipment,
 } from '@breakpoint/shared/weapons/loadouts';
 import type { WeaponShowcase } from '../game/weapons/WeaponShowcase';
+import { operators, type ImportedOperator } from '@breakpoint/shared/operators';
 
 export function weaponThumbnail({ weapon, skin }: Equipment): string {
   return `${import.meta.env.BASE_URL}models/thumbnails/${weapon}-${skin}.webp`;
@@ -11,11 +12,13 @@ export function weaponThumbnail({ weapon, skin }: Equipment): string {
 
 export function WeaponPreview({
   equipment,
+  operator,
   reducedMotion,
   inspecting,
   onInspect,
 }: {
   equipment: Equipment;
+  operator?: ImportedOperator;
   reducedMotion: boolean;
   inspecting: boolean;
   onInspect(): void;
@@ -27,7 +30,7 @@ export function WeaponPreview({
     key: string;
     status: 'ready' | 'fallback';
   }>();
-  const key = `${equipment.weapon}/${equipment.skin}`;
+  const key = operator ?? `${equipment.weapon}/${equipment.skin}`;
   useEffect(() => {
     let cancelled = false;
     let preview: WeaponShowcase | undefined;
@@ -53,10 +56,9 @@ export function WeaponPreview({
   useEffect(() => {
     let cancelled = false;
     void engine
-      ?.show({ weapon, skin })
+      ?.show({ weapon, skin }, operator)
       .then((status) => {
-        if (status && !cancelled)
-          setResult({ key: `${weapon}/${skin}`, status });
+        if (status && !cancelled) setResult({ key, status });
       })
       .catch(() => {
         if (!cancelled) setUnavailable(true);
@@ -64,7 +66,7 @@ export function WeaponPreview({
     return () => {
       cancelled = true;
     };
-  }, [engine, weapon, skin]);
+  }, [engine, key, operator, weapon, skin]);
   const status = unavailable
     ? 'unavailable'
     : result?.key === key
@@ -73,12 +75,14 @@ export function WeaponPreview({
   return (
     <section
       className="weapon-showcase"
-      aria-label="Weapon showcase"
+      aria-label={
+        operator ? `${operators[operator].name} showcase` : 'Weapon showcase'
+      }
       data-testid="weapon-showcase"
       data-status={status}
     >
       <div className="showcase-surface" ref={surface}>
-        {unavailable && (
+        {unavailable && !operator && (
           <img
             src={weaponThumbnail(equipment)}
             alt={skinDefinitions[skin].name}
@@ -88,9 +92,13 @@ export function WeaponPreview({
       {status !== 'ready' && (
         <span className="showcase-status" role="status">
           {status === 'loading'
-            ? 'Loading weapon model…'
+            ? operator
+              ? 'Loading character model…'
+              : 'Loading weapon model…'
             : status === 'fallback'
-              ? 'Showing the standard weapon'
+              ? operator
+                ? 'Character preview unavailable'
+                : 'Showing the standard weapon'
               : 'Interactive preview unavailable'}
         </span>
       )}
