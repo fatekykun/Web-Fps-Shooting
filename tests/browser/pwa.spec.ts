@@ -1,5 +1,51 @@
 import { expect, test } from '@playwright/test';
 
+test('downloads character previews on selection and reuses them across offline visits', async ({
+  page,
+  context,
+}) => {
+  const path = '/models/ghost_character.glb';
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith(path)) requests.push(request.url());
+  });
+  await page.goto('/');
+  await expect
+    .poll(() => page.evaluate(() => navigator.serviceWorker.controller?.state))
+    .toBe('activated');
+  expect(requests).toHaveLength(0);
+  const preview = page.getByTestId('weapon-showcase');
+  async function chooseGhost() {
+    await page.getByRole('button', { name: 'LOADOUTS', exact: true }).click();
+    await page.getByLabel('Character', { exact: true }).selectOption('ghost');
+    await expect(preview).toHaveAttribute('data-status', 'ready');
+    await expect(preview).toHaveAccessibleName('Ghost showcase');
+  }
+  await chooseGhost();
+  expect(requests).toHaveLength(1);
+  await expect
+    .poll(() =>
+      page.evaluate(async (path) => {
+        const cache = (await caches.keys()).find((name) =>
+          name.endsWith(':models'),
+        );
+        return (
+          !!cache &&
+          (await (await caches.open(cache)).keys()).some(
+            (request) => new URL(request.url).pathname === path,
+          )
+        );
+      }, path),
+    )
+    .toBe(true);
+
+  await context.setOffline(true);
+  await page.reload();
+  const response = page.waitForResponse((entry) => entry.url().endsWith(path));
+  await chooseGhost();
+  expect((await response).fromServiceWorker()).toBe(true);
+});
+
 test('offers desktop installation steps without a native prompt', async ({
   page,
 }) => {

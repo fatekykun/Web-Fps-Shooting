@@ -10,6 +10,7 @@ let prompt: InstallPrompt | undefined;
 let installed = false;
 let manualMode: InstallMode = 'hidden';
 let standalone: MediaQueryList | undefined;
+let workerRequested = false;
 
 function installationChanged(): void {
   for (const listener of listeners) listener();
@@ -63,6 +64,12 @@ export function initializePwa(): void {
     prompt = undefined;
     installationChanged();
   });
+}
+
+/** Wait for startup before downloading files for offline play. */
+export function cacheOfflineTraining(): void {
+  if (!standalone || workerRequested) return;
+  workerRequested = true;
   void navigator.serviceWorker
     .register(`${import.meta.env.BASE_URL}service-worker.js`, {
       updateViaCache: 'none',

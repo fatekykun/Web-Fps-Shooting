@@ -25,9 +25,10 @@ install from the Chrome or Edge browser menu, or use **File → Add to Dock**
 in Safari on a Mac.
 
 Open the game online once so the app can cache the files for offline Training.
-Some optional skins and effects need a connection. Private rooms use the online
-room server. Close all open game windows and reopen the app to activate a
-downloaded update.
+Cosmetic models download on first use. The browser reuses their cached files
+across visits and updates them when the model changes. Private rooms use the
+online room server. Close all open game windows and reopen the app to activate
+a downloaded update.
 
 ## Mobile and tablet controls (BP-13)
 

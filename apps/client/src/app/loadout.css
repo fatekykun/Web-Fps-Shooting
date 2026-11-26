@@ -336,12 +336,18 @@
   cursor: grabbing;
 }
 .showcase-surface canvas,
-.showcase-surface img {
+.showcase-thumbnail {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
   pointer-events: none;
+}
+.showcase-thumbnail {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 55%, #475347, #17211d);
+  object-fit: contain;
 }
 .showcase-status {
   position: absolute;

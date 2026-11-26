@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { cacheOfflineTraining } from './installGame';
 import { sniperScopeBlend } from '../game/weapons/SniperScope';
 import type { Game, GameTelemetry } from '../game/core/Game';
 import { Telemetry } from '../components/Telemetry';
@@ -277,6 +278,9 @@ export function App() {
               ? reason.message
               : 'Unable to initialize the game.',
           );
+      })
+      .finally(() => {
+        if (!cancelled) cacheOfflineTraining();
       });
     return () => {
       cancelled = true;

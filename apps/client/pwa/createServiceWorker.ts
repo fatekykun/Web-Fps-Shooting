@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Plugin } from 'vite';
 
@@ -45,7 +45,27 @@ export function createServiceWorker(): Plugin {
       const revision = createHash('sha256').update(worker);
       for (const path of paths)
         revision.update(path).update(await readFile(resolve(dir, path)));
-      const build = { paths, revision: revision.digest('hex').slice(0, 16) };
+      const models = Object.fromEntries(
+        await Promise.all(
+          (await readdir(resolve(dir, 'models')))
+            .sort()
+            .map((name) => `models/${name}`)
+            .filter((path) => path.endsWith('.glb') && !paths.includes(path))
+            .map(async (path) => [
+              path,
+              createHash('sha256')
+                .update(await readFile(resolve(dir, path)))
+                .digest('hex')
+                .slice(0, 16),
+            ]),
+        ),
+      );
+      revision.update(JSON.stringify(models));
+      const build = {
+        paths,
+        models,
+        revision: revision.digest('hex').slice(0, 16),
+      };
       await writeFile(
         resolve(dir, 'service-worker.js'),
         `const build = ${JSON.stringify(build)};\n${worker}`,
