@@ -20,6 +20,10 @@ import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import { weaponMuzzles } from '../weapons/WeaponMuzzles';
 import type { Vector3Like, WeaponId } from '@breakpoint/shared';
 import { RemoteWeaponSkins } from './RemoteWeaponSkins';
+import { operatorAsset } from '../characters/OperatorAssets';
+import { OperatorRig } from '../characters/OperatorRig';
+import type { ImportedOperator } from '@breakpoint/shared/operators';
+import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 
 const colors = [
   0x87917a, 0x6b9ca8, 0x9f9676, 0x8d9386, 0x7e9274, 0x968373, 0x80969a,
@@ -65,6 +69,7 @@ export class RemotePlayers {
     weapon: 'rifle' as WeaponId,
     muzzle: new Vector3(),
     aimPoint: new Vector3(),
+    customBody: false,
   }));
   private readonly color = new Color();
   private readonly poseMatrix = new Matrix4();
@@ -74,6 +79,14 @@ export class RemotePlayers {
   private readonly tints = new Uint32Array(8 * parts.length).fill(0xffffffff);
   private colorsChanged = false;
   private readonly skins: RemoteWeaponSkins;
+  private readonly operatorModels = new Map<
+    ImportedOperator,
+    GLTF | undefined
+  >();
+  private readonly operators = new Map<
+    number,
+    { id: ImportedOperator; rig: OperatorRig }
+  >();
 
   get playerCount(): number {
     return this.count / parts.length;
@@ -110,7 +123,7 @@ export class RemotePlayers {
     const index = this.poses.findIndex(
       (pose, i) => i < this.playerCount && pose.id === player.id,
     );
-    if (index < 0) {
+    if (index < 0 || this.poses[index]!.customBody) {
       const rig = this.eliminationRig;
       rig.root.position.set(origin.x, origin.y, origin.z);
       rig.root.rotation.y = player.yaw;
@@ -153,6 +166,8 @@ export class RemotePlayers {
   }
 
   update(buffer: RemoteInterpolation | undefined, now: number): void {
+    for (const { rig } of this.operators.values()) rig.root.visible = false;
+    if (!buffer) this.clearOperators();
     this.skins.begin();
     this.count = 0;
     this.colorsChanged = false;
@@ -180,15 +195,15 @@ export class RemotePlayers {
     const pose = this.poses[this.playerCount]!;
     pose.id = player.id;
     pose.weapon = player.weapon;
+    const operator = this.updateOperator(player, rig);
+    pose.customBody = !!operator;
+    const weaponMatrix =
+      operator?.weaponMatrix ?? rig.bones[weaponJoint]!.matrixWorld;
     pose.muzzle
       .set(...weaponMuzzles[player.weapon].remote)
-      .applyMatrix4(rig.bones[21]!.matrixWorld);
+      .applyMatrix4(weaponMatrix);
     const palette = avatarPalette(player);
-    const custom = this.skins.append(
-      player.weapon,
-      player.skin,
-      rig.bones[weaponJoint]!.matrixWorld,
-    );
+    const custom = this.skins.append(player.weapon, player.skin, weaponMatrix);
     for (const definition of parts) {
       this.part.position.set(...definition.position);
       this.part.scale.set(...definition.size);
@@ -198,8 +213,18 @@ export class RemotePlayers {
         this.part.scale.z = -0.27 - tip[2];
       }
       this.part.updateMatrix();
-      this.part.matrix.premultiply(rig.bones[definition.joint]!.matrixWorld);
-      if (custom && definition.joint === weaponJoint)
+      this.part.matrix.premultiply(
+        definition.joint === weaponJoint
+          ? weaponMatrix
+          : rig.bones[definition.joint]!.matrixWorld,
+      );
+      const teamPatch =
+        definition.name === 'unit-patch' && player.team !== 'none';
+      if (
+        definition.joint === weaponJoint
+          ? custom
+          : pose.customBody && !teamPatch
+      )
         this.part.matrix.makeScale(0, 0, 0);
       this.mesh.setMatrixAt(this.count, this.part.matrix);
       const tint =
@@ -219,6 +244,46 @@ export class RemotePlayers {
     }
   };
 
+  private updateOperator(
+    player: PublicPlayer,
+    tactical: TacticalSkeleton,
+  ): OperatorRig | undefined {
+    const id = player.operator;
+    const previous = this.operators.get(player.slot);
+    if (previous && previous.id !== id) {
+      previous.rig.dispose();
+      this.operators.delete(player.slot);
+    }
+    if (!id || id === 'standard') return undefined;
+    if (!this.operatorModels.has(id)) {
+      this.operatorModels.set(id, undefined);
+      void operatorAsset(id).then((asset) => {
+        if (asset) this.operatorModels.set(id, asset);
+      });
+    }
+    const asset = this.operatorModels.get(id);
+    if (!asset) return undefined;
+    let rig = this.operators.get(player.slot)?.rig;
+    if (!rig) {
+      try {
+        rig = new OperatorRig(asset.scene);
+      } catch {
+        this.operatorModels.set(id, undefined);
+        return undefined;
+      }
+      this.operators.set(player.slot, { id, rig });
+      this.scene.add(rig.root);
+    }
+    rig.update(tactical, player);
+    rig.root.visible = true;
+    return rig;
+  }
+
+  private clearOperators(): void {
+    for (const { rig } of this.operators.values()) rig.dispose();
+    this.operators.clear();
+  }
+
   dispose(): void {
     this.scene.remove(this.mesh);
     this.mesh.dispose();
@@ -226,6 +291,7 @@ export class RemotePlayers {
     for (const rig of this.rigs) rig.dispose();
     this.eliminationRig.dispose();
     this.skins.dispose();
+    this.clearOperators();
     this.material.dispose();
   }
 }

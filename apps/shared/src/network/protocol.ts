@@ -8,6 +8,7 @@ import type { MatchPhase, MatchView, Team } from '../config/match';
 import type { MultiplayerMapId } from '../maps/arenas';
 import type { RemoteFootstep } from '../movement/Footsteps';
 import type { LoadoutSlot, WeaponSkin } from '../weapons/loadouts';
+import type { OperatorId } from '../combat/operators';
 
 export const networkConfig = Object.freeze({
   roomType: 'depot',
@@ -57,6 +58,7 @@ export interface PublicPlayer extends Partial<CharacterAnimationValues> {
   life: number;
   weapon: WeaponId;
   skin?: WeaponSkin;
+  operator?: OperatorId;
   protected: boolean;
   team: Team;
 }

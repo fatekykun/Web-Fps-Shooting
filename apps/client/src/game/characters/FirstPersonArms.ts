@@ -13,11 +13,17 @@ import {
 } from 'three';
 import { createTacticalGeometry } from './TacticalGeometry';
 import { sprintArmPose } from '@breakpoint/shared/character';
+import type { OperatorId } from '@breakpoint/shared/operators';
 
 const down = new Vector3(0, -1, 0);
 const identity = new Quaternion();
 const upperLength = 0.32,
   foreLength = 0.32;
+const armColors = {
+  standard: [0x6c7a58, 0x788567, 0x424d3e, 0x384338, 0x46503e],
+  ghost: [0x465771, 0x39485e, 0x28333e, 0x222a33, 0x39434c],
+  'crimson-officer': [0xbec6c5, 0xcfd5d2, 0x731b32, 0xe2e5df, 0xc2c8c7],
+} as const;
 
 /** Grip IK blends to a camera-space free support arm during sprint carry. */
 export class FirstPersonArms {
@@ -41,6 +47,7 @@ export class FirstPersonArms {
   private readonly parentRotation = new Quaternion();
   private readonly freeEuler = new Euler();
   private colorsReady = false;
+  private operator: OperatorId = 'standard';
 
   constructor(material: Material) {
     this.root.name = 'first-person-arms';
@@ -75,6 +82,8 @@ export class FirstPersonArms {
     motion = 1,
     grips?: { firing: Vector3; support: Vector3 },
   ): void {
+    const [sleeve, forearmColor, cuff, glove, fingers] =
+      armColors[this.operator];
     this.root.updateWorldMatrix(true, false);
     this.inverse.copy(this.root.matrixWorld).invert();
     this.root.getWorldQuaternion(this.parentRotation).invert();
@@ -173,38 +182,39 @@ export class FirstPersonArms {
           this.mesh.setColorAt(instance, this.color.setHex(tint));
         instance++;
       };
-      part(
-        upper,
-        [0, -upperLength / 2, 0],
-        [0.125, upperLength, 0.14],
-        0x6c7a58,
-      );
+      part(upper, [0, -upperLength / 2, 0], [0.125, upperLength, 0.14], sleeve);
       part(
         forearm,
         [0, -foreLength / 2, 0],
         [0.11, foreLength, 0.12],
-        0x788567,
+        forearmColor,
       );
-      part(forearm, [0, -0.29, 0], [0.12, 0.075, 0.125], 0x424d3e);
-      part(wrist, [0, -0.012, 0], [0.09, 0.1, 0.13], 0x384338);
+      part(forearm, [0, -0.29, 0], [0.12, 0.075, 0.125], cuff);
+      part(wrist, [0, -0.012, 0], [0.09, 0.1, 0.13], glove);
       part(
         wrist,
         [left ? 0.042 : -0.042, 0.012, -0.015],
         [0.03, 0.055, 0.06],
-        0x46503e,
+        fingers,
       );
       for (let finger = 0; finger < 3; finger++)
         part(
           wrist,
           [-0.024 + finger * 0.024, -0.045, -0.025],
           [0.023, 0.045, 0.07],
-          0x46503e,
+          fingers,
         );
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     if (!this.colorsReady && this.mesh.instanceColor)
       this.mesh.instanceColor.needsUpdate = true;
     this.colorsReady = true;
+  }
+
+  setOperator(operator: OperatorId): void {
+    if (operator === this.operator) return;
+    this.operator = operator;
+    this.colorsReady = false;
   }
 
   dispose(): void {

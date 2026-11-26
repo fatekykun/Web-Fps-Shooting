@@ -45,3 +45,22 @@ it('selects the saved default, an eligible slot, or the room fallback', () => {
     equipment: { weapon: 'smg', skin: 'standard' },
   });
 });
+
+it('validates operator choices and keeps legacy slots usable', () => {
+  const profile = defaultLoadouts();
+  profile.slots[0].operator = 'ghost';
+  profile.slots[1].operator = 'crimson-officer';
+  expect(parseLoadoutProfile(profile)).toEqual(profile);
+  expect(
+    allowedDefault(profile, ['sniper']).equipment.operator,
+  ).toBeUndefined();
+  expect(
+    parseLoadoutProfile({
+      ...profile,
+      slots: [
+        { ...profile.slots[0], operator: 'unknown' },
+        ...profile.slots.slice(1),
+      ],
+    }),
+  ).toBeUndefined();
+});

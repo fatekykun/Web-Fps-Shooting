@@ -1,5 +1,6 @@
 import type { WeaponId } from '../types/weapons';
 import { weaponOrder } from '../config/weapons';
+import { isOperator, type OperatorId } from '../combat/operators';
 
 export type SkinRarity = 'Default' | 'Rare' | 'Epic' | 'Legendary' | 'Mythic';
 
@@ -42,6 +43,7 @@ export const weaponSkinIds = {
 export interface Equipment {
   weapon: WeaponId;
   skin: WeaponSkin;
+  operator?: OperatorId;
 }
 export const loadoutSlots = [0, 1, 2, 3] as const;
 export type LoadoutSlot = (typeof loadoutSlots)[number];
@@ -74,13 +76,14 @@ export function parseEquipment(value: unknown): Equipment | undefined {
     !('skin' in value)
   )
     return;
-  const { weapon, skin } = value as Equipment;
+  const { weapon, skin, operator } = value as Equipment;
   if (
     !weaponOrder.includes(weapon) ||
-    !(weaponSkinIds[weapon] as readonly WeaponSkin[]).includes(skin)
+    !(weaponSkinIds[weapon] as readonly WeaponSkin[]).includes(skin) ||
+    (operator !== undefined && !isOperator(operator))
   )
     return;
-  return { weapon, skin };
+  return { weapon, skin, ...(operator === undefined ? {} : { operator }) };
 }
 
 export function parseLoadoutProfile(
@@ -116,7 +119,14 @@ export function allowedDefault(
         allowed.includes(profile.slots[index].weapon),
       );
   if (slot !== undefined) return { slot, equipment: profile.slots[slot] };
-  return { equipment: { weapon: allowed[0] ?? 'rifle', skin: 'standard' } };
+  const operator = profile.slots[profile.defaultSlot].operator;
+  return {
+    equipment: {
+      weapon: allowed[0] ?? 'rifle',
+      skin: 'standard',
+      ...(operator === undefined ? {} : { operator }),
+    },
+  };
 }
 
 export const weaponCategories = {

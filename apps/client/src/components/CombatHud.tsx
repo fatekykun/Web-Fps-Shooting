@@ -56,6 +56,7 @@ export function CombatHud({
         aria-label="Weapon status"
         data-testid="weapon-status"
         data-weapon={combat.weapon}
+        data-operator={combat.operator}
         data-rifle-skin={combat.rifleSkin}
         data-rifle-skin-status={combat.rifleSkinStatus}
         data-sniper-skin={combat.sniperSkin}

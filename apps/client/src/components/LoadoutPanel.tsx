@@ -9,6 +9,7 @@ import {
 } from '@breakpoint/shared/weapons/loadouts';
 import { weaponStatistics } from '@breakpoint/shared/weapons/statistics';
 import { weaponThumbnail } from './WeaponPreview';
+import { operators } from '@breakpoint/shared/operators';
 
 export function LoadoutPanel({
   respawning,
@@ -91,6 +92,9 @@ export function LoadoutPanel({
                 </span>
                 <span className="loadout-category">
                   {weaponCategories[weapon]}
+                </span>
+                <span className="loadout-category">
+                  {operators[equipment.operator ?? 'standard'].name}
                 </span>
                 <div className="loadout-thumbnail">
                   <img

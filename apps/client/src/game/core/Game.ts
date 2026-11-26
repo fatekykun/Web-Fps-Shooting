@@ -29,6 +29,7 @@ import {
 } from './PerformanceMonitor';
 import { PracticeCombat, type CombatSnapshot } from '../combat/PracticeCombat';
 import { WeaponViewmodel } from '../weapons/WeaponViewmodel';
+import type { OperatorId } from '@breakpoint/shared/operators';
 import { weaponAsset } from '../weapons/WeaponAssets';
 import { isMoltenLavaRifle, normalizeRifleSkin } from '../weapons/RifleSkins';
 import { normalizeSniperSkin } from '../weapons/SniperSkins';
@@ -194,6 +195,7 @@ export class Game {
   private userSettings: UserSettings;
   private trainingSlot: LoadoutSlot = 0;
   private equippedSkin: WeaponSkin = 'standard';
+  private operator: OperatorId = 'standard';
   private showcaseOpen = false;
   private readonly audio = new AudioEngine();
   private readonly shotgunReticle = new ShotgunReticle();
@@ -395,10 +397,16 @@ export class Game {
   }
 
   private equipTraining(slot: LoadoutSlot): void {
-    const { weapon, skin } = this.userSettings.loadouts.slots[slot];
+    const { weapon, skin, operator } = this.userSettings.loadouts.slots[slot];
     this.trainingSlot = slot;
+    this.setOperator(operator);
     this.applySkin(weapon, skin);
     this.combat.weapons.switchWeapon(weapon);
+  }
+
+  private setOperator(id: OperatorId = 'standard'): void {
+    this.operator = id;
+    this.viewmodel.setOperator(id);
   }
 
   private get soulRequiemEquipped(): boolean {
@@ -461,6 +469,7 @@ export class Game {
     const combat = this.session ? this.networkCombat : this.combat;
     return {
       ...combat.snapshot(),
+      operator: this.operator,
       fov: this.camera.camera.fov,
       rifleSkin:
         combat.weapons.selected === 'rifle'
@@ -558,6 +567,7 @@ export class Game {
             const previous = this.networkCombat.owner;
             if (previous && state.life < previous.life) return;
             const skin = state.skin ?? 'standard';
+            this.setOperator(state.operator);
             if (
               skin !== this.equippedSkin ||
               state.selected !== previous?.selected

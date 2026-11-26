@@ -40,6 +40,7 @@ import {
   sniperScopeDiameter,
 } from './SniperScope';
 import { FirstPersonArms } from '../characters/FirstPersonArms';
+import type { OperatorId } from '@breakpoint/shared/operators';
 import { strideRadiansPerMeter } from '@breakpoint/shared/character';
 import { slideMomentum } from '@breakpoint/shared/movement/Sliding';
 import { weaponMuzzles } from './WeaponMuzzles';
@@ -244,6 +245,10 @@ export class WeaponViewmodel {
   resize(width: number, height: number): void {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+  }
+
+  setOperator(id: OperatorId): void {
+    this.arms.setOperator(id);
   }
 
   /** For an independent showcase instance containing the original procedural geometry. */

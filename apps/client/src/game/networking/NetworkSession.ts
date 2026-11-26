@@ -32,6 +32,7 @@ import { RemoteInterpolation } from './RemoteInterpolation';
 import { resolveServerEndpoint } from './serverEndpoint';
 import { waitForRoomServer } from './serverReadiness';
 import type { LoadoutProfile } from '@breakpoint/shared/weapons/loadouts';
+import { isOperator } from '@breakpoint/shared/operators';
 import type {
   MatchView,
   MatchSettings,
@@ -200,6 +201,7 @@ export class NetworkSession {
         life: player.life,
         weapon: player.weapon,
         skin: player.skin,
+        operator: isOperator(player.operator) ? player.operator : 'standard',
         protected: player.protected,
         team: player.team,
       }),

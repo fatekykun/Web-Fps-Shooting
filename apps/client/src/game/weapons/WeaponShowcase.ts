@@ -21,6 +21,10 @@ import {
 import type { Equipment } from '@breakpoint/shared/weapons/loadouts';
 import { WeaponViewmodel } from './WeaponViewmodel';
 import { weaponAsset } from './WeaponAssets';
+import type { ImportedOperator } from '@breakpoint/shared/operators';
+import { operatorAsset } from '../characters/OperatorAssets';
+import { disposeOperatorSkeleton } from '../characters/OperatorRig';
+import { clone as cloneRig } from 'three/addons/utils/SkeletonUtils.js';
 
 const defaultYaw = 1.04;
 const defaultPitch = 0.14;
@@ -59,6 +63,7 @@ export class WeaponShowcase {
   private spin = 0;
   private reveal = 1;
   private reducedMotion = false;
+  private character = false;
 
   constructor(private readonly host: HTMLElement) {
     this.renderer.setPixelRatio(Math.min(1.5, devicePixelRatio));
@@ -101,18 +106,32 @@ export class WeaponShowcase {
     this.resize();
   }
 
-  async show(equipment: Equipment): Promise<'ready' | 'fallback' | undefined> {
+  async show(
+    equipment: Equipment,
+    operator?: ImportedOperator,
+  ): Promise<'ready' | 'fallback' | undefined> {
     const generation = ++this.generation;
     let asset;
     let fallback = false;
     try {
-      asset = await weaponAsset(equipment.skin);
+      asset = operator
+        ? await operatorAsset(operator)
+        : await weaponAsset(equipment.skin);
     } catch {
       fallback = true;
     }
     if (generation !== this.generation) return;
+    const wasCharacter = this.character;
     this.releaseModel();
-    if (asset) this.model = asset.scene.clone(true);
+    this.character = !!operator && !!asset;
+    if (operator && !asset) {
+      this.wake();
+      return 'fallback';
+    }
+    if (asset)
+      this.model = this.character
+        ? cloneRig(asset.scene)
+        : asset.scene.clone(true);
     else {
       this.procedural = new WeaponViewmodel();
       this.model = this.procedural.showcaseModel(
@@ -132,15 +151,17 @@ export class WeaponShowcase {
       part.castShadow = true;
       part.receiveShadow = true;
     });
-    const sphere = new Box3()
-      .setFromObject(model)
-      .getBoundingSphere(new Sphere());
+    const bounds = new Box3().setFromObject(model);
+    const sphere = bounds.getBoundingSphere(new Sphere());
     const scale = 1 / Math.max(0.001, sphere.radius);
     const center = sphere.center;
     model.position.addScaledVector(center, -1);
     this.stage.add(model);
     this.stage.scale.setScalar(scale);
-    this.floor.position.y = -0.68;
+    this.floor.position.y = this.character
+      ? (bounds.min.y - center.y) * scale - 0.025
+      : -0.68;
+    if (wasCharacter !== this.character) this.reset();
     if (asset?.animations.length) {
       this.mixer = new AnimationMixer(model);
       for (const clip of asset.animations) this.mixer.clipAction(clip).play();
@@ -156,13 +177,10 @@ export class WeaponShowcase {
   }
 
   reset(): void {
+    const yaw = this.character ? 0.22 : defaultYaw;
     this.targetYaw =
-      this.yaw +
-      Math.atan2(
-        Math.sin(defaultYaw - this.yaw),
-        Math.cos(defaultYaw - this.yaw),
-      );
-    this.targetPitch = defaultPitch;
+      this.yaw + Math.atan2(Math.sin(yaw - this.yaw), Math.cos(yaw - this.yaw));
+    this.targetPitch = this.character ? 0 : defaultPitch;
     this.targetZoom = 1;
     this.spin = 0;
     this.wake();
@@ -267,7 +285,9 @@ export class WeaponShowcase {
     this.pivot.scale.setScalar(0.91 + 0.09 * this.reveal);
     this.mixer?.update(this.reducedMotion ? 0 : dt);
     const fit =
-      (1.05 * Math.max(0.8, 1 / this.camera.aspect)) /
+      (this.character
+        ? 1.15 * Math.max(1, 0.6 / this.camera.aspect)
+        : 1.05 * Math.max(0.8, 1 / this.camera.aspect)) /
       Math.tan((this.camera.fov * Math.PI) / 360);
     this.camera.position.set(0, fit * this.zoom * 0.1, fit * this.zoom);
     this.camera.lookAt(0, 0, 0);
@@ -292,6 +312,8 @@ export class WeaponShowcase {
     if (this.model) this.mixer?.uncacheRoot(this.model);
     this.mixer = undefined;
     this.model?.removeFromParent();
+    if (this.model && this.character) disposeOperatorSkeleton(this.model);
+    this.model = undefined;
     this.procedural?.dispose();
     this.procedural = undefined;
   }

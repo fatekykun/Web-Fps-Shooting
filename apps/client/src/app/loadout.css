@@ -213,6 +213,34 @@
   font: 0.77rem var(--mono);
   color: #b7bfb4;
 }
+.equipment-character {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  color: #dfe5d9;
+  font: 700 0.7rem var(--mono);
+}
+.equipment-character select {
+  width: 100%;
+}
+.equipment-preview-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.equipment-preview-mode button {
+  padding: 6px;
+  background: #1b271f;
+  border: 1px solid #67746a;
+  color: #edece5;
+  font: 700 0.65rem var(--mono);
+  cursor: pointer;
+}
+.equipment-preview-mode button[aria-pressed='true'] {
+  border-color: var(--equipment-accent);
+  color: var(--equipment-accent);
+}
 .equipment-rarity {
   --rarity: #ccd5ca;
   color: var(--rarity);

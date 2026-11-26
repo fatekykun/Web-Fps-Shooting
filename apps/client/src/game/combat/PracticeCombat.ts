@@ -18,8 +18,10 @@ import type { SmgSkin } from '../weapons/SmgSkins';
 import { TrainingDummy } from './TrainingDummy';
 import { PooledImpacts } from '../effects/PooledImpacts';
 import type { OwnerCombat, KillEvent } from '@breakpoint/shared/combat';
+import type { OperatorId } from '@breakpoint/shared/operators';
 
 export interface CombatSnapshot {
+  operator?: OperatorId;
   rifleSkin?: RifleSkin;
   rifleSkinStatus?: WeaponSkinStatus;
   sniperSkin?: SniperSkin;

@@ -61,6 +61,7 @@ export class NetworkCombat {
       owner.selected !== previous.selected ||
       owner.nextWeapon !== previous.nextWeapon ||
       owner.skin !== previous.skin ||
+      owner.operator !== previous.operator ||
       owner.loadoutSlot !== previous.loadoutSlot ||
       owner.nextLoadoutSlot !== previous.nextLoadoutSlot ||
       owner.reloading !== previous.reloading ||

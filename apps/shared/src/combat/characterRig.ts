@@ -65,25 +65,48 @@ export function createRigTransforms(): RigTransform[] {
   }));
 }
 
+export function characterSlide(pose: CharacterPose): number {
+  const low = Math.max(0, Math.min(1, (0.55 - pose.halfHeight) / 0.35));
+  const prone = pose.proneBlend ?? Number(pose.movement === 'prone');
+  const crouch =
+    (pose.crouchBlend ?? Number(pose.movement === 'crouching')) * (1 - prone);
+  const dive = pose.diveBlend ?? Number(pose.halfHeight <= 0.1);
+  return (
+    (pose.slideBlend ?? (pose.halfHeight > 0.1 ? low : 0)) *
+    (1 - crouch) *
+    (1 - prone) *
+    (1 - dive)
+  );
+}
+
+export function slideBrace(
+  pose: CharacterPose,
+  slide = characterSlide(pose),
+): number {
+  return (
+    slide *
+    (1 - (pose.airBlend ?? 0)) *
+    (1 - (pose.aimBlend ?? 0)) *
+    (1 - (pose.reloadBlend ?? 0))
+  );
+}
+
 /** Continuous local joint poses. Neither input, camera nor capsule is animated here. */
 export function jointPose(
   index: number,
   pose: CharacterPose,
   out: JointPose,
+  slide = characterSlide(pose),
 ): JointPose {
   const joint = rigJoints[index]!;
   const phase = pose.gaitPhase ?? 0,
     amount = pose.gaitAmount ?? 0;
   const sprint = pose.sprintBlend ?? 0,
     air = pose.airBlend ?? 0;
-  // Height fallback keeps older snapshots and capsule-only poses collision-safe.
-  const low = Math.max(0, Math.min(1, (0.55 - pose.halfHeight) / 0.35));
   const prone = pose.proneBlend ?? Number(pose.movement === 'prone');
   const crouch =
     (pose.crouchBlend ?? Number(pose.movement === 'crouching')) * (1 - prone);
   const standing = (1 - crouch) * (1 - prone);
-  const slide =
-    (pose.slideBlend ?? (pose.halfHeight > 0.1 ? low : 0)) * standing;
   const dive = (pose.diveBlend ?? (pose.halfHeight <= 0.1 ? 1 : 0)) * standing;
   const land = pose.landingBlend ?? 0,
     hit = pose.hitBlend ?? 0,
@@ -92,7 +115,8 @@ export function jointPose(
   const reload =
     (pose.reloadBlend ?? 0) * Math.sin(Math.PI * (pose.reloadProgress ?? 0));
   const aim = pose.aimBlend ?? 0;
-  const carry = (pose.carryBlend ?? sprint) * (1 - aim) ** 3 * (1 - reload);
+  const carry =
+    (pose.carryBlend ?? sprint) * (1 - aim) ** 3 * (1 - reload) * (1 - slide);
   const stride =
     Math.sin(phase) *
     amount *
@@ -103,12 +127,12 @@ export function jointPose(
     (1 - prone * 0.76);
   const kneeSwing = amount * 0.8 * (1 - slide) * (1 - dive);
   const leftHip =
-    stride + slide * 1.65 - dive * 1.2 + air * 0.25 + crouch * 1.06;
+    stride + slide * 1.3 - dive * 1.2 + air * 0.25 + crouch * 1.06;
   const rightHip =
-    -stride + slide * 1.45 - dive * 1.2 - air * 0.15 + crouch * 1.06;
+    -stride + slide * 1.48 - dive * 1.2 - air * 0.15 + crouch * 1.06;
   const leftKnee =
     -Math.max(0, -Math.sin(phase)) * kneeSwing -
-    slide * 2.75 -
+    slide * 2.76 -
     air * 0.6 -
     land * 0.2 +
     dive * 0.15 -
@@ -116,7 +140,7 @@ export function jointPose(
     prone * 0.13;
   const rightKnee =
     -Math.max(0, Math.sin(phase)) * kneeSwing -
-    slide * 0.15 -
+    slide * 0.16 -
     air * 0.55 -
     land * 0.2 +
     dive * 0.15 -
@@ -145,40 +169,42 @@ export function jointPose(
           0.36 * Math.cos(bodyTilt + rightHip) +
             0.32 * Math.cos(bodyTilt + rightHip + rightKnee),
         );
-        out.y = Math.max(out.y, 0.11 + reach);
+        out.y = Math.max(out.y, 0.11 + reach + slide * 0.012);
       }
       out.rx = (-prone * Math.PI) / 2;
       out.z += slide * 0.08;
       out.y += breath * 0.003 + Math.cos(phase * 2) * amount * 0.006;
-      out.ry = stride * 0.04 + slide * 0.08;
+      out.ry = stride * 0.04 + slide * 0.12;
       break;
     case 'spine':
       out.y -= slide * 0.025;
       out.rx =
-        slide * 0.55 -
+        slide * 0.23 -
         dive * 1.25 -
         sprint * 0.2 +
         prone * 0.17 -
         crouch * 0.22 +
         air * 0.06 +
         hit * Math.cos(hitYaw) * 0.12;
-      out.rz = hit * Math.sin(hitYaw) * 0.1 - slide * 0.06;
+      out.rz = hit * Math.sin(hitYaw) * 0.1 + slide * 0.79;
       break;
     case 'chest':
       out.rx = pose.pitch * 0.2 + breath * 0.006;
-      out.ry = -stride * 0.06;
+      out.ry = -stride * 0.06 - slide * 0.12;
+      out.rz = slide * 0.1;
       break;
     case 'neck':
-      out.rx = pose.pitch * 0.15 - slide * 0.25 + prone * 0.61;
+      out.rx = pose.pitch * 0.15 - slide * 0.1 + prone * 0.61;
+      out.rz = -slide * 0.28;
       break;
     case 'head':
       out.rx =
         pose.pitch * 0.65 -
         hit * 0.04 -
-        slide * 0.3 +
+        slide * 0.25 +
         prone * 0.79 +
         crouch * 0.16;
-      out.rz = slide * 0.06;
+      out.rz = -slide * 0.34;
       break;
     case 'leftShoulder':
     case 'rightShoulder':
@@ -188,10 +214,12 @@ export function jointPose(
     case 'leftHip':
       out.x -= slide * 0.035;
       out.rx = leftHip;
+      out.ry = slide * 0.24;
       break;
     case 'rightHip':
       out.x += slide * 0.02;
       out.rx = rightHip;
+      out.ry = -slide * 0.22;
       break;
     case 'leftShin':
       out.rx = leftKnee;
@@ -201,7 +229,7 @@ export function jointPose(
       break;
     case 'leftAnkle':
       out.rx =
-        air * 0.15 - sprint * 0.07 * (1 - slide) + slide * 1.1 + crouch * 0.81;
+        air * 0.15 - sprint * 0.07 * (1 - slide) + slide * 1.4 + crouch * 0.81;
       out.ry = -slide * 0.12;
       break;
     case 'rightAnkle':
@@ -209,14 +237,14 @@ export function jointPose(
         air * 0.15 - sprint * 0.07 * (1 - slide) - slide * 1.3 + crouch * 0.81;
       break;
     case 'weapon':
-      out.x += aim * 0.01 + carry * 0.025;
-      out.y += aim * 0.18 - reload * 0.12 - slide * 0.035 * (1 - aim);
+      out.x += aim * 0.01 + carry * 0.025 + slide * (0.05 - aim * 0.13);
+      out.y +=
+        aim * (0.18 - slide * 0.12) - reload * 0.12 - slide * 0.035 * (1 - aim);
       out.z -= aim * 0.015;
       out.z += prone * 0.24;
       out.z += (pose.fireBlend ?? 0) * 0.025;
       out.rx =
         pose.pitch * 0.8 -
-        slide * 0.55 +
         dive * 1.25 +
         sprint * 0.2 +
         prone * 1.4 +
@@ -235,14 +263,23 @@ export function createJointPoses(): JointPose[] {
 }
 
 export function poseRigJoints(pose: CharacterPose, out: JointPose[]): void {
-  for (let i = 0; i < rigJoints.length; i++) jointPose(i, pose, out[i]!);
+  const slide = characterSlide(pose);
+  for (let i = 0; i < rigJoints.length; i++) jointPose(i, pose, out[i]!, slide);
   const reload =
     (pose.reloadBlend ?? 0) * Math.sin(Math.PI * (pose.reloadProgress ?? 0));
   const carry =
     (pose.carryBlend ?? pose.sprintBlend ?? 0) *
     (1 - (pose.aimBlend ?? 0)) ** 3 *
     (1 - reload);
-  solveWeaponArms(out, reload, carry, pose.gaitPhase ?? 0);
+  const brace = slideBrace(pose, slide);
+  solveWeaponArms(out, {
+    reload,
+    carry: carry * (1 - slide),
+    phase: pose.gaitPhase ?? 0,
+    slide,
+    brace,
+    pitch: pose.pitch + (pose.fireBlend ?? 0) * 0.07,
+  });
 }
 
 export function rotatePoint(
