@@ -420,6 +420,8 @@ seconds. It is a holographic sensor, so the movement course can pass through it.
 Cover blocks shots before the target. This dummy remains local practice and is
 disabled in online rooms.
 
+Training has unlimited reserve ammo. Magazines still empty and reload normally.
+
 | Weapon        | Magazine / reserve | Fire                                  | Reload          | ADS to 90% |
 | ------------- | ------------------ | ------------------------------------- | --------------- | ---------- |
 | AR-01 rifle   | 30 / 120           | Automatic, 600 RPM                    | 2.0 s           | 140 ms     |

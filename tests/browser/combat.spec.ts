@@ -24,6 +24,7 @@ test('responsive ADS, local hits, recoil, reload and weapon switching', async ({
   });
   await enter(page);
   const hud = page.getByTestId('weapon-status');
+  await expect(hud.locator('.ammo-line')).toContainText('/ ∞');
   const hipSpread = Number(await hud.getAttribute('data-spread'));
   await page.mouse.down({ button: 'right' });
   await page.clock.runFor(350);
@@ -51,7 +52,7 @@ test('responsive ADS, local hits, recoil, reload and weapon switching', async ({
   await expect(hud).toHaveAttribute('data-ammo', '29');
   await page.clock.runFor(2100);
   await expect(hud).toHaveAttribute('data-ammo', '30');
-  await expect(hud).toHaveAttribute('data-reserve', '119');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
   await page.keyboard.press('2');
   await page.clock.runFor(300);
   await expect(hud).toHaveAttribute('data-weapon', 'smg');
@@ -63,7 +64,7 @@ test('responsive ADS, local hits, recoil, reload and weapon switching', async ({
   await page.keyboard.press('1');
   await page.clock.runFor(300);
   await expect(hud).toHaveAttribute('data-ammo', '30');
-  await expect(hud).toHaveAttribute('data-reserve', '119');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
   expect(errors).toEqual([]);
 });
 
@@ -127,7 +128,7 @@ test('shotgun requires fresh presses and reload pauses safely with training', as
   await expect(hud).toHaveAttribute('data-ammo', '7');
   await page.clock.runFor(300);
   await expect(hud).toHaveAttribute('data-ammo', '8');
-  await expect(hud).toHaveAttribute('data-reserve', '39');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
   expect(errors).toEqual([]);
 });
 
@@ -153,7 +154,7 @@ test('shotgun adds shells one at a time and restarts reload after firing the onl
 
   await page.clock.runFor(800);
   await expect(hud).toHaveAttribute('data-ammo', '1');
-  await expect(hud).toHaveAttribute('data-reserve', '39');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
   await expect(hud).toHaveAttribute('data-reloading', 'true');
   await tapFire();
   await expect(hud).toHaveAttribute('data-shots', '9');
@@ -162,12 +163,12 @@ test('shotgun adds shells one at a time and restarts reload after firing the onl
 
   await page.clock.runFor(1600);
   await expect(hud).toHaveAttribute('data-ammo', '2');
-  await expect(hud).toHaveAttribute('data-reserve', '37');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
   await tapFire();
   await expect(hud).toHaveAttribute('data-shots', '10');
   await expect(hud).toHaveAttribute('data-ammo', '1');
   await expect(hud).toHaveAttribute('data-reloading', 'false');
   await page.clock.runFor(850);
   await expect(hud).toHaveAttribute('data-ammo', '1');
-  await expect(hud).toHaveAttribute('data-reserve', '37');
+  await expect(hud).toHaveAttribute('data-reserve', 'unlimited');
 });

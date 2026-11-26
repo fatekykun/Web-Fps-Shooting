@@ -2,6 +2,7 @@ import {
   shotRandom,
   spreadDirection,
   calculateDamage,
+  weaponOrder,
   type AccuracyContext,
   type WeaponInput,
   type Vector3Like,
@@ -38,7 +39,7 @@ export interface CombatSnapshot {
   weapon: WeaponId;
   name: string;
   magazine: number;
-  reserve: number;
+  reserve: number | 'unlimited';
   reloading: boolean;
   equipping: boolean;
   reloadProgress: number;
@@ -96,6 +97,8 @@ export class PracticeCombat {
     this.dummy = new TrainingDummy(physics, scene);
     this.impacts = new PooledImpacts(scene);
     this.weapons = new WeaponController(this.fire, onChange);
+    for (const weapon of weaponOrder)
+      this.weapons.ammo[weapon].reserve = Infinity;
   }
 
   step(
@@ -180,7 +183,10 @@ export class PracticeCombat {
       weapon: weapons.selected,
       name: weapons.config.name,
       magazine: weapons.current.magazine,
-      reserve: weapons.current.reserve,
+      reserve:
+        weapons.current.reserve === Infinity
+          ? 'unlimited'
+          : weapons.current.reserve,
       reloading: weapons.reloading,
       equipping: weapons.equipping,
       reloadProgress: weapons.reloadProgress,
