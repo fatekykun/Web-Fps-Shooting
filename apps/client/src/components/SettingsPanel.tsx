@@ -17,12 +17,9 @@ import {
 } from '../game/input/mobileHudSettings';
 import { gyroAvailable, type GyroAccess } from '../game/input/GyroInput';
 import type { GyroMeasurement } from '../game/input/InputManager';
-import type {
-  GyroActivation,
-  GyroMapping,
-} from '../game/input/gyroSensitivity';
+import type { GyroActivation } from '../game/input/gyroSensitivity';
 import { GraphicsControls } from './GraphicsControls';
-import { GyroCalibrationPanel } from './GyroCalibrationPanel';
+import { GyroDiagnosticsPanel } from './GyroDiagnosticsPanel';
 import { TacticalDialog } from './TacticalDialog';
 
 const tabs = [
@@ -472,22 +469,6 @@ export function SettingsPanel({
                       : 'Gyro aiming requires a browser with motion sensors on a secure connection.'}
                   </p>
                 )}
-                <div className="scope-style-setting">
-                  <label htmlFor={`${id}-gyro-mapping`}>
-                    Gyro sensitivity mapping
-                  </label>
-                  <select
-                    id={`${id}-gyro-mapping`}
-                    value={settings.gyroMapping}
-                    onChange={({ target }) =>
-                      change({ gyroMapping: target.value as GyroMapping })
-                    }
-                  >
-                    <option value="reference">Reference (linear)</option>
-                    <option value="calibrated">Measured calibration</option>
-                    <option value="legacy">Legacy (previous response)</option>
-                  </select>
-                </div>
                 <div className="setting-grid">
                   <label className="setting-toggle">
                     <input
@@ -542,7 +523,7 @@ export function SettingsPanel({
                 >
                   RESET GYRO SENSITIVITY
                 </button>
-                <GyroCalibrationPanel
+                <GyroDiagnosticsPanel
                   settings={settings}
                   ready={ready}
                   measurement={gyroMeasurement}

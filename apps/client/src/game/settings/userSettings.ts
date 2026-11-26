@@ -14,7 +14,6 @@ import {
   normalizeGyroCalibration,
   type GyroActivation,
   type GyroCalibrationSample,
-  type GyroMapping,
 } from '../input/gyroSensitivity';
 
 export const bindingActions = [
@@ -96,9 +95,8 @@ export interface UserSettings {
   sensitivity: SensitivitySettings;
   touchSensitivity: { camera: number; ads: number; sniper: number };
   touchAimAssist: boolean;
-  gyroVersion: 1;
+  gyroVersion: 2;
   gyroActivation: GyroActivation;
-  gyroMapping: GyroMapping;
   gyroDeadZone: number;
   gyroCalibration: GyroCalibrationSample[];
   gyroInvertHorizontal: boolean;
@@ -144,9 +142,8 @@ export function defaultUserSettings(): UserSettings {
     },
     touchSensitivity: { camera: 100, ads: 100, sniper: 100 },
     touchAimAssist: true,
-    gyroVersion: 1,
+    gyroVersion: 2,
     gyroActivation: 'off',
-    gyroMapping: 'reference',
     gyroDeadZone: 0.1,
     gyroCalibration: [],
     gyroInvertHorizontal: false,
@@ -252,6 +249,7 @@ export function normalizeUserSettings(value: unknown): UserSettings {
     typeof v[key] === 'boolean' ? (v[key] as boolean) : fallback;
   const legacyGyro =
     v.gyroVersion !== 1 &&
+    v.gyroVersion !== 2 &&
     (typeof v.gyroEnabled === 'boolean' || Object.keys(gyro).length > 0);
   const gyroActivation =
     v.gyroActivation === 'ads' ||
@@ -274,16 +272,8 @@ export function normalizeUserSettings(value: unknown): UserSettings {
       sniper: number(object(v.touchSensitivity).sniper, 100, 1, 300),
     },
     touchAimAssist: bool('touchAimAssist', d.touchAimAssist),
-    gyroVersion: 1,
+    gyroVersion: 2,
     gyroActivation,
-    gyroMapping:
-      v.gyroMapping === 'calibrated' ||
-      v.gyroMapping === 'reference' ||
-      v.gyroMapping === 'legacy'
-        ? v.gyroMapping
-        : legacyGyro
-          ? 'legacy'
-          : d.gyroMapping,
     gyroDeadZone: number(
       v.gyroDeadZone,
       legacyGyro ? 0.5 : d.gyroDeadZone,

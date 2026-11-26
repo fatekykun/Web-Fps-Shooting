@@ -45,6 +45,7 @@ export interface GyroSample {
 /** Maps degrees per second and integrates each valid interval into radians. */
 export class GyroInput {
   private active = false;
+  private chromiumRateOrder = false;
   private previousTime?: number;
   private screenAngle?: number;
 
@@ -56,6 +57,11 @@ export class GyroInput {
     this.active = active;
     this.reset();
     if (active) {
+      const agent = navigator.userAgent;
+      // Blink publishes its raw X/Y/Z rates as alpha/beta/gamma. WebKit uses Z/X/Y.
+      this.chromiumRateOrder =
+        /\b(?:Chrome|Chromium)\//.test(agent) &&
+        !/iPhone|iPad|iPod/.test(agent);
       window.addEventListener('devicemotion', this.onMotion);
       document.addEventListener('visibilitychange', this.reset);
     } else {
@@ -91,9 +97,9 @@ export class GyroInput {
     this.screenAngle = angle;
     if (rotated || !(elapsed > 0 && elapsed <= maximumSampleGap)) return;
 
-    const aroundX = axis(rates.beta);
-    const aroundY = axis(rates.gamma);
-    const aroundZ = axis(rates.alpha);
+    const aroundX = axis(this.chromiumRateOrder ? rates.alpha : rates.beta);
+    const aroundY = axis(this.chromiumRateOrder ? rates.beta : rates.gamma);
+    const aroundZ = axis(this.chromiumRateOrder ? rates.gamma : rates.alpha);
     const cos = Math.cos(angle * radiansPerDegree);
     const sin = Math.sin(angle * radiansPerDegree);
     const screenUpRate = aroundX * sin + aroundY * cos;

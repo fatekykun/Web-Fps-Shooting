@@ -1,10 +1,6 @@
-export const gyroAimModes = ['hip', 'ads', 'sniper'] as const;
-export const gyroAxes = ['yaw', 'pitch'] as const;
-
-export type GyroAimMode = (typeof gyroAimModes)[number];
-export type GyroAxis = (typeof gyroAxes)[number];
+export type GyroAimMode = 'hip' | 'ads' | 'sniper';
+type GyroAxis = 'yaw' | 'pitch';
 export type GyroActivation = 'off' | 'ads' | 'always';
-export type GyroMapping = 'reference' | 'calibrated' | 'legacy';
 
 export interface GyroCalibrationSample {
   sensitivity: number;
@@ -17,12 +13,10 @@ export interface GyroCalibrationSample {
   notes: string;
 }
 
-export type GyroGainSource =
-  'reference' | 'legacy' | 'measured' | 'clamped' | 'uncalibrated';
-
-export interface GyroGain {
-  gain: number;
-  source: GyroGainSource;
+export function gyroTurnScale(sensitivity: number, fovScale: number): number {
+  const linear = sensitivity / 100;
+  const aboveDefault = Math.max(0, linear - 1);
+  return linear * fovScale + 2.25 * aboveDefault ** 2;
 }
 
 const maxCalibrationSamples = 240;
@@ -67,7 +61,7 @@ function parseSample(value: unknown): GyroCalibrationSample | null {
   };
 }
 
-export function addGyroCalibrationSample(
+function addGyroCalibrationSample(
   samples: readonly GyroCalibrationSample[],
   rawSample: unknown,
 ): GyroCalibrationSample[] | null {
@@ -104,66 +98,4 @@ export function normalizeGyroCalibration(
   for (const sample of value.slice(0, maxCalibrationSamples))
     samples = addGyroCalibrationSample(samples, sample) ?? samples;
   return samples;
-}
-
-interface GyroGainRequest {
-  sensitivity: number;
-  aim: GyroAimMode;
-  axis: GyroAxis;
-  firing: boolean;
-  fovScale: number;
-}
-
-function evaluateCurve(
-  points: readonly GyroCalibrationSample[],
-  sensitivity: number,
-): GyroGain {
-  const index = points.findIndex((point) => point.sensitivity >= sensitivity);
-  if (index < 0)
-    return {
-      gain: measuredGyroGain(points[points.length - 1]!),
-      source: 'clamped',
-    };
-  const upper = points[index]!;
-  if (upper.sensitivity === sensitivity)
-    return { gain: measuredGyroGain(upper), source: 'measured' };
-  if (index === 0) return { gain: measuredGyroGain(upper), source: 'clamped' };
-  const lower = points[index - 1]!;
-  const start = measuredGyroGain(lower);
-  const end = measuredGyroGain(upper);
-  const t =
-    (sensitivity - lower.sensitivity) / (upper.sensitivity - lower.sensitivity);
-  return { gain: start + (end - start) * t, source: 'measured' };
-}
-
-/** Calibration contains total angular gain. Only legacy gain uses the game's FOV ratio. */
-export function createGyroGainResolver(
-  mapping: GyroMapping,
-  samples: readonly GyroCalibrationSample[],
-): (request: GyroGainRequest) => GyroGain {
-  const curves = new Map<string, GyroCalibrationSample[]>();
-  if (mapping === 'calibrated') {
-    for (const sample of samples) {
-      const key = `${sample.aim}:${sample.axis}:${sample.firing}`;
-      const curve = curves.get(key);
-      if (curve) curve.push(sample);
-      else curves.set(key, [sample]);
-    }
-    for (const curve of curves.values())
-      curve.sort((a, b) => a.sensitivity - b.sensitivity);
-  }
-  return ({ sensitivity, aim, axis, firing, fovScale }) => {
-    const linear = sensitivity / 100;
-    if (mapping === 'legacy')
-      return {
-        gain: linear * fovScale + 2.25 * Math.max(0, linear - 1) ** 2,
-        source: 'legacy',
-      };
-    if (mapping === 'reference') return { gain: linear, source: 'reference' };
-    const prefix = `${aim}:${axis}:`;
-    const curve = curves.get(prefix + firing) ?? curves.get(prefix + false);
-    return curve
-      ? evaluateCurve(curve, sensitivity)
-      : { gain: linear, source: 'uncalibrated' };
-  };
 }
