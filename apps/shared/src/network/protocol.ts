@@ -7,6 +7,7 @@ import type { OwnerCombat } from '../combat/networkCombat';
 import type { MatchPhase, MatchView, Team } from '../config/match';
 import type { MultiplayerMapId } from '../maps/arenas';
 import type { RemoteFootstep } from '../movement/Footsteps';
+import type { LoadoutSlot, WeaponSkin } from '../weapons/loadouts';
 
 export const networkConfig = Object.freeze({
   roomType: 'depot',
@@ -55,6 +56,7 @@ export interface PublicPlayer extends Partial<CharacterAnimationValues> {
   alive: boolean;
   life: number;
   weapon: WeaponId;
+  skin?: WeaponSkin;
   protected: boolean;
   team: Team;
 }
@@ -72,7 +74,7 @@ export interface RoomView {
 }
 
 export interface LoadoutSelection {
-  weapon: WeaponId;
+  slot: LoadoutSlot;
   round: number;
   life: number;
 }

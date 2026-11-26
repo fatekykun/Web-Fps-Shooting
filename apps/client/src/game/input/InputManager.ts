@@ -82,6 +82,7 @@ export class InputManager {
     private readonly getAllowedWeapons: () => readonly (typeof weaponOrder)[number][] = () =>
       weaponOrder,
     private readonly touchAimScale: (ads: number) => number = () => 1,
+    private readonly cycleLoadout?: () => void,
   ) {
     this.keyboard = new KeyboardInput(this);
     this.mouse = new MouseInput(this);
@@ -267,6 +268,10 @@ export class InputManager {
     this.weapon.aim = this.mouseHeld.aim || this.touchHeld.aim;
   }
   cycleWeapon(): void {
+    if (this.cycleLoadout) {
+      this.cycleLoadout();
+      return;
+    }
     const allowed = this.getAllowedWeapons();
     if (!allowed.length) return;
     const current = this.weapon.switchTo ?? this.getWeapon()?.selected;

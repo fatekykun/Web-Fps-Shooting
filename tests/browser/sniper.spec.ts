@@ -340,9 +340,9 @@ test('sniper damage, kills, ammo and shot effects are server-confirmed in an eig
       peer.send('ready', true);
     }
     await page.getByRole('button', { name: 'START SESSION' }).click();
+    await page.getByRole('button', { name: 'Equip Loadout 4' }).click();
     await enterStartedMatch(page);
     await expect(page.locator('.crosshair')).toBeVisible();
-    await page.keyboard.press('4');
     await expect(page.getByTestId('weapon-status')).toHaveAttribute(
       'data-weapon',
       'sniper',

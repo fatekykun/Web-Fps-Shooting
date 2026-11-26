@@ -19,10 +19,12 @@ export function CombatHud({
   combat,
   bindings = defaultBindings,
   multiplayer = false,
+  choosingLoadout = false,
 }: {
   combat: CombatSnapshot;
   bindings?: UserSettings['bindings'];
   multiplayer?: boolean;
+  choosingLoadout?: boolean;
 }) {
   const weapon = weaponConfigs[combat.weapon];
   const skin =
@@ -123,12 +125,14 @@ export function CombatHud({
             }}
           />
         </div>
-        <div className="weapon-keys">
-          {(combat.allowedWeapons ?? weaponOrder)
-            .map((id) => `${keyLabel(bindings[id])} ${id.toUpperCase()}`)
-            .join(' · ')}
-          {mythic && ` · ${keyLabel(bindings.inspect)} INSPECT`}
-        </div>
+        {!choosingLoadout && (
+          <div className="weapon-keys">
+            {multiplayer
+              ? 'LOADOUT LOCKED UNTIL RESPAWN'
+              : `${weaponOrder.map((id) => keyLabel(bindings[id])).join(' / ')} LOADOUTS`}
+            {mythic && ` · ${keyLabel(bindings.inspect)} INSPECT`}
+          </div>
+        )}
       </aside>
       {combat.player ? (
         <>

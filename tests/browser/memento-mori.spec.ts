@@ -1,3 +1,4 @@
+import { defaultLoadouts } from '@breakpoint/shared/weapons/loadouts';
 import { expect, test, type Page } from '@playwright/test';
 
 async function trackAudioSamples(page: Page): Promise<void> {
@@ -77,13 +78,22 @@ test('the Memento Mori GLB loads on selection, aligns its optic, and keeps the r
   );
   const enter = page.getByRole('button', { name: /^(ENTER|RESUME) TRAINING$/ });
   const hud = page.getByTestId('weapon-status');
-  const armory = page.getByRole('button', { name: 'ARMORY', exact: true });
-  const skin = page.getByLabel('Rifle skin');
+  const armory = page.getByRole('button', { name: 'LOADOUTS', exact: true });
+  const skin = page.getByLabel('Change Skin');
   const draws = () =>
     page
       .getByTestId('render-resolution')
       .getAttribute('data-world-draws')
       .then(Number);
+  const initial = defaultLoadouts();
+  initial.slots[0].skin = 'standard';
+  await page.addInitScript((profile) => {
+    if (!localStorage.getItem('breakpoint.settings.v1'))
+      localStorage.setItem(
+        'breakpoint.settings.v1',
+        JSON.stringify({ loadouts: profile }),
+      );
+  }, initial);
   await page.goto('/');
   await enter.click();
   await expect(hud).toHaveAttribute('data-rifle-skin', 'standard');
@@ -92,8 +102,9 @@ test('the Memento Mori GLB loads on selection, aligns its optic, and keeps the r
   expect(requests).toHaveLength(0);
   await page.keyboard.press('Escape');
   await armory.click();
-  await skin.selectOption({ label: 'Memento Mori / Mythic' });
-  await page.getByRole('button', { name: 'Close armory' }).click();
+  await skin.selectOption({ label: 'Memento Mori' });
+  await page.getByRole('button', { name: 'Save Loadout' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await enter.click();
   await expect(hud).toHaveAttribute('data-rifle-skin', 'memento-mori');
   await expect(hud).toHaveAttribute('data-rifle-skin-status', 'ready');

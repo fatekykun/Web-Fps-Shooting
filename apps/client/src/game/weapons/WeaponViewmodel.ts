@@ -246,6 +246,14 @@ export class WeaponViewmodel {
     this.camera.updateProjectionMatrix();
   }
 
+  /** For an independent showcase instance containing the original procedural geometry. */
+  showcaseModel(weapon: WeaponId, molten = false): Group | InstancedMesh {
+    if (molten) this.setRifleSkin('cinder-wyrm');
+    const model = molten ? this.cinder!.model : this.models.get(weapon)!;
+    model.visible = true;
+    return model;
+  }
+
   configureTexture(quality: GraphicsSettings['textureQuality']): void {
     this.material.map = quality === 'low' ? this.lowTexture : this.texture;
     this.cinder?.configureTexture(this.material.map);

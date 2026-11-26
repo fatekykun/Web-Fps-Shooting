@@ -195,8 +195,8 @@ test('private rooms relay the Lotus shot and authoritative bloom at the defeated
       peer.send('ready', true);
     }
     await page.getByRole('button', { name: 'START SESSION' }).click();
+    await page.getByRole('button', { name: 'Equip Loadout 4' }).click();
     await enterStartedMatch(page);
-    await page.keyboard.press('4');
     await expect(page.getByTestId('weapon-status')).toHaveAttribute(
       'data-weapon',
       'sniper',

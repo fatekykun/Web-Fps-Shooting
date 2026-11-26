@@ -473,6 +473,11 @@ export class AudioEngine {
     if (!this.playSample(buffer, gain * 0.49, pan)) return undefined;
     return () => context.currentTime - start;
   }
+  playRemoteMoltenElimination(gain: number, pan: number): void {
+    const sample = this.sampleBuffers.get(moltenLavaKill);
+    if (sample) this.playSample(sample, gain * 0.48, pan);
+  }
+
   cue(cue: Cue | MatchCue): void {
     if (cue === 'countdown') {
       this.tone(880, 880, 0.11, 0.085, 'sine', 0, true);

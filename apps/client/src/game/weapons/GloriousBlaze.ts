@@ -8,7 +8,7 @@ import {
   type MeshStandardMaterial,
   type Object3D,
 } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { weaponAsset } from './WeaponAssets';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import { weaponMuzzles } from './WeaponMuzzles';
@@ -32,29 +32,9 @@ export class GloriousBlaze {
   });
 
   static async load(signal: AbortSignal): Promise<GloriousBlaze> {
-    const response = await fetch(
-      `${import.meta.env.BASE_URL}models/Glorious_Blaze_Shotgun.glb`,
-      { signal },
-    );
-    if (!response.ok)
-      throw new Error(`Glorious Blaze model returned HTTP ${response.status}`);
-    const bytes = await response.arrayBuffer();
+    const { scene } = await weaponAsset('glorious-blaze');
     signal.throwIfAborted();
-    const { scene } = await new GLTFLoader().parseAsync(bytes, '');
-    try {
-      signal.throwIfAborted();
-      return new GloriousBlaze(scene);
-    } finally {
-      const geometries = new Set<BufferGeometry>();
-      const materials = new Set<MeshStandardMaterial>();
-      scene.traverse((node) => {
-        if (!(node instanceof Mesh)) return;
-        geometries.add(node.geometry);
-        materials.add(node.material as MeshStandardMaterial);
-      });
-      for (const geometry of geometries) geometry.dispose();
-      for (const material of materials) material.dispose();
-    }
+    return new GloriousBlaze(scene);
   }
 
   private constructor(scene: Object3D) {

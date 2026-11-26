@@ -29,7 +29,16 @@ import {
 } from './PerformanceMonitor';
 import { PracticeCombat, type CombatSnapshot } from '../combat/PracticeCombat';
 import { WeaponViewmodel } from '../weapons/WeaponViewmodel';
-import { isMoltenLavaRifle } from '../weapons/RifleSkins';
+import { weaponAsset } from '../weapons/WeaponAssets';
+import { isMoltenLavaRifle, normalizeRifleSkin } from '../weapons/RifleSkins';
+import { normalizeSniperSkin } from '../weapons/SniperSkins';
+import { normalizeShotgunSkin } from '../weapons/ShotgunSkins';
+import { normalizeSmgSkin } from '../weapons/SmgSkins';
+import {
+  isLoadoutSlot,
+  type LoadoutSlot,
+  type WeaponSkin,
+} from '@breakpoint/shared/weapons/loadouts';
 import {
   sniperZoom,
   sniperScopeBlend,
@@ -183,6 +192,9 @@ export class Game {
   private readonly trails: ShotTrails;
   private round = 0;
   private userSettings: UserSettings;
+  private trainingSlot: LoadoutSlot = 0;
+  private equippedSkin: WeaponSkin = 'standard';
+  private showcaseOpen = false;
   private readonly audio = new AudioEngine();
   private readonly shotgunReticle = new ShotgunReticle();
   private readonly sniperSlideAim = new SniperSlideAim();
@@ -238,7 +250,7 @@ export class Game {
         this.shotgunRange?.record(shot, origin, end, yaw, pitch);
       },
       (weapon, position) => {
-        if (isMoltenLavaRifle(weapon, this.userSettings.rifleSkin))
+        if (isMoltenLavaRifle(weapon, normalizeRifleSkin(this.equippedSkin)))
           this.lavaEliminations.spawn(
             position,
             this.userSettings.reducedMotion,
@@ -272,16 +284,6 @@ export class Game {
       },
     );
     this.viewmodel = new WeaponViewmodel();
-    this.viewmodel.setRifleSkin(preferences.rifleSkin);
-    this.viewmodel.setSniperSkin(preferences.sniperSkin);
-    if (preferences.sniperSkin === 'lotus-lava')
-      this.groundEliminations['lotus-lava'].prepare();
-    this.viewmodel.setShotgunSkin(preferences.shotgunSkin);
-    if (preferences.shotgunSkin === 'glorious-blaze')
-      this.groundEliminations['glorious-blaze'].prepare();
-    this.viewmodel.setSmgSkin(preferences.smgSkin);
-    if (preferences.smgSkin === 'neon-blade')
-      this.groundEliminations['neon-blade'].prepare();
     this.input = new InputController(
       this.rendering.renderer.domElement,
       (locked) => {
@@ -293,8 +295,14 @@ export class Game {
       () => (this.session ? this.networkCombat : this.combat).weapons,
       () => this.session?.view?.allowedWeapons ?? weaponOrder,
       this.touchAimScale,
+      () => {
+        if (!this.session)
+          this.input.weapon.switchTo =
+            weaponOrder[(this.trainingSlot + 1) % 4]!;
+      },
     );
     this.input.configure(preferences);
+    this.equipTraining(preferences.loadouts.defaultSlot);
     this.setGraphicsSettings(settings);
     this.viewportHeight = Math.max(1, host.clientHeight);
     this.resizeObserver = new ResizeObserver(() => {
@@ -347,44 +355,75 @@ export class Game {
     return this.audio.preview();
   }
   setUserSettings(settings: UserSettings): void {
+    const before = this.userSettings.loadouts;
     this.userSettings = settings;
     this.input.configure(settings);
     this.audio.configure(settings);
     this.soulRequiem.configure(settings.eliminationQuality);
-    this.viewmodel.setRifleSkin(settings.rifleSkin);
-    this.viewmodel.setSniperSkin(settings.sniperSkin);
-    if (settings.sniperSkin === 'lotus-lava')
-      this.groundEliminations['lotus-lava'].prepare();
-    this.viewmodel.setShotgunSkin(settings.shotgunSkin);
-    if (settings.shotgunSkin === 'glorious-blaze')
-      this.groundEliminations['glorious-blaze'].prepare();
-    this.viewmodel.setSmgSkin(settings.smgSkin);
-    if (settings.smgSkin === 'neon-blade')
-      this.groundEliminations['neon-blade'].prepare();
+    if (this.session) {
+      if (JSON.stringify(before) !== JSON.stringify(settings.loadouts))
+        this.session.setLoadoutProfile(settings.loadouts);
+    } else
+      this.equipTraining(
+        before.defaultSlot !== settings.loadouts.defaultSlot
+          ? settings.loadouts.defaultSlot
+          : this.trainingSlot,
+      );
   }
+
+  setShowcaseOpen(open: boolean): void {
+    if (this.showcaseOpen === open) return;
+    this.showcaseOpen = open;
+    this.resetTiming();
+  }
+
+  private applySkin(weapon: WeaponId, skin: WeaponSkin): void {
+    this.equippedSkin = skin;
+    if (weapon === 'rifle')
+      this.viewmodel.setRifleSkin(normalizeRifleSkin(skin));
+    if (weapon === 'smg') this.viewmodel.setSmgSkin(normalizeSmgSkin(skin));
+    if (weapon === 'shotgun')
+      this.viewmodel.setShotgunSkin(normalizeShotgunSkin(skin));
+    if (weapon === 'sniper')
+      this.viewmodel.setSniperSkin(normalizeSniperSkin(skin));
+    if (
+      skin === 'glorious-blaze' ||
+      skin === 'neon-blade' ||
+      skin === 'lotus-lava'
+    )
+      this.groundEliminations[skin].prepare();
+  }
+
+  private equipTraining(slot: LoadoutSlot): void {
+    const { weapon, skin } = this.userSettings.loadouts.slots[slot];
+    this.trainingSlot = slot;
+    this.applySkin(weapon, skin);
+    this.combat.weapons.switchWeapon(weapon);
+  }
+
   private get soulRequiemEquipped(): boolean {
     return (
-      this.userSettings.rifleSkin === 'memento-mori' &&
+      this.equippedSkin === 'memento-mori' &&
       this.viewmodel.rifleSkinStatus === 'ready'
     );
   }
   private get lotusLavaEquipped(): boolean {
     return (
-      this.userSettings.sniperSkin === 'lotus-lava' &&
+      this.equippedSkin === 'lotus-lava' &&
       this.viewmodel.sniperSkinStatus === 'ready'
     );
   }
 
   private get gloriousBlazeEquipped(): boolean {
     return (
-      this.userSettings.shotgunSkin === 'glorious-blaze' &&
+      this.equippedSkin === 'glorious-blaze' &&
       this.viewmodel.shotgunSkinStatus === 'ready'
     );
   }
 
   private get neonBladeEquipped(): boolean {
     return (
-      this.userSettings.smgSkin === 'neon-blade' &&
+      this.equippedSkin === 'neon-blade' &&
       this.viewmodel.smgSkinStatus === 'ready'
     );
   }
@@ -425,7 +464,7 @@ export class Game {
       fov: this.camera.camera.fov,
       rifleSkin:
         combat.weapons.selected === 'rifle'
-          ? this.userSettings.rifleSkin
+          ? normalizeRifleSkin(this.equippedSkin)
           : undefined,
       rifleSkinStatus:
         combat.weapons.selected === 'rifle'
@@ -433,7 +472,7 @@ export class Game {
           : undefined,
       sniperSkin:
         combat.weapons.selected === 'sniper'
-          ? this.userSettings.sniperSkin
+          ? normalizeSniperSkin(this.equippedSkin)
           : undefined,
       sniperSkinStatus:
         combat.weapons.selected === 'sniper'
@@ -441,7 +480,7 @@ export class Game {
           : undefined,
       shotgunSkin:
         combat.weapons.selected === 'shotgun'
-          ? this.userSettings.shotgunSkin
+          ? normalizeShotgunSkin(this.equippedSkin)
           : undefined,
       shotgunSkinStatus:
         combat.weapons.selected === 'shotgun'
@@ -449,7 +488,7 @@ export class Game {
           : undefined,
       smgSkin:
         combat.weapons.selected === 'smg'
-          ? this.userSettings.smgSkin
+          ? normalizeSmgSkin(this.equippedSkin)
           : undefined,
       smgSkinStatus:
         combat.weapons.selected === 'smg'
@@ -515,8 +554,17 @@ export class Game {
         },
         onError: this.callbacks.onError,
         onCombat: (state) => {
-          if (!this.disposed && generation === this.networkGeneration)
+          if (!this.disposed && generation === this.networkGeneration) {
+            const previous = this.networkCombat.owner;
+            if (previous && state.life < previous.life) return;
+            const skin = state.skin ?? 'standard';
+            if (
+              skin !== this.equippedSkin ||
+              state.selected !== previous?.selected
+            )
+              this.applySkin(state.selected, skin);
             this.networkCombat.receive(state);
+          }
         },
         onShot: (shot) => {
           if (!this.disposed && generation === this.networkGeneration) {
@@ -542,7 +590,10 @@ export class Game {
                 shot.weapon,
                 spatial.gain,
                 spatial.pan,
-                shot.smgSkin ?? shot.shotgunSkin ?? shot.sniperSkin,
+                shot.skin ??
+                  shot.smgSkin ??
+                  shot.shotgunSkin ??
+                  shot.sniperSkin,
               );
             }
           }
@@ -629,12 +680,13 @@ export class Game {
               } else if (mine) this.audio.playMythicElimination(effect);
               return;
             }
-            if (!mine) return;
             const molten = isMoltenLavaRifle(
               kill.weapon,
-              this.userSettings.rifleSkin,
+              normalizeRifleSkin(
+                kill.skin ?? (mine ? this.equippedSkin : 'standard'),
+              ),
             );
-            this.audio.cue(molten ? 'molten-lava-kill' : 'kill');
+            if (mine) this.audio.cue(molten ? 'molten-lava-kill' : 'kill');
             if (molten) {
               let position = kill.position;
               if (!position) {
@@ -648,11 +700,23 @@ export class Game {
                     z: victim.z,
                   };
               }
-              if (position)
+              if (position) {
+                if (!mine) {
+                  const spatial = spatialAudio(
+                    position,
+                    this.camera.camera.position,
+                    this.input.movement.yaw,
+                  );
+                  this.audio.playRemoteMoltenElimination(
+                    spatial.gain,
+                    spatial.pan,
+                  );
+                }
                 this.lavaEliminations.spawn(
                   position,
                   this.userSettings.reducedMotion,
                 );
+              }
             }
           }
         },
@@ -661,6 +725,7 @@ export class Game {
             this.leaveRoom();
         },
       },
+      this.userSettings.loadouts,
       settings,
     );
     if (this.disposed || generation !== this.networkGeneration) {
@@ -683,6 +748,10 @@ export class Game {
   }
   selectLoadout(selection: LoadoutSelection): void {
     this.session?.selectLoadout(selection);
+    const skin = this.userSettings.loadouts.slots[selection.slot].skin;
+    void weaponAsset(skin)?.catch(() => {
+      // WeaponViewmodel retains its standard fallback if the model is unavailable.
+    });
   }
   configureRoom(settings: MatchSettings): void {
     this.session?.configure(settings);
@@ -707,6 +776,7 @@ export class Game {
     this.setShotgunRangeActive(true);
     this.networkCombat.reset();
     this.combat.setOnline(false);
+    this.equipTraining(this.userSettings.loadouts.defaultSlot);
     this.audio.resetFeedback(this.combat.snapshot());
     this.audio.observeMatch(null);
     const fresh = new MovementController(this.physics).capture();
@@ -785,6 +855,11 @@ export class Game {
   };
 
   private readonly simulate = (dt: number): void => {
+    if (!this.session && this.input.weapon.switchTo) {
+      const slot = weaponOrder.indexOf(this.input.weapon.switchTo);
+      if (isLoadoutSlot(slot)) this.equipTraining(slot);
+      this.input.weapon.switchTo = null;
+    }
     const priorVerticalSpeed = this.movement.velocity.y;
     const weapons = (this.session ? this.networkCombat : this.combat).weapons;
     const previousShots = weapons.shotsFired;
@@ -826,11 +901,7 @@ export class Game {
       this.session.step(
         this.input.movement,
         this.input.pitch,
-        {
-          ...weaponInput,
-          // Desired selection survives an old input being discarded during overload recovery.
-          switchTo: weaponInput.switchTo ?? this.networkCombat.weapons.selected,
-        },
+        weaponInput,
         scale,
       );
       this.networkCombat.step(dt, weaponInput, this.movement);
@@ -864,13 +935,18 @@ export class Game {
       priorVerticalSpeed,
       this.groundEffectFor(active.weapons.selected) ??
         (this.viewmodel.rifleSkinStatus === 'ready'
-          ? this.userSettings.rifleSkin
+          ? normalizeRifleSkin(this.equippedSkin)
           : 'standard'),
     );
   };
 
   private readonly frame = (time: number): void => {
-    if (this.disposed || document.hidden) return;
+    if (
+      this.disposed ||
+      document.hidden ||
+      (this.showcaseOpen && !isMatchActive(this.session?.view?.phase))
+    )
+      return;
     const start = performance.now();
     const delta = this.lastTime === null ? 0 : (time - this.lastTime) / 1000;
     this.lastTime = time;
@@ -884,10 +960,6 @@ export class Game {
       armed &&
       (!this.session || this.session.view?.phase === 'playing') &&
       this.input.weapon.aim;
-    this.session?.setSoulRequiem(this.soulRequiemEquipped);
-    this.session?.setLotusLava(this.lotusLavaEquipped);
-    this.session?.setGloriousBlaze(this.gloriousBlazeEquipped);
-    this.session?.setNeonBlade(this.neonBladeEquipped);
     const alpha =
       this.input.locked || this.session?.view?.phase === 'playing'
         ? this.clock.advance(delta, this.simulate)

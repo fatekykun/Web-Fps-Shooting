@@ -88,11 +88,21 @@ test('FFA shows server scores, a winner, frozen results and a clean rematch lobb
     await expect(
       page.getByRole('button', { name: 'START SESSION' }),
     ).toBeDisabled();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'LOADOUTS', exact: true })
+      .click();
+    await page.getByLabel('Change Skin').selectOption('standard');
+    await page.getByRole('button', { name: 'Save Loadout' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     peer.send('ready', true);
     filler?.send('ready', true);
     await page.getByRole('button', { name: 'START SESSION' }).click();
     await expect.poll(() => peer!.state.round).toBe(round + 1);
     expect(peer.state.scores.get(peer.state.hostId)!.kills).toBe(0);
+    await expect
+      .poll(() => peer!.state.players.get(peer!.state.hostId)?.skin)
+      .toBe('standard');
     expect(errors).toEqual([]);
   } finally {
     await peer?.leave();

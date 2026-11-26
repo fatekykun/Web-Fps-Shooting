@@ -1,6 +1,7 @@
+import { defaultLoadouts } from '@breakpoint/shared/weapons/loadouts';
 import { expect, test } from '@playwright/test';
 
-test('Molten Lava saves from the Armory, renders its ADS sight and yields inspect to firing', async ({
+test('Molten Lava saves from Loadouts, renders its ADS sight and yields inspect to firing', async ({
   page,
 }, testInfo) => {
   const errors: string[] = [];
@@ -36,13 +37,22 @@ test('Molten Lava saves from the Armory, renders its ADS sight and yields inspec
     ),
   );
   const enter = page.getByRole('button', { name: /^(ENTER|RESUME) TRAINING$/ });
-  const armory = page.getByRole('button', { name: 'ARMORY', exact: true });
+  const armory = page.getByRole('button', { name: 'LOADOUTS', exact: true });
   const hud = page.getByTestId('weapon-status');
   const draws = () =>
     page
       .getByTestId('render-resolution')
       .getAttribute('data-world-draws')
       .then(Number);
+  const initial = defaultLoadouts();
+  initial.slots[0].skin = 'standard';
+  await page.addInitScript((profile) => {
+    if (!localStorage.getItem('breakpoint.settings.v1'))
+      localStorage.setItem(
+        'breakpoint.settings.v1',
+        JSON.stringify({ loadouts: profile }),
+      );
+  }, initial);
   await page.goto('/');
   await enter.click();
   await expect(hud).toHaveAttribute('data-rifle-skin', 'standard');
@@ -50,13 +60,12 @@ test('Molten Lava saves from the Armory, renders its ADS sight and yields inspec
   const standardDraws = await draws();
   await page.keyboard.press('Escape');
   await armory.click();
-  await page
-    .getByLabel('Rifle skin')
-    .selectOption({ label: 'Molten Lava / Mythic' });
+  await page.getByLabel('Change Skin').selectOption({ label: 'Molten Lava' });
+  await page.getByRole('button', { name: 'Save Loadout' }).click();
   await page.reload();
   await armory.click();
-  await expect(page.getByLabel('Rifle skin')).toHaveValue('cinder-wyrm');
-  await page.getByRole('button', { name: 'Close armory' }).click();
+  await expect(page.getByLabel('Change Skin')).toHaveValue('cinder-wyrm');
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await enter.click();
   await expect(hud).toHaveAttribute('data-rifle-skin', 'cinder-wyrm');
   await expect(hud).toContainText('AR-01 / MOLTEN LAVA');
@@ -121,8 +130,9 @@ test('Molten Lava saves from the Armory, renders its ADS sight and yields inspec
   await expect(hud).toHaveAttribute('data-rifle-skin', 'cinder-wyrm');
   await page.keyboard.press('Escape');
   await armory.click();
-  await page.getByLabel('Rifle skin').selectOption('standard');
-  await page.getByRole('button', { name: 'Close armory' }).click();
+  await page.getByLabel('Change Skin').selectOption('standard');
+  await page.getByRole('button', { name: 'Save Loadout' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await enter.click();
   await expect(hud).toHaveAttribute('data-rifle-skin', 'standard');
   await expect(page.locator('.crosshair')).toBeVisible();
@@ -155,7 +165,17 @@ test.describe('touch inspect', () => {
     await page.addInitScript(() => {
       localStorage.setItem(
         'breakpoint.settings.v1',
-        JSON.stringify({ rifleSkin: 'cinder-wyrm' }),
+        JSON.stringify({
+          loadouts: {
+            defaultSlot: 0,
+            slots: [
+              { weapon: 'rifle', skin: 'cinder-wyrm' },
+              { weapon: 'smg', skin: 'neon-blade' },
+              { weapon: 'shotgun', skin: 'glorious-blaze' },
+              { weapon: 'sniper', skin: 'lotus-lava' },
+            ],
+          },
+        }),
       );
       localStorage.setItem(
         'breakpoint.graphics.v2',

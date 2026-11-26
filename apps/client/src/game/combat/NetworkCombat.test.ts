@@ -242,7 +242,7 @@ it('initializes a restricted authoritative spawn and filters forbidden keys with
     expect(forbidden.switchTo).toBe('rifle');
     expect(
       combat.filterInput({ ...forbidden, switchTo: 'shotgun' }).switchTo,
-    ).toBe('shotgun');
+    ).toBeNull();
     expect(combat.snapshot().allowedWeapons).toEqual(['shotgun', 'sniper']);
     combat.receive({ ...owner, life: 2, selected: 'shotgun' });
     expect(combat.weapons.selected).toBe('shotgun');
@@ -253,7 +253,7 @@ it('initializes a restricted authoritative spawn and filters forbidden keys with
       'shotgun',
       'sniper',
     ]);
-    expect(combat.filterInput(forbidden)).toBe(forbidden);
+    expect(combat.filterInput(forbidden).switchTo).toBeNull();
   } finally {
     combat.dispose();
   }

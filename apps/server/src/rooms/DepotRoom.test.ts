@@ -258,9 +258,9 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
     target.send('loadout', {
       round: target.state.round,
       life: targetLife,
-      weapon: 'smg',
+      slot: 1,
     });
-    await expect.poll(() => targetOwner?.nextWeapon).toBe('smg');
+    await expect.poll(() => targetOwner?.nextLoadoutSlot).toBe(1);
     target.send('input', [packet(1, targetLife, true, 0)]);
     await expect.poll(() => targetOwner?.shots).toBe(0);
     await expect
@@ -274,8 +274,11 @@ it('accepts weapon intent over sockets but owns damage, ammo, kills and life tra
       .toBe(2);
     await expect.poll(() => targetOwner?.life).toBe(targetLife + 1);
     expect(targetOwner!.selected).toBe('smg');
+    expect(targetOwner!.skin).toBe('neon-blade');
+    expect(targetOwner!.loadoutSlot).toBe(1);
     expect(targetOwner!.nextWeapon).toBeUndefined();
     expect(host.state.players.get(target.sessionId)!.weapon).toBe('smg');
+    expect(host.state.players.get(target.sessionId)!.skin).toBe('neon-blade');
     expect(targetOwner!.health).toBe(100);
     expect(targetOwner!.protected).toBe(true);
     const respawned = target.state.players.get(target.sessionId)!;

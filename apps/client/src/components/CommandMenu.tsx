@@ -66,8 +66,8 @@ export function CommandMenu({
         <button onClick={onCredits}>
           <span aria-hidden="true">05</span>CREDITS
         </button>
-        <button onClick={onWeapons}>
-          <span aria-hidden="true">06</span>ARMORY
+        <button onClick={onWeapons} disabled={room?.phase === 'playing'}>
+          <span aria-hidden="true">06</span>LOADOUTS
         </button>
         {room && (
           <button className="nav-danger" onClick={onLeave}>

@@ -112,7 +112,7 @@ it.each([
     await expect.poll(() => host.state.phase).toBe('countdown');
     const choose = (peer: typeof host, weapon: string, lifeOffset = 0) =>
       peer.send('loadout', {
-        weapon,
+        slot: weaponOrder.findIndex((id) => id === weapon),
         round: peer.state.round,
         life: peer.state.players.get(peer.sessionId)!.life + lifeOffset,
       });
@@ -171,8 +171,7 @@ it.each([
       expect(allowed).toContain(
         guest.state.players.get(guest.sessionId)!.weapon,
       );
-      if (allowed.includes(id))
-        await expect.poll(() => owner?.selected).toBe(id);
+      expect(owner?.selected).toBe(choice);
     }
     const late = await join(host.roomId, 'Late', {
       allowedWeapons: ['rifle'],
