@@ -195,7 +195,7 @@ it('clears old-life prediction on death/respawn without reusing sequence numbers
   }
 });
 
-it('replays wall contact and the jump budget even with client-only practice sensors', () => {
+it('replays wall collisions and airborne jump presses even with client-only practice sensors', () => {
   const boxes: ArenaBox[] = [-0.75, 0.75].map((x) => ({
     position: [x, 10, 0],
     size: [0.3, 20, 30],
@@ -211,7 +211,7 @@ it('replays wall contact and the jump budget even with client-only practice sens
   const prediction = new Prediction(client);
   const inputs = Array.from({ length: 70 }, (_, i) => ({
     forward: 0,
-    right: 0,
+    right: 1,
     yaw: 0,
     jumpPressed: i % 15 === 0,
   }));
@@ -220,12 +220,16 @@ it('replays wall contact and the jump budget even with client-only practice sens
     for (const input of inputs.slice(0, 22))
       server.step(input, movementConfig.fixedStep);
     const snapshot = server.capture();
-    expect(snapshot.lastWall).not.toBeNull();
+    expect(snapshot.position.x).toBeGreaterThan(0.2);
+    expect(snapshot.position.x).toBeLessThan(
+      0.6 - movementConfig.capsuleRadius,
+    );
+    expect(snapshot.velocity.y).toBeCloseTo(
+      -22 * movementConfig.fixedStep * movementConfig.gravity,
+    );
     prediction.reconcile({ ack: 22, snapshot });
     for (const input of inputs.slice(22))
       server.step(input, movementConfig.fixedStep);
-    expect(client.wallJumps).toBe(2);
-    expect(client.capture().lastWall).toBe(server.capture().lastWall);
     expect(client.physics.position.x).toBeCloseTo(server.physics.position.x, 4);
     expect(client.physics.position.y).toBeCloseTo(server.physics.position.y, 4);
     expect(client.velocity.x).toBeCloseTo(server.velocity.x, 4);

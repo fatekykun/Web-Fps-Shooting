@@ -1,5 +1,4 @@
 import type { GameTelemetry } from '../game/core/Game';
-import { movementConfig } from '@breakpoint/shared';
 
 export function Telemetry({
   stats,
@@ -118,7 +117,6 @@ export function Telemetry({
         data-z={stats?.z}
         data-state={stats?.movementState}
         data-half-height={stats?.halfHeight}
-        data-wall-jumps={stats?.wallJumps}
       >
         XYZ{' '}
         {stats
@@ -135,9 +133,6 @@ export function Telemetry({
         <br />
         <span data-testid="movement-state">
           {stats?.movementState.toUpperCase() ?? 'STANDBY'}
-        </span>
-        <span className="ground-label">
-          WALL {stats?.wallJumps ?? 0}/{movementConfig.maxWallJumps}
         </span>
       </div>
     </aside>

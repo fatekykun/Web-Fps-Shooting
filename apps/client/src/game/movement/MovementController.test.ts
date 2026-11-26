@@ -303,7 +303,6 @@ describe('movement transitions with real Rapier collision', () => {
       );
     }
     expect(jumps).toBeGreaterThan(5);
-    expect(player.wallJumps).toBe(0);
   });
 
   it('buffers a short jump press before landing', () => {
@@ -428,39 +427,31 @@ describe('movement transitions with real Rapier collision', () => {
     expect(player.physics.halfHeight).toBeCloseTo(config.capsuleHalfHeight);
   });
 
-  it('wall jumps away from the normal and preserves tangential momentum', () => {
-    const wall: ArenaBox = {
-      position: [1, 10, 0],
-      size: [0.5, 20, 30],
-      color: 0,
-    };
-    const player = make([floor, wall], { x: 0.35, y: 5, z: 0 });
-    player.velocity.z = -5;
-    player.step({ ...idle, jumpPressed: true }, dt);
-    expect(player.wallJumps).toBe(1);
-    expect(player.velocity.x).toBeLessThan(-6.5);
-    expect(player.velocity.z).toBeLessThan(-4.8);
-    expect(player.velocity.y).toBeGreaterThan(6);
-    steps(player, 16);
-    player.physics.move({ x: 10, y: 0, z: 0 });
-    player.step({ ...idle, jumpPressed: true }, dt);
-    expect(player.wallJumps).toBe(1);
-  });
-
-  it('prevents infinite alternating wall jumps and resets the allowance only on landing', () => {
-    const walls: ArenaBox[] = [-0.75, 0.75].map((x) => ({
-      position: [x, 10, 0],
-      size: [0.3, 20, 30],
-      color: 0,
-    }));
-    const player = make([floor, ...walls], { x: 0.1, y: 10, z: 0 });
-    for (let i = 0; i < 70; i++)
-      player.step({ ...idle, jumpPressed: i % 15 === 0 }, dt);
-    expect(player.wallJumps).toBe(config.maxWallJumps);
-    steps(player, 300);
-    expect(player.physics.grounded).toBe(true);
-    expect(player.wallJumps).toBe(0);
-  });
+  it.each([
+    ['wall', { position: [1, 10, 0], size: [0.5, 20, 30], color: 0 }],
+    ['crate', { position: [1.5, 1.25, 0], size: [1.5, 2.5, 3], color: 0 }],
+  ] satisfies [string, ArenaBox][])(
+    'blocks an airborne jump against a %s while allowing motion along its face',
+    (_, obstacle) => {
+      const player = make([floor, obstacle], { x: 0.36, y: 0.91, z: 0 });
+      steps(player, 8);
+      const towardWall = { ...idle, right: 1, forward: 1 };
+      player.step({ ...towardWall, jumpPressed: true }, dt);
+      expect(player.velocity.y).toBeGreaterThan(5);
+      steps(player, 8, towardWall);
+      expect(player.physics.grounded).toBe(false);
+      const contact = { ...player.physics.position };
+      expect(contact.x).toBeGreaterThan(0.39);
+      expect(contact.x).toBeLessThan(0.75 - config.capsuleRadius);
+      const verticalBefore = player.velocity.y;
+      player.step({ ...towardWall, jumpPressed: true }, dt);
+      expect(player.velocity.y).toBeCloseTo(
+        verticalBefore - config.gravity * dt,
+      );
+      expect(player.physics.position.x).toBeCloseTo(contact.x, 2);
+      expect(player.physics.position.z).toBeLessThan(contact.z);
+    },
+  );
 
   it('freezes momentum and interpolation during a pause in midair', () => {
     const player = make();
