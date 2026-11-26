@@ -9,6 +9,7 @@ import {
   type Object3D,
 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import {
   rigJoints,
   type CharacterPose,
@@ -46,10 +47,12 @@ it.each(['crimson_officer_character', 'ghost_character'])(
     const bytes = await readFile(
       new URL(`../../../public/models/${file}.glb`, import.meta.url),
     );
-    const loader = new GLTFLoader().register(() => ({
-      name: 'Test texture',
-      loadTexture: async () => new Texture(),
-    }));
+    const loader = new GLTFLoader()
+      .setMeshoptDecoder(MeshoptDecoder)
+      .register(() => ({
+        name: 'Test texture',
+        loadTexture: async () => new Texture(),
+      }));
     const asset = await loader.parseAsync(new Uint8Array(bytes).buffer, '');
     const authoredChestWidth = chestWidth(asset.scene);
     const { scene } = prepareOperatorAsset(asset);

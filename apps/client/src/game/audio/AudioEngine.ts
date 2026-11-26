@@ -258,6 +258,7 @@ export class AudioEngine {
     try {
       const response = await fetch(`${import.meta.env.BASE_URL}audio/${file}`, {
         cache: 'no-cache',
+        priority: 'low',
         signal: this.sampleRequests.signal,
       });
       if (!response.ok || this.disposed) return;

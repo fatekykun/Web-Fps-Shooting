@@ -81,20 +81,24 @@ export function WeaponPreview({
       data-testid="weapon-showcase"
       data-status={status}
     >
-      <div className="showcase-surface" ref={surface}>
-        {unavailable && !operator && equipment.weapon !== 'melee' && (
+      <div className="showcase-surface" ref={surface} />
+      {(status === 'loading' || unavailable) &&
+        !operator &&
+        equipment.weapon !== 'melee' && (
           <img
+            className="showcase-thumbnail"
             src={weaponThumbnail(equipment)}
-            alt={skinDefinitions[skin].name}
+            alt={unavailable ? skinDefinitions[skin].name : ''}
           />
         )}
-      </div>
       {status !== 'ready' && (
         <span className="showcase-status" role="status">
           {status === 'loading'
             ? operator
               ? 'Loading character model…'
-              : 'Loading weapon model…'
+              : equipment.weapon === 'melee'
+                ? 'Loading melee model…'
+                : 'Loading weapon model…'
             : status === 'fallback'
               ? operator
                 ? 'Character preview unavailable'

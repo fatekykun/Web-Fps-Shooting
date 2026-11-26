@@ -159,6 +159,7 @@ test('Glorious Blaze saves in Loadouts and plays its assigned sound and animatio
   await page.getByRole('button', { name: 'Save Loadout' }).click();
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
+  await expect(page.locator('.crosshair')).toBeVisible();
   await page.keyboard.press('3');
   const hud = page.getByTestId('weapon-status');
   const dummy = page.getByTestId('dummy-status');
