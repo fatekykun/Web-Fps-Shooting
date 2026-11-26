@@ -1,6 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { expect, it } from 'vitest';
-import { Bone, Box3, Texture, Vector3 } from 'three';
+import {
+  Bone,
+  Box3,
+  SkinnedMesh,
+  Texture,
+  Vector3,
+  type Object3D,
+} from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {
   rigJoints,
@@ -8,10 +15,33 @@ import {
   type JointName,
 } from '@breakpoint/shared/character';
 import { OperatorRig } from './OperatorRig';
+import { prepareOperatorAsset } from './OperatorAssets';
 import { TacticalSkeleton } from './TacticalSkeleton';
 
+function chestWidth(scene: Object3D): number {
+  let left = Infinity;
+  let right = -Infinity;
+  scene.traverse((node) => {
+    if (!(node instanceof SkinnedMesh)) return;
+    const chest = node.skeleton.bones.findIndex(
+      (bone) => bone.name === 'Chest',
+    );
+    const position = node.geometry.getAttribute('position');
+    const joints = node.geometry.getAttribute('skinIndex');
+    const weights = node.geometry.getAttribute('skinWeight');
+    for (let vertex = 0; vertex < position.count; vertex++) {
+      if (joints.getX(vertex) !== chest || weights.getX(vertex) < 0.95)
+        continue;
+      const x = position.getX(vertex);
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+    }
+  });
+  return right - left;
+}
+
 it.each(['crimson_officer_character', 'ghost_character'])(
-  '%s preserves the authored bones and follows the synchronized pose',
+  '%s adds torso width and height while preserving the authored bones and grip',
   async (file) => {
     const bytes = await readFile(
       new URL(`../../../public/models/${file}.glb`, import.meta.url),
@@ -20,7 +50,11 @@ it.each(['crimson_officer_character', 'ghost_character'])(
       name: 'Test texture',
       loadTexture: async () => new Texture(),
     }));
-    const { scene } = await loader.parseAsync(new Uint8Array(bytes).buffer, '');
+    const asset = await loader.parseAsync(new Uint8Array(bytes).buffer, '');
+    const authoredChestWidth = chestWidth(asset.scene);
+    const { scene } = prepareOperatorAsset(asset);
+    expect(authoredChestWidth).toBeGreaterThan(0);
+    expect(chestWidth(scene) / authoredChestWidth).toBeCloseTo(1.08, 2);
     const operator = new OperatorRig(scene);
     const tactical = new TacticalSkeleton();
     const bindOffsets = new Map<string, Vector3>();
@@ -60,7 +94,8 @@ it.each(['crimson_officer_character', 'ghost_character'])(
       tactical.root.rotation.y = 1.1;
       update();
       const standingHeight = bounds().getSize(size).y;
-      expect(standingHeight).toBeCloseTo(1.7, 1);
+      expect(standingHeight).toBeGreaterThan(1.74);
+      expect(standingHeight).toBeLessThan(1.78);
       expect(bounds().min.y).toBeCloseTo(tactical.root.position.y, 1);
       expect(gripError('left')).toBeLessThan(0.035);
       expect(gripError('right')).toBeLessThan(0.035);

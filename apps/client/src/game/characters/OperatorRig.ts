@@ -38,8 +38,8 @@ const facing = new Quaternion().setFromAxisAngle(up, Math.PI);
 const tacticalHipHeight = rigJoints[0].position[1];
 const tacticalPalm = new Vector3(0, -0.055, 0);
 const weaponJoint = rigJoints.findIndex(({ name }) => name === 'weapon');
-// Fit the standing silhouette to the shared character's head and floor anchor.
-const standingHeight = 1.7;
+// Size the rendered operator from its soles without shifting the floor anchor.
+const standingHeight = 1.76;
 const restBounds = new WeakMap<Object3D, Box3>();
 
 function bind(model: Object3D, name: string, joint: JointName) {
@@ -265,7 +265,7 @@ export class OperatorRig {
     }
     const displacement = this.root.matrixWorld.elements[13]! - bottom;
     this.model.position.y +=
-      Math.max(-0.14, Math.min(0.17, displacement)) * weight;
+      Math.max(-0.17, Math.min(0.17, displacement)) * weight;
   }
 
   private prepareWrist(rig: TacticalSkeleton, arm: Arm): void {
