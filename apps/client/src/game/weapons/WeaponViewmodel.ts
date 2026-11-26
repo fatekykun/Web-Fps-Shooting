@@ -49,6 +49,7 @@ import {
   FirstPersonArms,
   type MeleeHands,
 } from '../characters/FirstPersonArms';
+import { meleeGloveAsset, meleeGrip } from '../characters/MeleeGlove';
 import type { OperatorId } from '@breakpoint/shared/operators';
 import { strideRadiansPerMeter } from '@breakpoint/shared/character';
 import { slideMomentum } from '@breakpoint/shared/movement/Sliding';
@@ -465,9 +466,10 @@ export class WeaponViewmodel {
     this.meleeSkinStatus = 'loading';
     const generation = ++this.meleeGeneration;
     this.meleeModel.clear();
-    void weaponAsset(skin).then(
-      (asset) => {
+    void Promise.all([weaponAsset(skin), meleeGloveAsset()]).then(
+      ([asset, gloves]) => {
         if (generation !== this.meleeGeneration) return;
+        this.arms.setMeleeGloves(gloves);
         this.meleeModel.add(asset.scene.clone(true));
         this.meleeSkinStatus = 'ready';
       },
@@ -672,6 +674,8 @@ export class WeaponViewmodel {
     this.models.get('smg')!.visible = this.selected === 'smg' && !neon;
     if (this.neon) this.neon.model.visible = !!neon;
     this.meleeModel.visible = weapons.selected === 'melee';
+    this.arms.root.visible =
+      weapons.selected !== 'melee' || this.meleeSkinStatus === 'ready';
     if (weapons.selected === 'melee') {
       this.root.visible = active;
       this.flash.visible = false;
@@ -911,13 +915,17 @@ export class WeaponViewmodel {
     right.rotation.copy(blade);
     if (skin === 'ember-talon') right.rotation.multiply(karambitGripTurn);
     right.wrist
-      .set(0.058, twoHanded ? 0.064 : 0, 0.032)
+      .set(
+        meleeGrip.across,
+        (twoHanded ? 0.066 : 0) - meleeGrip.rise,
+        meleeGrip.depth,
+      )
       .applyQuaternion(right.rotation)
       .add(this.meleeModel.position);
     left.open = !twoHanded;
     if (twoHanded) {
       left.wrist
-        .set(-0.058, -0.06, 0.032)
+        .set(-meleeGrip.across, -0.062 - meleeGrip.rise, meleeGrip.depth)
         .applyQuaternion(blade)
         .add(this.meleeModel.position);
       left.rotation.copy(blade);
@@ -929,7 +937,7 @@ export class WeaponViewmodel {
       );
       left.rotation.setFromAxisAngle(
         meleeHandRollAxis,
-        0.44 - this.sprint * 0.16,
+        0.62 - this.sprint * 0.16,
       );
     }
     this.arms.update(0, 0, 0, 0, motion, undefined, this.meleeHands);

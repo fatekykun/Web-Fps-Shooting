@@ -1,6 +1,13 @@
 import { expect, it, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { Box3, InstancedMesh, Matrix4, NearestFilter, Vector3 } from 'three';
+import {
+  Box3,
+  InstancedMesh,
+  Matrix4,
+  Mesh,
+  NearestFilter,
+  Vector3,
+} from 'three';
 import { WeaponViewmodel } from './WeaponViewmodel';
 import { WeaponController } from './WeaponController';
 
@@ -306,18 +313,17 @@ it('frames each melee blade and keeps its gripping hands on the hilt through a s
   const viewmodel = new WeaponViewmodel();
   const weapons = new WeaponController(() => {});
   const blade = viewmodel.scene.getObjectByName('melee-model')!;
-  const right = viewmodel.scene.getObjectByName('rightWrist')!;
   const left = viewmodel.scene.getObjectByName('leftWrist')!;
   const arms = viewmodel.scene.getObjectByName(
     'tactical-arms-mesh',
   ) as InstancedMesh;
   const project = (point: Vector3) =>
     blade.localToWorld(point).project(viewmodel.camera);
-  const wristOnBlade = (wrist: typeof right, grip: Vector3, context: string) =>
+  const handOnHilt = (glove: Mesh, gripY: number, context: string) =>
     expect(
       blade
-        .worldToLocal(wrist.getWorldPosition(new Vector3()))
-        .distanceTo(grip),
+        .worldToLocal(glove.localToWorld(new Vector3(0.058, 0.032, -0.031)))
+        .distanceTo(new Vector3(0, gripY, 0)),
       context,
     ).toBeLessThan(0.001);
   try {
@@ -334,6 +340,13 @@ it('frames each melee blade and keeps its gripping hands on the hilt through a s
       await vi.waitFor(() => expect(viewmodel.meleeSkinStatus).toBe('ready'));
       expect(blade.children).toHaveLength(1);
       viewmodel.update(weapons, 0, 1 / 60, true);
+      const leftGlove = viewmodel.scene.getObjectByName(
+        'left-melee-glove',
+      ) as Mesh;
+      const rightGlove = viewmodel.scene.getObjectByName(
+        'right-melee-glove',
+      ) as Mesh;
+      expect(leftGlove.visible && rightGlove.visible).toBe(true);
       const hilt = project(new Vector3());
       const edge = project(new Vector3(...tip));
       expect(hilt.x).toBeGreaterThan(0.3);
@@ -341,36 +354,38 @@ it('frames each melee blade and keeps its gripping hands on the hilt through a s
       expect(edge.y).toBeLessThan(1);
       if (skin === 'void-ronin') {
         expect(edge.x).toBeGreaterThan(hilt.x);
-        const grip = blade.worldToLocal(left.getWorldPosition(new Vector3()));
-        expect(grip.y).toBeCloseTo(-0.06, 3);
+        expect(leftGlove.geometry).toBe(rightGlove.geometry);
+        handOnHilt(leftGlove, -0.062, skin);
       } else {
         expect(edge.x).toBeLessThan(hilt.x);
+        expect(leftGlove.geometry).not.toBe(rightGlove.geometry);
         expect(
           left.getWorldPosition(new Vector3()).project(viewmodel.camera).x,
         ).toBeLessThan(-0.5);
       }
-      const rightGrip = new Vector3(
-        skin === 'ember-talon' ? -0.058 : 0.058,
-        skin === 'void-ronin' ? 0.064 : 0,
-        skin === 'ember-talon' ? -0.032 : 0.032,
-      );
-      const leftGrip = new Vector3(-0.058, -0.06, 0.032);
-      wristOnBlade(right, rightGrip, skin);
-      expect(arms.count).toBe(26);
+      const rightGripY = skin === 'void-ronin' ? 0.066 : 0;
+      handOnHilt(rightGlove, rightGripY, skin);
+      expect(arms.count).toBe(6);
 
       for (const age of [0.065, 0.125, 0.195, 0.28, 0.425]) {
         weapons.current.lastShot = weapons.time - age;
         viewmodel.update(weapons, 8, 1 / 60, true, 1, 'sprinting');
         if (age === 0.195)
           expect(project(new Vector3()).x).toBeLessThan(hilt.x - 0.35);
-        wristOnBlade(right, rightGrip, `${skin} right wrist at ${age}s`);
+        handOnHilt(rightGlove, rightGripY, `${skin} right glove at ${age}s`);
         if (skin === 'void-ronin')
-          wristOnBlade(left, leftGrip, `${skin} left wrist at ${age}s`);
+          handOnHilt(leftGlove, -0.062, `${skin} left glove at ${age}s`);
       }
     }
     weapons.selected = 'rifle';
     viewmodel.update(weapons, 0, 1 / 60, true);
     expect(blade.visible).toBe(false);
+    expect(viewmodel.scene.getObjectByName('left-melee-glove')!.visible).toBe(
+      false,
+    );
+    expect(viewmodel.scene.getObjectByName('right-melee-glove')!.visible).toBe(
+      false,
+    );
     expect(arms.count).toBe(16);
   } finally {
     viewmodel.dispose();

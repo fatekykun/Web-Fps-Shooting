@@ -6,11 +6,14 @@ import {
   Group,
   InstancedMesh,
   Matrix4,
+  Mesh,
   Quaternion,
   Skeleton,
   Vector3,
   type Material,
 } from 'three';
+import type { GloveGeometries } from './MeleeGlove';
+import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import { createTacticalGeometry } from './TacticalGeometry';
 import { sprintArmPose } from '@breakpoint/shared/character';
 import type { OperatorId } from '@breakpoint/shared/operators';
@@ -57,8 +60,11 @@ export class FirstPersonArms {
   private readonly freeRotation = new Quaternion();
   private readonly parentRotation = new Quaternion();
   private readonly freeEuler = new Euler();
-  private readonly fingerEuler = new Euler(0, 0, 0, 'ZYX');
-  private readonly fingerRotation = new Quaternion();
+  private meleeGloves?: GloveGeometries & {
+    left: Mesh;
+    right: Mesh;
+    material: ReturnType<typeof createReadableMaterial>;
+  };
   private colorsReady = false;
   private melee = false;
   private operator: OperatorId = 'standard';
@@ -79,7 +85,7 @@ export class FirstPersonArms {
       wrist.position.y = -foreLength;
       this.bones.push(upper, forearm, wrist);
     }
-    this.mesh = new InstancedMesh(this.geometry, material, 26);
+    this.mesh = new InstancedMesh(this.geometry, material, 16);
     this.mesh.name = 'tactical-arms-mesh';
     this.mesh.frustumCulled = false;
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -105,6 +111,12 @@ export class FirstPersonArms {
     const free = sprintArmPose(phase, motion);
     const updateColors = !this.colorsReady || this.melee !== !!melee;
     this.melee = !!melee;
+    const gloves = this.meleeGloves;
+    if (gloves) {
+      gloves.left.visible = gloves.right.visible = !!melee;
+      gloves.left.geometry = melee?.left.open ? gloves.open : gloves.grip;
+      if (updateColors) gloves.material.color.setHex(glove);
+    }
     let instance = 0;
     for (let side = 0; side < 2; side++) {
       const left = side === 0;
@@ -145,8 +157,16 @@ export class FirstPersonArms {
       const along =
         (upperLength ** 2 - foreLength ** 2 + distance ** 2) / (2 * distance);
       const height = Math.sqrt(Math.max(0, upperLength ** 2 - along ** 2));
+      this.bend.set(left ? -0.3 : 0.3, -1, 0);
+      if (hand) {
+        // Favor the direction away from the palm when placing the elbow.
+        this.target
+          .set(left ? -0.7 : 0.7, -0.5, 0.28)
+          .applyQuaternion(hand.rotation);
+        this.bend.addScaledVector(this.target, 0.45);
+        this.target.copy(hand.wrist);
+      }
       this.bend
-        .set(left ? -0.3 : 0.3, -1, 0)
         .addScaledVector(this.direction, -this.bend.dot(this.direction))
         .normalize();
       this.elbow
@@ -191,11 +211,10 @@ export class FirstPersonArms {
         position: readonly [number, number, number],
         size: readonly [number, number, number],
         tint: number,
-        rotation = identity,
       ) => {
         this.transform.compose(
           this.target.set(...position),
-          rotation,
+          identity,
           this.scale.set(...size),
         );
         this.transform.premultiply(bone.matrixWorld);
@@ -207,6 +226,11 @@ export class FirstPersonArms {
         instance++;
       };
       part(upper, [0, -upperLength / 2, 0], [0.125, upperLength, 0.14], sleeve);
+      if (hand) {
+        part(forearm, [0, -0.14, 0], [0.096, 0.284, 0.104], forearmColor);
+        part(forearm, [0, -0.281, 0], [0.069, 0.077, 0.077], cuff);
+        continue;
+      }
       part(
         forearm,
         [0, -foreLength / 2, 0],
@@ -214,54 +238,6 @@ export class FirstPersonArms {
         forearmColor,
       );
       part(forearm, [0, -0.29, 0], [0.12, 0.075, 0.125], cuff);
-      if (hand) {
-        const inward = left ? 1 : -1;
-        part(wrist, [0.026 * inward, 0, -0.012], [0.082, 0.09, 0.064], glove);
-        part(
-          wrist,
-          [0.044 * inward, hand.open ? -0.036 : 0.039, 0.013],
-          [0.027, 0.049, 0.034],
-          fingers,
-          this.fingerRotation.setFromEuler(
-            this.fingerEuler.set(-0.25, 0, -1.1 * inward),
-          ),
-        );
-        for (let finger = 0; finger < 4; finger++) {
-          const y = (finger - 1.5) * 0.02;
-          const length = 0.046 - Math.abs(finger - 1.25) * 0.006;
-          part(
-            wrist,
-            [0.064 * inward, y, -0.01],
-            [0.021, length, 0.024],
-            fingers,
-            this.fingerRotation.setFromEuler(
-              this.fingerEuler.set(
-                hand.open ? -0.23 : -0.58,
-                0,
-                -inward * (Math.PI / 2 - (hand.open ? y * 5 : 0)),
-              ),
-            ),
-          );
-          part(
-            wrist,
-            [
-              (hand.open ? 0.086 : 0.075) * inward,
-              hand.open ? y * 1.19 : y,
-              -0.032,
-            ],
-            [0.019, length * 0.7, 0.022],
-            fingers,
-            this.fingerRotation.setFromEuler(
-              this.fingerEuler.set(
-                hand.open ? -0.78 : -1.45,
-                0,
-                (-inward * Math.PI) / 2,
-              ),
-            ),
-          );
-        }
-        continue;
-      }
       part(wrist, [0, -0.012, 0], [0.09, 0.1, 0.13], glove);
       part(
         wrist,
@@ -284,6 +260,27 @@ export class FirstPersonArms {
     this.colorsReady = true;
   }
 
+  setMeleeGloves({ grip, open }: GloveGeometries): void {
+    if (this.meleeGloves) return;
+    const material = createReadableMaterial(
+      {
+        color: armColors[this.operator][3],
+        flatShading: false,
+        vertexColors: true,
+      },
+      0.15,
+    );
+    const left = new Mesh(grip, material);
+    const right = new Mesh(grip, material);
+    left.name = 'left-melee-glove';
+    right.name = 'right-melee-glove';
+    right.scale.x = -1;
+    left.visible = right.visible = false;
+    this.bones[2]!.add(left);
+    this.bones[5]!.add(right);
+    this.meleeGloves = { grip, open, left, right, material };
+  }
+
   setOperator(operator: OperatorId): void {
     if (operator === this.operator) return;
     this.operator = operator;
@@ -291,6 +288,7 @@ export class FirstPersonArms {
   }
 
   dispose(): void {
+    this.meleeGloves?.material.dispose();
     this.mesh.dispose();
     this.geometry.dispose();
     this.skeleton.dispose();
