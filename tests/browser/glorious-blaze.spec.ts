@@ -141,21 +141,21 @@ async function verifyEffect(page: Page, path: string) {
   expect(glow).toBeGreaterThan(75);
 }
 
-test('Glorious Blaze saves in the Armory and plays its assigned sound and animation in training', async ({
+test('Glorious Blaze saves in Loadouts and plays its assigned sound and animation in training', async ({
   page,
 }, testInfo) => {
   const errors = await prepare(page);
   await page.goto('/');
-  const armory = page.getByRole('button', { name: 'ARMORY', exact: true });
+  const armory = page.getByRole('button', { name: 'LOADOUTS', exact: true });
   const shotgun = page.getByRole('button', {
-    name: 'SG-03 / SHOTGUN',
-    exact: true,
+    name: /^Loadout 3/,
   });
-  const skin = page.getByLabel('Shotgun skin');
+  const skin = page.getByLabel('Change Skin');
   await armory.click();
   await shotgun.click();
   await skin.selectOption({ label: 'Glorious Blaze' });
-  await page.getByRole('button', { name: 'Close armory' }).click();
+  await page.getByRole('button', { name: 'Save Loadout' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
   await page.keyboard.press('3');
   const hud = page.getByTestId('weapon-status');
@@ -240,8 +240,8 @@ test('the room server relays Glorious Blaze shots and the confirmed shotgun elim
       peer.send('ready', true);
     }
     await page.getByRole('button', { name: 'START SESSION' }).click();
+    await page.getByRole('button', { name: 'Equip Loadout 3' }).click();
     await enterStartedMatch(page);
-    await page.keyboard.press('3');
     await expect(page.getByTestId('weapon-status')).toHaveAttribute(
       'data-weapon',
       'shotgun',

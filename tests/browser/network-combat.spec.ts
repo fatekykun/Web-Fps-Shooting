@@ -123,7 +123,7 @@ test('server-confirmed hits, ammo, kill feed, death and respawn work through the
       timeout: 20000,
     });
     firing = false;
-    const sniper = page.getByRole('button', { name: 'Equip SR-04 / SNIPER' });
+    const sniper = page.getByRole('button', { name: 'Equip Loadout 4' });
     await sniper.click();
     await expect(sniper).toHaveAttribute('aria-pressed', 'true');
     await page.screenshot({ path: 'test-results/server-death.png' });

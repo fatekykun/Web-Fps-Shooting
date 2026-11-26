@@ -19,6 +19,7 @@ import { createTacticalGeometry } from '../characters/TacticalGeometry';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import { weaponMuzzles } from '../weapons/WeaponMuzzles';
 import type { Vector3Like, WeaponId } from '@breakpoint/shared';
+import { RemoteWeaponSkins } from './RemoteWeaponSkins';
 
 const colors = [
   0x87917a, 0x6b9ca8, 0x9f9676, 0x8d9386, 0x7e9274, 0x968373, 0x80969a,
@@ -72,6 +73,7 @@ export class RemotePlayers {
   private count = 0;
   private readonly tints = new Uint32Array(8 * parts.length).fill(0xffffffff);
   private colorsChanged = false;
+  private readonly skins: RemoteWeaponSkins;
 
   get playerCount(): number {
     return this.count / parts.length;
@@ -142,6 +144,7 @@ export class RemotePlayers {
   }
 
   constructor(private readonly scene: Scene) {
+    this.skins = new RemoteWeaponSkins(scene);
     this.mesh.count = 0;
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     // The pool moves across the entire arena, so do not keep a stale instance bounding sphere.
@@ -150,10 +153,12 @@ export class RemotePlayers {
   }
 
   update(buffer: RemoteInterpolation | undefined, now: number): void {
+    this.skins.begin();
     this.count = 0;
     this.colorsChanged = false;
     buffer?.sample(now, this.write);
     this.mesh.count = this.count;
+    this.skins.end();
     if (this.count) {
       this.mesh.instanceMatrix.needsUpdate = true;
       if (this.colorsChanged && this.mesh.instanceColor)
@@ -179,6 +184,11 @@ export class RemotePlayers {
       .set(...weaponMuzzles[player.weapon].remote)
       .applyMatrix4(rig.bones[21]!.matrixWorld);
     const palette = avatarPalette(player);
+    const custom = this.skins.append(
+      player.weapon,
+      player.skin,
+      rig.bones[weaponJoint]!.matrixWorld,
+    );
     for (const definition of parts) {
       this.part.position.set(...definition.position);
       this.part.scale.set(...definition.size);
@@ -189,6 +199,8 @@ export class RemotePlayers {
       }
       this.part.updateMatrix();
       this.part.matrix.premultiply(rig.bones[definition.joint]!.matrixWorld);
+      if (custom && definition.joint === weaponJoint)
+        this.part.matrix.makeScale(0, 0, 0);
       this.mesh.setMatrixAt(this.count, this.part.matrix);
       const tint =
         player.hitBlend && player.hitBlend > 0.3
@@ -213,6 +225,7 @@ export class RemotePlayers {
     this.geometry.dispose();
     for (const rig of this.rigs) rig.dispose();
     this.eliminationRig.dispose();
+    this.skins.dispose();
     this.material.dispose();
   }
 }

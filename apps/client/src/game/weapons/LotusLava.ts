@@ -5,12 +5,10 @@ import {
   MeshBasicMaterial,
   Vector3,
   type BufferGeometry,
-  type Material,
   type MeshStandardMaterial,
   type Object3D,
-  type Texture,
 } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { weaponAsset } from './WeaponAssets';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import { weaponMuzzles } from './WeaponMuzzles';
@@ -36,42 +34,9 @@ export class LotusLava {
   });
 
   static async load(signal: AbortSignal): Promise<LotusLava> {
-    const response = await fetch(
-      `${import.meta.env.BASE_URL}models/lotus_inferno_v2.glb`,
-      { signal },
-    );
-    if (!response.ok)
-      throw new Error(`Lotus Lava model returned HTTP ${response.status}`);
-    const bytes = await response.arrayBuffer();
+    const { scene } = await weaponAsset('lotus-lava');
     signal.throwIfAborted();
-    const { scene } = await new GLTFLoader().parseAsync(bytes, '');
-    const geometries = new Set<BufferGeometry>();
-    const materials = new Set<Material>();
-    const textures = new Set<Texture>();
-    scene.traverse((node) => {
-      if (!(node instanceof Mesh)) return;
-      geometries.add(node.geometry);
-      for (const material of Array.isArray(node.material)
-        ? node.material
-        : [node.material]) {
-        materials.add(material);
-        const map = (material as MeshBasicMaterial).map;
-        if (map) textures.add(map);
-      }
-    });
-    try {
-      signal.throwIfAborted();
-      return new LotusLava(scene);
-    } finally {
-      for (const geometry of geometries) geometry.dispose();
-      for (const material of materials) material.dispose();
-      for (const texture of textures) {
-        const image = texture.source.data as unknown;
-        if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap)
-          image.close();
-        texture.dispose();
-      }
-    }
+    return new LotusLava(scene);
   }
 
   private constructor(scene: Object3D) {

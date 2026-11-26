@@ -459,7 +459,7 @@ test.describe('phone touch controls', () => {
       await page.getByRole('button', { name: 'START SESSION' }).tap();
       await expect(page.locator('.mobile-hud.phone')).toBeVisible();
       await expect(page.getByTestId('match-countdown')).toBeVisible();
-      const smg = page.getByRole('button', { name: 'Equip SM-02 / SMG' });
+      const smg = page.getByRole('button', { name: 'Equip Loadout 2' });
       await smg.tap();
       await expect(smg).toHaveAttribute('aria-pressed', 'true');
       await page.screenshot({ path: 'test-results/mobile-loadout.png' });

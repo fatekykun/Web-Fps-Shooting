@@ -12,9 +12,10 @@ import {
   type Object3D,
   type Texture,
 } from 'three';
-import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
+import { weaponAsset } from './WeaponAssets';
 import type { WeaponSight } from './WeaponSights';
 import { weaponMuzzles } from './WeaponMuzzles';
 
@@ -38,25 +39,22 @@ export class MementoMori {
     },
     0.23,
   );
-  private readonly textures = new Set<Texture>();
+  private readonly textures = new Map<Texture, Texture>();
   private readonly shards: Mesh[] = [];
   private readonly mixer: AnimationMixer;
   private readonly magazine: Object3D;
   private readonly magazineRest: Vector3;
 
   static async load(signal: AbortSignal): Promise<MementoMori> {
-    const response = await fetch(
-      `${import.meta.env.BASE_URL}models/memento.glb`,
-      { signal },
-    );
-    if (!response.ok)
-      throw new Error(`Memento Mori model returned HTTP ${response.status}`);
-    const bytes = await response.arrayBuffer();
+    const { scene, animations } = await weaponAsset('memento-mori');
     signal.throwIfAborted();
-    return new MementoMori(await new GLTFLoader().parseAsync(bytes, ''));
+    return new MementoMori({ scene: scene.clone(true), animations });
   }
 
-  private constructor({ scene, animations }: GLTF) {
+  private constructor({
+    scene,
+    animations,
+  }: Pick<GLTF, 'scene' | 'animations'>) {
     scene.updateMatrixWorld(true);
     const required = (name: string): Object3D => {
       const part = scene.getObjectByName(name);
@@ -111,7 +109,6 @@ export class MementoMori {
     });
     const parts = new Map<Object3D, BufferGeometry[]>();
     const originals: Mesh[] = [];
-    const materials = new Set<MeshStandardMaterial>();
     const relative = new Matrix4();
     try {
       scene.traverse((node) => {
@@ -122,10 +119,9 @@ export class MementoMori {
           return;
         let owner: Object3D = node;
         while (owner.parent && !animated.has(owner)) owner = owner.parent;
-        materials.add(node.material);
         originals.push(node);
         const { color, emissive, emissiveIntensity, map } = node.material;
-        if (map) this.textures.add(map);
+        if (map && !this.textures.has(map)) this.textures.set(map, map.clone());
         relative.copy(owner.matrixWorld).invert().multiply(node.matrixWorld);
         const geometry = node.geometry.clone().applyMatrix4(relative);
         const count = geometry.getAttribute('position').count;
@@ -167,7 +163,7 @@ export class MementoMori {
         } else owner.add(mesh);
         if (shardNodes.has(owner)) this.shards.push(mesh);
       }
-      for (const texture of this.textures) {
+      for (const texture of this.textures.values()) {
         texture.magFilter = NearestFilter;
         texture.minFilter = NearestMipmapNearestFilter;
         texture.generateMipmaps = true;
@@ -195,8 +191,6 @@ export class MementoMori {
       this.dispose();
       throw error;
     } finally {
-      for (const mesh of originals) mesh.geometry.dispose();
-      for (const material of materials) material.dispose();
       for (const geometries of parts.values())
         for (const geometry of geometries) geometry.dispose();
     }
@@ -229,11 +223,6 @@ export class MementoMori {
     this.reticle.removeFromParent();
     for (const mesh of this.batches) mesh.geometry.dispose();
     this.material.dispose();
-    for (const texture of this.textures) {
-      const image = texture.source.data as unknown;
-      if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap)
-        image.close();
-      texture.dispose();
-    }
+    for (const texture of this.textures.values()) texture.dispose();
   }
 }

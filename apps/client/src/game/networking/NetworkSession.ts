@@ -31,6 +31,7 @@ import { Prediction } from './Prediction';
 import { RemoteInterpolation } from './RemoteInterpolation';
 import { resolveServerEndpoint } from './serverEndpoint';
 import { waitForRoomServer } from './serverReadiness';
+import type { LoadoutProfile } from '@breakpoint/shared/weapons/loadouts';
 import type {
   MatchView,
   MatchSettings,
@@ -79,10 +80,6 @@ export class NetworkSession {
   private leaving = false;
   private readonly outbox: PlayerInput[] = [];
   private life = 0;
-  private soulRequiem = false;
-  private lotusLava = false;
-  private gloriousBlaze = false;
-  private neonBlade = false;
 
   static async connect(
     mode: 'create' | 'join',
@@ -90,6 +87,7 @@ export class NetworkSession {
     code: string,
     movement: MovementController,
     callbacks: Callbacks,
+    profile: LoadoutProfile,
     settings?: PrivateRoomSettings,
   ): Promise<NetworkSession> {
     if (!parseName(name)) throw new Error('Choose a name of 1–20 characters.');
@@ -104,8 +102,12 @@ export class NetworkSession {
         ? await client.create<WireState>(networkConfig.roomType, {
             name: name.trim(),
             settings,
+            profile,
           })
-        : await client.joinById<WireState>(code, { name: name.trim() });
+        : await client.joinById<WireState>(code, {
+            name: name.trim(),
+            profile,
+          });
     if (!callbacks.isActive()) {
       await room.leave();
       throw new Error('Room connection cancelled.');
@@ -197,6 +199,7 @@ export class NetworkSession {
         alive: player.alive,
         life: player.life,
         weapon: player.weapon,
+        skin: player.skin,
         protected: player.protected,
         team: player.team,
       }),
@@ -297,25 +300,8 @@ export class NetworkSession {
     this.room.send('ready', ready);
   }
 
-  setSoulRequiem(enabled: boolean): void {
-    if (this.leaving || enabled === this.soulRequiem) return;
-    this.soulRequiem = enabled;
-    this.room.send('soul-requiem', enabled);
-  }
-  setLotusLava(enabled: boolean): void {
-    if (this.leaving || enabled === this.lotusLava) return;
-    this.lotusLava = enabled;
-    this.room.send('lotus-lava', enabled);
-  }
-  setGloriousBlaze(enabled: boolean): void {
-    if (this.leaving || enabled === this.gloriousBlaze) return;
-    this.gloriousBlaze = enabled;
-    this.room.send('glorious-blaze', enabled);
-  }
-  setNeonBlade(enabled: boolean): void {
-    if (this.leaving || enabled === this.neonBlade) return;
-    this.neonBlade = enabled;
-    this.room.send('neon-blade', enabled);
+  setLoadoutProfile(profile: LoadoutProfile): void {
+    if (!this.leaving) this.room.send('loadout-profile', profile);
   }
   start(): void {
     this.room.send('start');

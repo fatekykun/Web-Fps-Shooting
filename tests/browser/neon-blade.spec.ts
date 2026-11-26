@@ -168,13 +168,14 @@ test('Neon Blade renders a cyan magazine counter, flashes red below 20%, then re
 }, testInfo) => {
   const errors = await prepare(page);
   await page.goto('/');
-  const armory = page.getByRole('button', { name: 'ARMORY', exact: true });
-  const smg = page.getByRole('button', { name: 'SM-02 / SMG', exact: true });
-  const skin = page.getByLabel('SMG skin');
+  const armory = page.getByRole('button', { name: 'LOADOUTS', exact: true });
+  const smg = page.getByRole('button', { name: /^Loadout 2/ });
+  const skin = page.getByLabel('Change Skin');
   await armory.click();
   await smg.click();
   await skin.selectOption({ label: 'Neon Blade' });
-  await page.getByRole('button', { name: 'Close armory' }).click();
+  await page.getByRole('button', { name: 'Save Loadout' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
   await page.keyboard.press('2');
   const hud = page.getByTestId('weapon-status');
@@ -278,8 +279,8 @@ test('a confirmed private-room SMG kill plays the Neon Blade sound and world-spa
       peer.send('ready', true);
     }
     await page.getByRole('button', { name: 'START SESSION' }).click();
+    await page.getByRole('button', { name: 'Equip Loadout 2' }).click();
     await enterStartedMatch(page);
-    await page.keyboard.press('2');
     await expect(page.getByTestId('weapon-status')).toHaveAttribute(
       'data-weapon',
       'smg',

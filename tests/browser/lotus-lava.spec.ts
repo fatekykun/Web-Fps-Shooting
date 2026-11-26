@@ -1,3 +1,4 @@
+import { defaultLoadouts } from '@breakpoint/shared/weapons/loadouts';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 function trackErrors(page: Page) {
@@ -15,7 +16,7 @@ async function expectLotusReticle(scope: Locator) {
   await expect(lens.locator('i')).toBeHidden();
 }
 
-test('Lotus Lava saves from the Armory and renders the imported model, inspect and sniper scope', async ({
+test('Lotus Lava saves from Loadouts and renders the imported model, inspect and sniper scope', async ({
   page,
 }, testInfo) => {
   const errors = trackErrors(page);
@@ -35,12 +36,11 @@ test('Lotus Lava saves from the Armory and renders the imported model, inspect a
     ),
   );
   const enter = page.getByRole('button', { name: /^(ENTER|RESUME) TRAINING$/ });
-  const armory = page.getByRole('button', { name: 'ARMORY', exact: true });
+  const armory = page.getByRole('button', { name: 'LOADOUTS', exact: true });
   const sniper = page.getByRole('button', {
-    name: 'SR-04 / SNIPER',
-    exact: true,
+    name: /^Loadout 4/,
   });
-  const skin = page.getByLabel('Sniper skin');
+  const skin = page.getByLabel('Change Skin');
   const hud = page.getByTestId('weapon-status');
   const scope = page.getByTestId('sniper-scope');
   const draws = () =>
@@ -48,6 +48,16 @@ test('Lotus Lava saves from the Armory and renders the imported model, inspect a
       .getByTestId('render-resolution')
       .getAttribute('data-world-draws')
       .then(Number);
+  const initial = defaultLoadouts();
+  initial.slots[0].skin = 'standard';
+  initial.slots[3].skin = 'standard';
+  await page.addInitScript((profile) => {
+    if (!localStorage.getItem('breakpoint.settings.v1'))
+      localStorage.setItem(
+        'breakpoint.settings.v1',
+        JSON.stringify({ loadouts: profile }),
+      );
+  }, initial);
   await page.goto('/');
   await enter.click();
   await page.keyboard.press('4');
@@ -60,7 +70,8 @@ test('Lotus Lava saves from the Armory and renders the imported model, inspect a
   await armory.click();
   await sniper.click();
   await skin.selectOption({ label: 'Lotus Lava' });
-  await page.getByRole('button', { name: 'Close armory' }).click();
+  await page.getByRole('button', { name: 'Save Loadout' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await enter.click();
   await expect(hud).toHaveAttribute('data-sniper-skin-status', 'ready');
   await expect(hud).toContainText('SR-04 / LOTUS LAVA');

@@ -256,6 +256,7 @@ export function MobileHUD({
       </button>
       {actions
         .filter(([control]) => control !== 'inspect' || editor || showInspect)
+        .filter(([control]) => control !== 'swap' || editor || !multiplayer)
         .map(([control, label]) => (
           <button
             key={control}

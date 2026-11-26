@@ -100,7 +100,11 @@ export class CinderWyrm {
       void main() {
         tint = color;
         modelPosition = position;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        vec4 placed = vec4(position, 1.0);
+        #ifdef USE_INSTANCING
+          placed = instanceMatrix * placed;
+        #endif
+        gl_Position = projectionMatrix * modelViewMatrix * placed;
       }
     `,
     fragmentShader: `
@@ -233,6 +237,8 @@ export class CinderWyrm {
     this.reticle.name = 'cinder-reticle';
     this.reticle.visible = false;
     this.reticle.renderOrder = 1;
+    // Initialize the idle pose before the showcase or remote renderer measures the model.
+    this.update(0, 0, 0, Infinity, 0, 0);
   }
 
   configureTexture(texture: Texture): void {

@@ -5,11 +5,10 @@ import {
   MeshBasicMaterial,
   Vector3,
   type BufferGeometry,
-  type Material,
   type MeshStandardMaterial,
   type Object3D,
 } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { weaponAsset } from './WeaponAssets';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import { NeonAmmoDisplay } from './NeonAmmoDisplay';
@@ -46,32 +45,9 @@ export class NeonBlade {
   });
 
   static async load(signal: AbortSignal): Promise<NeonBlade> {
-    const response = await fetch(
-      `${import.meta.env.BASE_URL}models/neon_legend_smg.glb`,
-      { signal },
-    );
-    if (!response.ok)
-      throw new Error(`Neon Blade model returned HTTP ${response.status}`);
-    const bytes = await response.arrayBuffer();
+    const { scene } = await weaponAsset('neon-blade');
     signal.throwIfAborted();
-    const { scene } = await new GLTFLoader().parseAsync(bytes, '');
-    try {
-      signal.throwIfAborted();
-      return new NeonBlade(scene);
-    } finally {
-      const geometries = new Set<BufferGeometry>();
-      const materials = new Set<Material>();
-      scene.traverse((node) => {
-        if (!(node instanceof Mesh)) return;
-        geometries.add(node.geometry);
-        for (const material of Array.isArray(node.material)
-          ? node.material
-          : [node.material])
-          materials.add(material);
-      });
-      for (const geometry of geometries) geometry.dispose();
-      for (const material of materials) material.dispose();
-    }
+    return new NeonBlade(scene);
   }
 
   private constructor(scene: Object3D) {

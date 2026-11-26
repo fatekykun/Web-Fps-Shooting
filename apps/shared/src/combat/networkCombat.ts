@@ -1,6 +1,7 @@
 import type { Vector3Like } from '../types/movement';
 import type { WeaponId } from '../types/weapons';
 import type { GameMode } from '../config/match';
+import type { LoadoutSlot, WeaponSkin } from '../weapons/loadouts';
 
 export const playerCombatConfig = Object.freeze({
   health: 100,
@@ -27,6 +28,9 @@ export interface OwnerCombat {
   protected: boolean;
   selected: WeaponId;
   nextWeapon?: WeaponId;
+  skin?: WeaponSkin;
+  loadoutSlot?: LoadoutSlot;
+  nextLoadoutSlot?: LoadoutSlot;
   ammo: Record<WeaponId, AmmoState>;
   reloading: boolean;
   equipping: boolean;
@@ -50,6 +54,7 @@ export interface ServerShot {
   shooter: string;
   weapon: WeaponId;
   origin: Vector3Like;
+  skin?: WeaponSkin;
   traces: ShotTrace[];
   sniperSkin?: 'lotus-lava';
   shotgunSkin?: 'glorious-blaze';
@@ -67,6 +72,7 @@ export interface KillEvent {
   killer: string;
   victim: string;
   weapon: WeaponId;
+  skin?: WeaponSkin;
   headshot: boolean;
   killerId?: string;
   victimId?: string;

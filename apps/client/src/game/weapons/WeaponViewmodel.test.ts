@@ -1,7 +1,26 @@
 import { expect, it } from 'vitest';
-import { InstancedMesh, Matrix4, NearestFilter, Vector3 } from 'three';
+import { Box3, InstancedMesh, Matrix4, NearestFilter, Vector3 } from 'three';
 import { WeaponViewmodel } from './WeaponViewmodel';
 import { WeaponController } from './WeaponController';
+
+it('frames Molten Lava before the first gameplay update without unplaced embers', () => {
+  const viewmodel = new WeaponViewmodel();
+  try {
+    const model = viewmodel.showcaseModel('rifle', true);
+    const embers = model.getObjectByName('cinder-embers') as InstancedMesh;
+    const shards = model.getObjectByName('cinder-fragments') as InstancedMesh;
+    expect(embers.visible).toBe(false);
+    expect(embers.count).toBe(0);
+    const shard = new Matrix4();
+    shards.getMatrixAt(0, shard);
+    expect(new Vector3().setFromMatrixPosition(shard).y).toBeGreaterThan(0.1);
+    const size = new Box3().setFromObject(model).getSize(new Vector3());
+    expect(size.z).toBeGreaterThan(size.y * 2);
+    expect(size.x).toBeLessThan(0.3);
+  } finally {
+    viewmodel.dispose();
+  }
+});
 
 it('animates Molten Lava using pooled geometry and collimates its optic', () => {
   const model = new WeaponViewmodel();
