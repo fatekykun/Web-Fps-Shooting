@@ -41,6 +41,7 @@ export function ControllerSettings({
     <TacticalDialog
       title="CONTROLLER SETTINGS"
       name="Controller Settings"
+      className="controller-settings-panel"
       eyebrow="TOUCH CONTROLS"
       onClose={onClose}
       footer={

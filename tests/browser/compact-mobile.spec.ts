@@ -40,6 +40,19 @@ test('short landscape keeps main navigation and primary settings in view', async
   await expect(settings.getByLabel('Field of view')).toBeInViewport({
     ratio: 1,
   });
+  await expect(settings.getByLabel('Sync ADS FOV')).toBeInViewport({
+    ratio: 1,
+  });
+  await expect(settings.getByLabel('Auto Reload')).toBeInViewport({
+    ratio: 1,
+  });
+  await settings.getByRole('tab', { name: 'SENSITIVITY' }).tap();
+  await expect(settings.getByLabel('Touch general camera')).toBeInViewport({
+    ratio: 1,
+  });
+  await expect(settings.getByLabel('Touch sniper')).toBeInViewport({
+    ratio: 1,
+  });
   await settings.getByRole('tab', { name: 'DISPLAY' }).tap();
   await expect(settings.getByLabel('Resolution preset')).toBeInViewport({
     ratio: 1,
