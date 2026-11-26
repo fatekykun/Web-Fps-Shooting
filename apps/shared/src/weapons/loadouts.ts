@@ -95,12 +95,17 @@ export interface LoadoutProfile {
 }
 
 export function defaultLoadouts(): LoadoutProfile {
+  const equipment = {
+    skin: 'standard',
+    operator: 'standard',
+    meleeSkin: defaultMeleeSkin,
+  } as const;
   return {
     slots: [
-      { weapon: 'rifle', skin: 'memento-mori' },
-      { weapon: 'smg', skin: 'neon-blade' },
-      { weapon: 'shotgun', skin: 'glorious-blaze' },
-      { weapon: 'sniper', skin: 'lotus-lava' },
+      { weapon: 'rifle', ...equipment },
+      { weapon: 'smg', ...equipment },
+      { weapon: 'shotgun', ...equipment },
+      { weapon: 'sniper', ...equipment },
     ],
     defaultSlot: 0,
   };

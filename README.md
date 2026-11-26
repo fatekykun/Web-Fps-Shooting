@@ -409,6 +409,8 @@ server-owned in both match modes; only enemies take damage in TDM.
 
 Each saved loadout can carry a Glacier Fang Knife, Ember Talon Karambit, or
 Void Ronin Katana. Pick and preview the blade in **Loadouts → Melee Weapon**.
+New profiles start with the Standard gun skin, Standard Operator, and
+Glacier Fang Knife in all four slots. The rifle is equipped first.
 Firearms reduce ground movement speed by 15%, including sprint speed
 (6.8 m/s with a gun, 8 m/s with melee). Private rooms restricted to specific
 firearms keep those restrictions.

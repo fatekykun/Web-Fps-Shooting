@@ -1,5 +1,5 @@
-import { defaultLoadouts } from '@breakpoint/shared/weapons/loadouts';
 import { expect, test, type Page } from '@playwright/test';
+import { loadoutsWithSkin } from './helpers/loadouts';
 
 async function trackAudioSamples(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -85,15 +85,6 @@ test('the Memento Mori GLB loads on selection, aligns its optic, and keeps the r
       .getByTestId('render-resolution')
       .getAttribute('data-world-draws')
       .then(Number);
-  const initial = defaultLoadouts();
-  initial.slots[0].skin = 'standard';
-  await page.addInitScript((profile) => {
-    if (!localStorage.getItem('breakpoint.settings.v1'))
-      localStorage.setItem(
-        'breakpoint.settings.v1',
-        JSON.stringify({ loadouts: profile }),
-      );
-  }, initial);
   await page.goto('/');
   await enter.click();
   await expect(hud).toHaveAttribute('data-rifle-skin', 'standard');
@@ -171,10 +162,11 @@ test.describe('Memento Mori touch controls', () => {
   test('the imported model supports touch inspect and ADS on Performance', async ({
     page,
   }) => {
-    await page.addInitScript(() => {
+    const loadouts = loadoutsWithSkin(0, 'memento-mori');
+    await page.addInitScript((loadouts) => {
       localStorage.setItem(
         'breakpoint.settings.v1',
-        JSON.stringify({ rifleSkin: 'memento-mori' }),
+        JSON.stringify({ loadouts }),
       );
       localStorage.setItem(
         'breakpoint.graphics.v2',
@@ -182,7 +174,7 @@ test.describe('Memento Mori touch controls', () => {
       );
       Element.prototype.requestFullscreen = () =>
         Promise.reject(new Error('Fullscreen denied'));
-    });
+    }, loadouts);
     await page.goto('/');
     await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
     const hud = page.getByTestId('weapon-status');
@@ -202,11 +194,13 @@ test('a failed Memento Mori download leaves the default rifle playable', async (
   await page.route('**/models/memento.glb', (route) =>
     route.fulfill({ status: 404 }),
   );
-  await page.addInitScript(() =>
-    localStorage.setItem(
-      'breakpoint.settings.v1',
-      JSON.stringify({ rifleSkin: 'memento-mori' }),
-    ),
+  await page.addInitScript(
+    (loadouts) =>
+      localStorage.setItem(
+        'breakpoint.settings.v1',
+        JSON.stringify({ loadouts }),
+      ),
+    loadoutsWithSkin(0, 'memento-mori'),
   );
   await page.goto('/');
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();

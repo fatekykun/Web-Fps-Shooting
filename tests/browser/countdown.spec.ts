@@ -147,9 +147,9 @@ test('five-second countdown accepts separate player loadouts, freezes early inpu
     expect(shots).toHaveLength(0);
     expect(owner?.ammo.rifle.magazine).toBe(30);
     await expect.poll(() => owner?.selected).toBe('shotgun');
-    expect(owner?.skin).toBe('glorious-blaze');
+    expect(owner?.skin).toBe('standard');
     await expect.poll(() => host().weapon).toBe('smg');
-    expect(host().skin).toBe('neon-blade');
+    expect(host().skin).toBe('standard');
     const frequencies = await page.evaluate(
       () => (window as unknown as { countdownAudio: number[] }).countdownAudio,
     );

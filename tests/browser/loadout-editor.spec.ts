@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { Client } from '@colyseus/sdk';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
-import { defaultLoadouts } from '@breakpoint/shared/weapons/loadouts';
 
 test('inspects actual models, saves four independent slots and restores the default', async ({
   page,
@@ -19,14 +18,25 @@ test('inspects actual models, saves four independent slots and restores the defa
   const dialog = page.getByRole('dialog', { name: 'Loadouts' });
   const weapon = dialog.getByLabel('Change Weapon');
   const skin = dialog.getByLabel('Change Skin');
+  const character = dialog.getByLabel('Character', { exact: true });
+  const melee = dialog.getByLabel('Melee Weapon');
   const preview = dialog.getByTestId('weapon-showcase');
   const canvas = preview.getByTestId('weapon-showcase-canvas');
   const slot = (number: number) =>
     dialog.getByRole('button', { name: new RegExp(`^Loadout ${number}\\b`) });
-  for (const [index, entry] of defaultLoadouts().slots.entries()) {
+  const previews = [
+    { weapon: 'rifle', skin: 'memento-mori' },
+    { weapon: 'smg', skin: 'neon-blade' },
+    { weapon: 'shotgun', skin: 'glorious-blaze' },
+    { weapon: 'sniper', skin: 'lotus-lava' },
+  ];
+  for (const [index, entry] of previews.entries()) {
     await slot(index + 1).click();
     await expect(weapon).toHaveValue(entry.weapon);
-    await expect(skin).toHaveValue(entry.skin);
+    await expect(skin).toHaveValue('standard');
+    await expect(character).toHaveValue('standard');
+    await expect(melee).toHaveValue('glacier-fang');
+    await skin.selectOption(entry.skin);
     await expect(preview).toHaveAttribute('data-status', 'ready');
     const initial = await canvas.screenshot();
     const bounds = (await canvas.boundingBox())!;
@@ -100,6 +110,8 @@ test('spawns with the saved default when the match countdown expires', async ({
   await page.goto('/');
   await page.getByRole('button', { name: 'LOADOUTS', exact: true }).click();
   await page.getByRole('button', { name: /^Loadout 3/ }).click();
+  await page.getByLabel('Change Skin').selectOption('glorious-blaze');
+  await page.getByRole('button', { name: 'Save Loadout' }).click();
   await page.getByRole('button', { name: 'Set as Default' }).click();
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await page.getByRole('button', { name: 'PRIVATE ROOMS' }).click();
@@ -125,7 +137,11 @@ test('spawns with the saved default when the match countdown expires', async ({
       'data-weapon',
       'shotgun',
     );
-    expect(guest.state.players.get(guest.sessionId)!.skin).toBe('memento-mori');
+    expect(guest.state.players.get(guest.sessionId)!).toMatchObject({
+      weapon: 'rifle',
+      skin: 'standard',
+      operator: 'standard',
+    });
   } finally {
     await guest.leave();
   }

@@ -6,14 +6,16 @@ import { standingAnchor, avatarParts } from '@breakpoint/shared/avatar';
 import type { KillEvent, ServerShot } from '@breakpoint/shared/combat';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
 import { enterStartedMatch } from './helpers/matchEntry';
+import { loadoutsWithSkin } from './helpers/loadouts';
 
 async function prepare(page: Page, equipped = false) {
-  await page.addInitScript((equipped) => {
+  const loadouts = loadoutsWithSkin(1, equipped ? 'neon-blade' : 'standard');
+  await page.addInitScript((loadouts) => {
     if (!localStorage.getItem('breakpoint.settings.v1'))
       localStorage.setItem(
         'breakpoint.settings.v1',
         JSON.stringify({
-          smgSkin: equipped ? 'neon-blade' : 'standard',
+          loadouts,
           autoReload: false,
         }),
       );
@@ -65,7 +67,7 @@ async function prepare(page: Page, equipped = false) {
       };
       requestAnimationFrame(capture);
     };
-  }, equipped);
+  }, loadouts);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (event) => {
@@ -177,6 +179,7 @@ test('Neon Blade renders a cyan magazine counter, flashes red below 20%, then re
   await page.getByRole('button', { name: 'Save Loadout' }).click();
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
+  await expect(page.locator('.crosshair')).toBeVisible();
   await page.keyboard.press('2');
   const hud = page.getByTestId('weapon-status');
   await expect(hud).toContainText('SM-02 / NEON BLADE');

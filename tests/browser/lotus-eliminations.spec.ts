@@ -6,12 +6,14 @@ import { movementConfig } from '@breakpoint/shared';
 import type { KillEvent, ServerShot } from '@breakpoint/shared/combat';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
 import { enterStartedMatch } from './helpers/matchEntry';
+import { loadoutsWithSkin } from './helpers/loadouts';
 
 async function prepare(page: Page) {
-  await page.addInitScript(() => {
+  const loadouts = loadoutsWithSkin(3, 'lotus-lava');
+  await page.addInitScript((loadouts) => {
     localStorage.setItem(
       'breakpoint.settings.v1',
-      JSON.stringify({ sniperSkin: 'lotus-lava', eliminationQuality: 'high' }),
+      JSON.stringify({ loadouts, eliminationQuality: 'high' }),
     );
     localStorage.setItem(
       'breakpoint.graphics.v2',
@@ -61,7 +63,7 @@ async function prepare(page: Page) {
       };
       requestAnimationFrame(capture);
     };
-  });
+  }, loadouts);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (event) => {

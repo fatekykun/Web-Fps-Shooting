@@ -6,13 +6,15 @@ import { avatarParts, standingAnchor } from '@breakpoint/shared/avatar';
 import type { KillEvent, ServerShot } from '@breakpoint/shared/combat';
 import type { RoomState } from '../../apps/server/src/rooms/RoomState';
 import { enterStartedMatch } from './helpers/matchEntry';
+import { loadoutsWithSkin } from './helpers/loadouts';
 
 async function prepare(page: Page, equipped = false) {
-  await page.addInitScript((equipped) => {
-    if (equipped && !localStorage.getItem('breakpoint.settings.v1'))
+  const loadouts = equipped ? loadoutsWithSkin(2, 'glorious-blaze') : null;
+  await page.addInitScript((loadouts) => {
+    if (loadouts && !localStorage.getItem('breakpoint.settings.v1'))
       localStorage.setItem(
         'breakpoint.settings.v1',
-        JSON.stringify({ shotgunSkin: 'glorious-blaze' }),
+        JSON.stringify({ loadouts }),
       );
     localStorage.setItem(
       'breakpoint.graphics.v2',
@@ -62,7 +64,7 @@ async function prepare(page: Page, equipped = false) {
       };
       requestAnimationFrame(capture);
     };
-  }, equipped);
+  }, loadouts);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (event) => {

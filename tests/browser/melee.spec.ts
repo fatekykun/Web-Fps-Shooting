@@ -131,7 +131,8 @@ test('switches to melee in a private match and loads the blade held by a remote 
     expect((await remoteAsset).ok()).toBe(true);
     await page.keyboard.press('q');
     await expect(hud).toHaveAttribute('data-weapon', 'rifle');
-    await expect(hud).toHaveAttribute('data-rifle-skin', 'memento-mori');
+    await expect(hud).toHaveAttribute('data-rifle-skin', 'standard');
+    await expect(hud).toHaveAttribute('data-operator', 'standard');
     expect(errors).toEqual([]);
   } finally {
     await guest.leave();
