@@ -979,6 +979,7 @@ export class Game {
         (this.viewmodel.rifleSkinStatus === 'ready'
           ? normalizeRifleSkin(this.equippedSkin)
           : 'standard'),
+      isMeleeSkin(this.equippedSkin) ? 'standard' : this.equippedSkin,
     );
   };
 

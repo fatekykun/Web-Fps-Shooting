@@ -63,12 +63,21 @@ const shotBySkin = {
   Exclude<EquippedSkin, 'standard'>,
   { weapon: WeaponId; sample: string }
 >;
+type CustomGunSkin = keyof typeof shotBySkin;
+const reloadFiles: Record<CustomGunSkin, string> = {
+  'cinder-wyrm': 'molten_lava_reload.wav',
+  'memento-mori': 'memento_mori_reload.wav',
+  'lotus-lava': 'lotus_lava_reload.wav',
+  'glorious-blaze': 'glorious_blaze_shell_reload.wav',
+  'neon-blade': 'neon_legend_reload.wav',
+};
 const moltenLavaKill = 'molten-lava-kill';
 type ShotSampleId =
   | Exclude<WeaponId, 'melee'>
   | (typeof shotBySkin)[keyof typeof shotBySkin]['sample'];
 type SampleId =
   | ShotSampleId
+  | `reload-${CustomGunSkin}`
   | 'hitmarker'
   | 'headshot'
   | 'elimination'
@@ -126,7 +135,12 @@ export class AudioEngine {
   private lastUi = -100;
   private lastShots = 0;
   private lastWeapon: WeaponId = 'rifle';
-  private lastReload = false;
+  private reload?: {
+    controller: WeaponController;
+    skin: EquippedSkin;
+    magazine: number;
+    voice?: Voice;
+  };
   private lastBoltPhase = 0;
   private sampledBolt = false;
   private lastScoped = false;
@@ -203,6 +217,8 @@ export class AudioEngine {
         this.footsteps.bank.preload(context);
         for (const id of Object.keys(shotSamples) as ShotSampleId[])
           void this.loadSample(context, id, shotSamples[id].file);
+        for (const skin of Object.keys(reloadFiles) as CustomGunSkin[])
+          void this.loadSample(context, `reload-${skin}`, reloadFiles[skin]);
         void this.loadSample(context, 'hitmarker', 'breakpoint-hitmarker.wav');
         void this.loadSample(context, 'headshot', 'breakpoint-headshot.wav');
         void this.loadSample(
@@ -338,13 +354,14 @@ export class AudioEngine {
       this.footsteps.follow(listener, yaw, players, this.context.currentTime);
   }
   private connect(
-    source: AudioScheduledSourceNode,
+    source: OscillatorNode | AudioBufferSourceNode,
     gain: GainNode,
     nodes: AudioNode[],
     output: GainNode,
     pan: number,
     duration: number,
-  ): void {
+    offset?: number,
+  ): Voice {
     const context = this.context!;
     if (typeof context.createStereoPanner === 'function') {
       const panner = context.createStereoPanner();
@@ -359,8 +376,10 @@ export class AudioEngine {
       for (const node of voice.nodes) node.disconnect();
       this.voices.delete(voice);
     };
-    source.start();
+    if (offset !== undefined && 'buffer' in source) source.start(0, offset);
+    else source.start();
     source.stop(context.currentTime + duration);
+    return voice;
   }
   private tone(
     frequency: number,
@@ -413,19 +432,23 @@ export class AudioEngine {
     gain: number,
     pan = 0,
     detune = 0,
-  ): boolean {
+    reload?: { duration: number; progress: number },
+  ): Voice | undefined {
     const output = this.output();
-    if (!output || gain <= 0) return false;
+    if (!output || gain <= 0) return;
     const context = this.context!;
     const source = context.createBufferSource();
     const volume = context.createGain();
     source.buffer = buffer;
     if (detune) source.detune.value = detune;
+    if (reload) source.playbackRate.value = buffer.duration / reload.duration;
     volume.gain.value = gain;
     source.connect(volume);
-    const duration = buffer.duration / 2 ** (detune / 1200);
-    this.connect(source, volume, [], output, pan, duration);
-    return true;
+    const duration = reload
+      ? reload.duration * (1 - reload.progress)
+      : buffer.duration / 2 ** (detune / 1200);
+    const offset = reload ? buffer.duration * reload.progress : undefined;
+    return this.connect(source, volume, [], output, pan, duration, offset);
   }
   /** True when a recorded sniper report plays with the bolt cycle included. */
   shot(weapon: WeaponId, gain = 1, pan = 0, skin?: EquippedSkin): boolean {
@@ -444,7 +467,7 @@ export class AudioEngine {
         ? (Math.random() * 2 - 1) * sample.detune
         : 0;
       return (
-        this.playSample(buffer, sample.gain * gain, pan, detune) &&
+        !!this.playSample(buffer, sample.gain * gain, pan, detune) &&
         id === 'sniper'
       );
     }
@@ -531,6 +554,54 @@ export class AudioEngine {
       this.tone(430, 180, 0.08, 0.04, 'square');
     } else if (cue === 'jump') this.tone(140, 240, 0.09, 0.04);
   }
+  private observeReload(
+    weapons: WeaponController,
+    active: boolean,
+    skin: EquippedSkin,
+    fired: boolean,
+  ): void {
+    const weapon = weapons.selected;
+    if (!active || !weapons.reloading || weapon === 'melee') {
+      this.stopReload();
+      return;
+    }
+    if (
+      this.reload?.controller === weapons &&
+      this.reload.skin === skin &&
+      this.lastWeapon === weapon &&
+      !fired &&
+      !(
+        weapons.config.reloadPerShell &&
+        weapons.current.magazine > this.reload.magazine
+      )
+    )
+      return;
+    this.stopReload();
+
+    const buffer =
+      skin !== 'standard' && shotBySkin[skin].weapon === weapon
+        ? this.sampleBuffers.get(`reload-${skin}`)
+        : undefined;
+    const progress = Math.max(0, weapons.reloadProgress);
+    let voice: Voice | undefined;
+    if (buffer && progress < 1)
+      voice = this.playSample(buffer, 0.38, 0, 0, {
+        duration: weapons.config.reloadTime,
+        progress,
+      });
+    else if (!buffer) {
+      this.cue('reload');
+      if (weapons.config.scopeMagnification)
+        this.tone(180, 70, 0.16, 0.055, 'triangle');
+    }
+    this.reload = {
+      controller: weapons,
+      skin,
+      magazine: weapons.current.magazine,
+      voice,
+    };
+  }
+
   observe(
     dt: number,
     weapons: WeaponController,
@@ -538,6 +609,7 @@ export class AudioEngine {
     active: boolean,
     priorVerticalSpeed = 0,
     skin: EquippedSkin = 'standard',
+    reloadSkin: EquippedSkin = skin,
   ): void {
     const boltPhase = weapons.cycling
       ? weapons.cycleProgress < 0.15
@@ -547,9 +619,9 @@ export class AudioEngine {
           : 2
       : 0;
     const scoped = !!weapons.config.scopeMagnification && weapons.ads > 0.5;
+    const fired = weapons.shotsFired > this.lastShots;
     if (active) {
-      if (weapons.shotsFired > this.lastShots)
-        this.sampledBolt = this.shot(weapons.selected, 1, 0, skin);
+      if (fired) this.sampledBolt = this.shot(weapons.selected, 1, 0, skin);
       if (
         !this.sampledBolt &&
         boltPhase !== this.lastBoltPhase &&
@@ -561,11 +633,6 @@ export class AudioEngine {
       if (scoped !== this.lastScoped)
         this.tone(scoped ? 330 : 480, scoped ? 600 : 220, 0.09, 0.025);
       if (weapons.selected !== this.lastWeapon) this.cue('equip');
-      if (weapons.reloading && !this.lastReload) {
-        this.cue('reload');
-        if (weapons.config.scopeMagnification)
-          this.tone(180, 70, 0.16, 0.055, 'triangle');
-      }
       if (movement.state !== this.lastState) {
         if (
           movement.state === 'airborne' &&
@@ -590,12 +657,12 @@ export class AudioEngine {
           );
       } else this.footstepTracker.reset();
     } else this.footstepTracker.reset();
+    this.observeReload(weapons, active, reloadSkin, fired);
     this.lastShots = weapons.shotsFired;
     if (!weapons.cycling) this.sampledBolt = false;
     this.lastBoltPhase = boltPhase;
     this.lastScoped = scoped;
     this.lastWeapon = weapons.selected;
-    this.lastReload = weapons.reloading;
     this.lastState = movement.state;
     this.grounded = movement.physics.grounded;
   }
@@ -667,22 +734,29 @@ export class AudioEngine {
     }
   }
   resetMotion(): void {
+    this.stopReload();
     this.footstepTracker.reset();
     this.footsteps.stop();
     this.grounded = null;
     this.lastState = '';
   }
-  private stopVoices(): void {
-    for (const voice of this.voices) {
-      try {
-        voice.source.stop();
-      } catch {
-        /* Already ended. */
-      }
-      for (const node of voice.nodes) node.disconnect();
-      voice.source.onended = null;
+  private stopReload(): void {
+    const voice = this.reload?.voice;
+    if (voice) this.stopVoice(voice);
+    this.reload = undefined;
+  }
+  private stopVoice(voice: Voice): void {
+    if (!this.voices.delete(voice)) return;
+    voice.source.onended = null;
+    try {
+      voice.source.stop();
+    } catch {
+      /* Already ended. */
     }
-    this.voices.clear();
+    for (const node of voice.nodes) node.disconnect();
+  }
+  private stopVoices(): void {
+    for (const voice of this.voices) this.stopVoice(voice);
   }
   dispose(): void {
     this.disposed = true;
@@ -690,6 +764,7 @@ export class AudioEngine {
     this.sampleBuffers.clear();
     this.footsteps.stop();
     this.footsteps.bank.clear();
+    this.stopReload();
     this.stopVoices();
     for (const source of this.ambientSources) {
       source.stop();
