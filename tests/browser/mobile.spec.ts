@@ -159,12 +159,24 @@ test.describe('phone touch controls', () => {
     const adjustments = editor.getByRole('complementary', {
       name: 'Selected control settings',
     });
-    const adjust = editor.getByRole('button', { name: 'Adjust' });
+    const adjust = editor.getByRole('button', { name: 'Adjust', exact: true });
     const frame = (await screen.boundingBox())!;
     expect(frame).toEqual({ x: 0, y: 0, ...phone.viewport });
     const panel = (await adjustments.boundingBox())!;
     expect(panel.x + panel.width / 2).toBeCloseTo(frame.width / 2, 0);
     expect(panel.y + panel.height / 2).toBeCloseTo(frame.height / 2, 0);
+    await expect(adjustments).toHaveCSS('opacity', '0.7');
+    await expect(editor.locator('.hud-editor-bar')).toHaveCSS('opacity', '0.7');
+    const fingers = new Fingers(await context.newCDPSession(page));
+    const handle = (await editor
+      .getByRole('button', { name: 'Move adjustments' })
+      .boundingBox())!;
+    await fingers.down(1, { x: handle.x + 10, y: handle.y + 10 });
+    await fingers.move(1, { x: handle.x - 90, y: handle.y + 50 });
+    await fingers.up(1);
+    const movedPanel = (await adjustments.boundingBox())!;
+    expect(movedPanel.x).toBeCloseTo(panel.x - 100, 0);
+    expect(movedPanel.y).toBeCloseTo(panel.y + 40, 0);
     await adjust.tap();
     await expect(adjustments).toBeHidden();
     expect(await screen.boundingBox()).toEqual(frame);
@@ -186,12 +198,11 @@ test.describe('phone touch controls', () => {
     await slider.focus();
     await page.keyboard.press('End');
     await expect(slider).toHaveValue('200');
-    await page.getByRole('button', { name: '30%', exact: true }).tap();
+    await page.getByRole('slider', { name: 'Control opacity' }).fill('37');
     const fire = page.getByRole('button', { name: 'Fire weapon' });
     await expect(fire).toHaveAttribute('data-selected', 'true');
     await expect(fire.locator('svg[data-control-icon="fire"]')).toBeVisible();
     const before = await fire.boundingBox();
-    const fingers = new Fingers(await context.newCDPSession(page));
     await fingers.down(1, await point(page, 'fire'));
     await fingers.move(1, {
       x: frame.x + frame.width * 0.3,
@@ -217,7 +228,11 @@ test.describe('phone touch controls', () => {
     const saved = await page.evaluate(
       () => JSON.parse(localStorage.getItem('breakpoint.mobile-hud.v1')!).fire,
     );
-    expect(saved).toMatchObject({ scale: 200, opacity: 30 });
+    expect(saved).toMatchObject({
+      scale: 200,
+      opacity: 37,
+      coordinates: 'viewport',
+    });
     expect(saved.x).toBeCloseTo(0.3, 1);
     await controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
     await page.getByRole('button', { name: 'Reset default layout' }).tap();
@@ -234,14 +249,14 @@ test.describe('phone touch controls', () => {
     await expect(
       page.getByRole('combobox', { name: 'Selected control' }),
     ).toHaveValue('minimap');
-    await page.getByRole('button', { name: '50%', exact: true }).tap();
-    await expect(page.getByTestId('minimap')).toHaveCSS('opacity', '0.5');
+    await page.getByRole('slider', { name: 'Control opacity' }).fill('63');
+    await expect(page.getByTestId('minimap')).toHaveCSS('opacity', '0.63');
     await save.tap();
     await expect(
       controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }),
     ).toBeVisible();
     await controller.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
-    await expect(page.getByTestId('minimap')).toHaveCSS('opacity', '0.5');
+    await expect(page.getByTestId('minimap')).toHaveCSS('opacity', '0.63');
     const mapBefore = (await mapEditor.boundingBox())!;
     const preview = (await page.locator('.hud-editor-screen').boundingBox())!;
     await fingers.down(1, {
@@ -266,12 +281,12 @@ test.describe('phone touch controls', () => {
           JSON.parse(localStorage.getItem('breakpoint.mobile-hud.v1')!).minimap
             .opacity,
       ),
-    ).toBe(50);
+    ).toBe(63);
     await page.reload();
     await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
     await expect(fire).toBeVisible();
     const minimap = page.getByTestId('minimap');
-    await expect(minimap).toHaveCSS('opacity', '0.5');
+    await expect(minimap).toHaveCSS('opacity', '0.63');
     const mapBox = (await minimap.boundingBox())!;
     expect(mapBox.x + mapBox.width / 2).toBeCloseTo(0.48 * 844, -1);
     const marker = page.getByTestId('minimap-player');
@@ -294,13 +309,73 @@ test.describe('phone touch controls', () => {
       await fire.evaluate((element) =>
         element.style.getPropertyValue('--hud-opacity'),
       ),
-    ).toBe('30%');
+    ).toBe('37%');
     const ingame = await fire.boundingBox();
     expect(ingame!.width).toBeCloseTo(144);
     const resizedIcon = await fire.locator('svg').boundingBox();
     expect(resizedIcon!.width).toBeGreaterThan(60);
     expect(ingame!.x + ingame!.width / 2).toBeCloseTo(saved.x * 844, 0);
     await fire.tap();
+    await expect
+      .poll(async () =>
+        Number(
+          await page.getByTestId('weapon-status').getAttribute('data-ammo'),
+        ),
+      )
+      .toBeLessThan(30);
+  });
+  test('custom HUD controls overlap, dock at the screen edges, and remain usable in training', async ({
+    page,
+    context,
+  }) => {
+    await prepare(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'SETTINGS', exact: true }).tap();
+    await page.getByRole('button', { name: 'CUSTOMIZE TOUCH HUD' }).tap();
+    await page.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
+
+    const editor = page.getByRole('dialog', { name: 'HUD editor' });
+    const fire = editor.getByRole('button', { name: 'Fire weapon' });
+    const aim = editor.getByRole('button', { name: 'Toggle ADS' });
+    const map = editor.getByRole('button', { name: 'Minimap', exact: true });
+    const center = async (item: typeof map) => {
+      const box = (await item.boundingBox())!;
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+    const fingers = new Fingers(await context.newCDPSession(page));
+    const drag = async (item: typeof map, target: { x: number; y: number }) => {
+      await fingers.down(1, await center(item));
+      await fingers.move(1, target);
+      await fingers.up(1);
+    };
+
+    await drag(map, { x: -18, y: -12 });
+    await expect.poll(() => center(map)).toEqual({ x: 0, y: 0 });
+    await expect(map).toBeInViewport({ ratio: 0.24 });
+
+    const aimBefore = (await aim.boundingBox())!;
+    await drag(fire, await center(aim));
+    await expect.poll(() => center(fire)).toEqual(await center(aim));
+    await editor.getByRole('slider', { name: 'Button size' }).fill('200');
+    expect(await aim.boundingBox()).toEqual(aimBefore);
+    await expect.poll(() => center(fire)).toEqual(await center(aim));
+
+    const edge = { x: phone.viewport.width, y: 214 };
+    await drag(fire, { ...edge, x: edge.x + 20 });
+    await expect.poll(() => center(fire)).toEqual(edge);
+    await expect(fire).toBeInViewport({ ratio: 0.49 });
+    await editor.getByRole('button', { name: 'Save', exact: true }).tap();
+    await page.reload();
+    await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
+    const liveFire = page.getByRole('button', { name: 'Fire weapon' });
+    await expect.poll(() => center(liveFire)).toEqual(edge);
+    await expect
+      .poll(() => center(page.getByTestId('minimap')))
+      .toEqual({
+        x: 0,
+        y: 0,
+      });
+    await page.touchscreen.tap(edge.x - 15, edge.y);
     await expect
       .poll(async () =>
         Number(

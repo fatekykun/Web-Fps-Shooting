@@ -12,6 +12,7 @@ import type { ArenaId } from '@breakpoint/shared/maps';
 import { MobileControlIcon } from './MobileControlIcon';
 import { Minimap } from './Minimap';
 import {
+  resolveDefaultMobileHud,
   resolveMobileHud,
   type HudViewport,
 } from '../game/input/mobileHudGeometry';
@@ -112,12 +113,16 @@ export function MobileHUD({
   }, [multiplayer]);
 
   useLayoutEffect(() => attach?.(root.current!), [attach]);
+  const defaultBoxes = useMemo(
+    () => (viewport ? resolveDefaultMobileHud(viewport, tablet) : null),
+    [viewport, tablet],
+  );
   const boxes = useMemo(
     () =>
-      viewport
-        ? resolveMobileHud(layout, viewport, tablet, !!editor || showInspect)
+      viewport && defaultBoxes
+        ? resolveMobileHud(layout, viewport, defaultBoxes)
         : {},
-    [layout, viewport, tablet, editor, showInspect],
+    [layout, viewport, defaultBoxes],
   );
   const stance = movement?.movementState;
   const showSlide =
@@ -165,16 +170,10 @@ export function MobileHUD({
     )
       return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const { width, height, safe } = viewport;
     if (!rect.width || !rect.height) return;
-    const x =
-      (((event.clientX - active.offsetX - rect.left) * width) / rect.width -
-        safe.left) /
-      (width - safe.left - safe.right);
-    const y =
-      (((event.clientY - active.offsetY - rect.top) * height) / rect.height -
-        safe.top) /
-      (height - safe.top - safe.bottom);
+    // The center docks at the viewport edge; the viewport clips the rest of the control.
+    const x = (event.clientX - active.offsetX - rect.left) / rect.width;
+    const y = (event.clientY - active.offsetY - rect.top) / rect.height;
     editor.position(
       active.control,
       Math.max(0, Math.min(1, x)),

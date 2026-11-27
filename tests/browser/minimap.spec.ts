@@ -13,7 +13,7 @@ test('desktop minimap follows movement and heading at the saved display opacity'
   await expect(page.getByTestId('minimap')).toHaveCount(0);
   await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
   await page.getByRole('tab', { name: /DISPLAY/ }).click();
-  await page.getByLabel('Minimap opacity').selectOption('70');
+  await page.getByLabel('Minimap opacity').fill('70');
   await page.reload();
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
   const map = page.getByRole('img', { name: 'The Depot minimap' });
