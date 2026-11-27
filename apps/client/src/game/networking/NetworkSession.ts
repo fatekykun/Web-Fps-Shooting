@@ -230,10 +230,7 @@ export class NetworkSession {
             ? 'results'
             : 'lobby';
     if (this.view?.phase === 'playing' && phase !== 'playing') {
-      if (this.outbox.length) {
-        this.room.send('input', this.outbox);
-        this.outbox.length = 0;
-      }
+      this.flushInput();
       this.prediction.suspend();
     }
     const scores: ScoreRow[] = [];
@@ -291,12 +288,21 @@ export class NetworkSession {
       this.outbox.push(
         this.prediction.step(input, pitch, weapon, groundSpeedScale),
       );
-      if (this.outbox.length >= networkConfig.batchSize) {
-        this.room.send('input', this.outbox);
-        this.outbox.length = 0;
-      }
+      if (this.outbox.length >= networkConfig.maxBatch) this.flushInput();
     } catch (error) {
       this.fail(error instanceof Error ? error.message : 'Room input failed.');
+    }
+  }
+
+  /** Send all inputs generated in this frame, including a single ordinary tick. */
+  flushInput(): void {
+    if (this.leaving || !this.outbox.length) return;
+    try {
+      this.room.send('input', this.outbox);
+    } catch (error) {
+      this.fail(error instanceof Error ? error.message : 'Room input failed.');
+    } finally {
+      this.outbox.length = 0;
     }
   }
 

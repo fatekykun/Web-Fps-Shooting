@@ -175,7 +175,7 @@ export function App() {
           setError(null);
           setMatchEntry(true);
         } else if (!isMatchActive(view?.phase)) setMatchEntry(false);
-        // The roster changes on membership/ready/phase events, independently of 20 Hz transforms.
+        // The roster changes on membership/ready/phase events, independently of transform updates.
         const signature = view
           ? JSON.stringify([
               view.code,

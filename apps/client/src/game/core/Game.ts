@@ -50,7 +50,6 @@ import {
 } from '../weapons/SniperScope';
 import type { OpticView } from '../rendering/OpticScope';
 import {
-  networkConfig,
   type LoadoutSelection,
   type RoomView,
 } from '@breakpoint/shared/network';
@@ -615,9 +614,7 @@ export class Game {
                   shot.origin,
                   trace.end,
                   remote ? shot.shooter : undefined,
-                  remote
-                    ? networkConfig.interpolationDelay / networkConfig.tickRate
-                    : 0,
+                  remote ? (this.session?.remotes.delaySeconds ?? 0) : 0,
                 );
             if (remote) {
               const spatial = spatialAudio(
@@ -1039,6 +1036,7 @@ export class Game {
       this.input.locked || this.session?.view?.phase === 'playing'
         ? this.clock.advance(delta, this.simulate)
         : 1;
+    this.session?.flushInput();
     const scopedWeapon = !!weapons.config.scopeMagnification;
     const recoilTime = this.input.locked ? alpha * movementConfig.fixedStep : 0;
     const interpolatedAds = weapons.sampleAds(recoilTime, aiming);

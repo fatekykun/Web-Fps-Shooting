@@ -323,13 +323,14 @@ npm run start:server   # Node server; keep this terminal running
 npm run preview
 ```
 
-Movement runs at a **60 Hz** server target with **20 Hz** delta state patches.
-Clients predict their own movement, batch sequenced inputs at 30 Hz, and restore
-server snapshots before replaying unacknowledged inputs. Small visual corrections
-decay smoothly; large corrections snap. Other players render about 100 ms behind
-the server with bounded interpolation and one shared instance batch. A stalled
-stream stops extrapolation. The diagnostic HUD shows peers and acknowledged input
-sequence numbers.
+Movement runs at a **60 Hz** server target. The server sends delta state patches
+and owner corrections every two ticks, targeting **30 Hz**. Clients predict
+their own movement, send sequenced inputs each frame that produces them, and
+replay unacknowledged inputs after restoring a server correction. Small visual
+corrections decay smoothly. Large corrections snap. Remote avatars use one shared
+instance batch and an interpolation buffer that starts around 42 ms and adjusts
+up to 83 ms as network timing varies. A stalled stream holds the last confirmed
+position. The diagnostic HUD shows peers and acknowledged input sequence numbers.
 
 The server uses the same Rapier adapter, arena collision layout and complete
 movement state machine as the client. It accepts inputs rather than reported
