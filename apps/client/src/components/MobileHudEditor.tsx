@@ -1,9 +1,16 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+} from 'react';
 import type { ArenaId } from '@breakpoint/shared/maps';
 import { MobileHUD } from './MobileHUD';
 import {
   defaultMobileHudLayout,
-  hudOpacityOptions,
+  hudOpacityRange,
   mobileHudControlIds,
   type MobileHudControlId,
   type MobileHudLayout,
@@ -24,6 +31,16 @@ const labels: Record<MobileHudControlId, string> = {
   inspect: 'Inspect weapon',
   minimap: 'Minimap',
 };
+
+const panelSteps: Record<string, readonly [number, number]> = {
+  ArrowLeft: [-0.05, 0],
+  ArrowRight: [0.05, 0],
+  ArrowUp: [0, -0.05],
+  ArrowDown: [0, 0.05],
+};
+
+const clampPosition = (value: number) => Math.max(0, Math.min(1, value));
+
 export function MobileHudEditor({
   tablet,
   map,
@@ -44,8 +61,12 @@ export function MobileHudEditor({
   const [layout, setLayout] = useState(imported ?? initial);
   const [selected, setSelected] = useState<MobileHudControlId>('fire');
   const [showAdjustments, setShowAdjustments] = useState(true);
+  const [panelPosition, setPanelPosition] = useState({ x: 0.5, y: 0.5 });
   const [confirm, setConfirm] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
+  const panelArea = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  const panelDrag = useRef<{ id: number; x: number; y: number } | null>(null);
   const adjustmentsId = useId();
   const dirty = JSON.stringify(layout) !== JSON.stringify(initial);
   useLayoutEffect(() => {
@@ -71,6 +92,42 @@ export function MobileHudEditor({
       ...current,
       [selected]: { ...current[selected], ...values },
     }));
+
+  function startPanelDrag(event: PointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0 || panelDrag.current || !panel.current) return;
+    const rect = panel.current.getBoundingClientRect();
+    panelDrag.current = {
+      id: event.pointerId,
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function movePanel(event: PointerEvent<HTMLButtonElement>) {
+    const drag = panelDrag.current;
+    if (drag?.id !== event.pointerId || !panel.current || !panelArea.current)
+      return;
+    const area = panelArea.current.getBoundingClientRect();
+    const box = panel.current.getBoundingClientRect();
+    const width = area.width - box.width;
+    const height = area.height - box.height;
+    setPanelPosition({
+      x:
+        width > 0
+          ? clampPosition((event.clientX - drag.x - area.left) / width)
+          : 0.5,
+      y:
+        height > 0
+          ? clampPosition((event.clientY - drag.y - area.top) / height)
+          : 0.5,
+    });
+  }
+
+  function stopPanelDrag(event: PointerEvent<HTMLButtonElement>) {
+    if (panelDrag.current?.id === event.pointerId) panelDrag.current = null;
+  }
+
   return (
     <dialog
       ref={dialog}
@@ -113,66 +170,95 @@ export function MobileHudEditor({
             Save
           </button>
         </header>
-        <aside
-          id={adjustmentsId}
-          className="hud-editor-tools"
-          aria-label="Selected control settings"
-          hidden={!showAdjustments}
-        >
-          <label className="hud-control-choice">
-            Control
-            <select
-              aria-label="Selected control"
-              value={selected}
-              onChange={(e) =>
-                setSelected(e.target.value as MobileHudControlId)
-              }
-            >
-              {mobileHudControlIds.map((id) => (
-                <option key={id} value={id}>
-                  {labels[id]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="hud-size">
-            <span>
-              Size <output>{layout[selected].scale}%</output>
-            </span>
-            <input
-              aria-label={
-                selected === 'minimap' ? 'Minimap size' : 'Button size'
-              }
-              type="range"
-              min="50"
-              max="200"
-              value={layout[selected].scale}
-              onChange={(e) => patch({ scale: Number(e.target.value) })}
-            />
-          </label>
-          <fieldset>
-            <legend>Opacity</legend>
-            {hudOpacityOptions.map((value) => (
+        <div ref={panelArea} className="hud-tools-area">
+          <aside
+            ref={panel}
+            id={adjustmentsId}
+            className="hud-editor-tools"
+            aria-label="Selected control settings"
+            hidden={!showAdjustments}
+            style={{
+              left: `${panelPosition.x * 100}%`,
+              top: `${panelPosition.y * 100}%`,
+              transform: `translate(${-panelPosition.x * 100}%, ${-panelPosition.y * 100}%)`,
+            }}
+          >
+            <div className="hud-control-row">
               <button
-                key={value}
                 type="button"
-                aria-pressed={layout[selected].opacity === value}
-                onClick={() => patch({ opacity: value })}
+                className="hud-tools-handle"
+                aria-label="Move adjustments"
+                onPointerDown={startPanelDrag}
+                onPointerMove={movePanel}
+                onPointerUp={stopPanelDrag}
+                onPointerCancel={stopPanelDrag}
+                onLostPointerCapture={stopPanelDrag}
+                onKeyDown={(event) => {
+                  const step = panelSteps[event.key];
+                  if (!step) return;
+                  event.preventDefault();
+                  setPanelPosition(({ x, y }) => ({
+                    x: clampPosition(x + step[0]),
+                    y: clampPosition(y + step[1]),
+                  }));
+                }}
+              />
+              <select
+                aria-label="Selected control"
+                value={selected}
+                onChange={(e) =>
+                  setSelected(e.target.value as MobileHudControlId)
+                }
               >
-                {value}%
-              </button>
-            ))}
-          </fieldset>
-          <label className="hud-visible">
-            <input
-              type="checkbox"
-              checked={layout[selected].visible}
-              disabled={selected === 'pause'}
-              onChange={(e) => patch({ visible: e.target.checked })}
-            />{' '}
-            {selected === 'minimap' ? 'Show minimap' : 'Show control'}
-          </label>
-        </aside>
+                {mobileHudControlIds.map((id) => (
+                  <option key={id} value={id}>
+                    {labels[id]}
+                  </option>
+                ))}
+              </select>
+              <label className="hud-visible">
+                <input
+                  type="checkbox"
+                  aria-label={
+                    selected === 'minimap' ? 'Show minimap' : 'Show control'
+                  }
+                  checked={layout[selected].visible}
+                  disabled={selected === 'pause'}
+                  onChange={(e) => patch({ visible: e.target.checked })}
+                />
+                Visible
+              </label>
+            </div>
+            <label className="hud-adjustment">
+              <span>
+                Size <output>{layout[selected].scale}%</output>
+              </span>
+              <input
+                aria-label={
+                  selected === 'minimap' ? 'Minimap size' : 'Button size'
+                }
+                type="range"
+                min="50"
+                max="200"
+                value={layout[selected].scale}
+                onChange={(e) => patch({ scale: Number(e.target.value) })}
+              />
+            </label>
+            <label className="hud-adjustment">
+              <span>
+                Opacity <output>{layout[selected].opacity}%</output>
+              </span>
+              <input
+                aria-label="Control opacity"
+                type="range"
+                min={hudOpacityRange.min}
+                max={hudOpacityRange.max}
+                value={layout[selected].opacity}
+                onChange={(e) => patch({ opacity: Number(e.target.value) })}
+              />
+            </label>
+          </aside>
+        </div>
         <div className="hud-editor-screen">
           <MobileHUD
             tablet={tablet}
@@ -185,7 +271,7 @@ export function MobileHudEditor({
               position: (id, x, y) =>
                 setLayout((current) => ({
                   ...current,
-                  [id]: { ...current[id], x, y },
+                  [id]: { ...current[id], x, y, coordinates: 'viewport' },
                 })),
             }}
           />

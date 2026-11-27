@@ -117,11 +117,9 @@ function findPosition(
   return nearest;
 }
 
-export function resolveMobileHud(
-  layout: MobileHudLayout,
+export function resolveDefaultMobileHud(
   viewport: HudViewport,
   isTablet: boolean,
-  showInspect = false,
 ) {
   const { width, height, safe } = viewport;
   const { top: headerHeight, bottom: footerHeight } = viewport.hudClearance ?? {
@@ -141,8 +139,6 @@ export function resolveMobileHud(
     top: safe.top + 4 + headerHeight,
     bottom: height - safe.bottom - 4 - footerHeight,
   };
-  const safeWidth = width - safe.left - safe.right;
-  const safeHeight = height - safe.top - safe.bottom;
   const occupied: Box[] = [
     {
       left: width / 2 - 20,
@@ -169,20 +165,17 @@ export function resolveMobileHud(
       bottom: bounds.top + viewport.hudClearance.feedHeight,
     });
   }
-  const result: Partial<Record<MobileHudControlId, ControlBox>> = {};
-  // Keep Pause reachable, then give the larger controls first pick of open space.
-  const priority = [...mobileHudControlIds]
-    .filter((id) => layout[id].visible && (id !== 'inspect' || showInspect))
-    .sort((a, b) => {
-      if (a === 'pause') return -1;
-      if (b === 'pause') return 1;
-      if (a === 'minimap') return 1;
-      if (b === 'minimap') return -1;
-      return metrics[b][0] * layout[b].scale - metrics[a][0] * layout[a].scale;
-    });
+  const result = {} as Record<MobileHudControlId, ControlBox>;
+  // Fit the stock button sizes once so edits never move another control's default anchor.
+  const priority = [...mobileHudControlIds].sort((a, b) => {
+    if (a === 'pause') return -1;
+    if (b === 'pause') return 1;
+    if (a === 'minimap') return 1;
+    if (b === 'minimap') return -1;
+    return metrics[b][0] - metrics[a][0];
+  });
   for (const id of priority) {
     const [w, h, offsetX, offsetY] = metrics[id];
-    const control = layout[id];
     const map = id === 'minimap';
     const leftControl = map || id === 'joystick' || id === 'sprint';
     const topControl =
@@ -192,19 +185,13 @@ export function resolveMobileHud(
       : bounds;
     const feedInset =
       map && viewport.hudClearance ? Math.min(width * 0.28, 240) + 4 : 0;
-    const x =
-      control.x === null
-        ? leftControl
-          ? left + offsetX + feedInset + w / 2
-          : right - offsetX - w / 2
-        : safe.left + control.x * safeWidth;
-    const y =
-      control.y === null
-        ? topControl
-          ? Math.max(top, itemBounds.top) + offsetY + h / 2
-          : bottom - offsetY - h / 2
-        : safe.top + control.y * safeHeight;
-    let scale = control.scale / 100;
+    const x = leftControl
+      ? left + offsetX + feedInset + w / 2
+      : right - offsetX - w / 2;
+    const y = topControl
+      ? Math.max(top, itemBounds.top) + offsetY + h / 2
+      : bottom - offsetY - h / 2;
+    let scale = 1;
     let position = findPosition(
       x,
       y,
@@ -213,8 +200,7 @@ export function resolveMobileHud(
       itemBounds,
       occupied,
     );
-    // Very crowded layouts can exceed the space on a smaller screen. Preserve
-    // the saved size and fit this rendering as closely as the viewport allows.
+    // On very small screens, find an anchor even when the full stock box cannot fit.
     while (!position && scale > 0.25) {
       scale = Math.max(0.25, scale - 0.1);
       position = findPosition(
@@ -226,14 +212,50 @@ export function resolveMobileHud(
         occupied,
       );
     }
-    if (!position) continue;
-    result[id] = { ...position, width: w, height: h, scale };
-    occupied.push({
-      left: position.x - (w * scale) / 2,
-      right: position.x + (w * scale) / 2,
-      top: position.y - (h * scale) / 2,
-      bottom: position.y + (h * scale) / 2,
-    });
+    result[id] = {
+      x: position?.x ?? clamp(x, 0, width),
+      y: position?.y ?? clamp(y, 0, height),
+      width: w,
+      height: h,
+      scale: 1,
+    };
+    if (position)
+      occupied.push({
+        left: position.x - (w * scale) / 2,
+        right: position.x + (w * scale) / 2,
+        top: position.y - (h * scale) / 2,
+        bottom: position.y + (h * scale) / 2,
+      });
+  }
+  return result;
+}
+
+export function resolveMobileHud(
+  layout: MobileHudLayout,
+  viewport: HudViewport,
+  defaults: Record<MobileHudControlId, ControlBox>,
+) {
+  const { width, height, safe } = viewport;
+  const result: Partial<Record<MobileHudControlId, ControlBox>> = {};
+  for (const id of mobileHudControlIds) {
+    const control = layout[id];
+    if (!control.visible) continue;
+    const stock = defaults[id];
+    const viewportCoordinates = control.coordinates === 'viewport';
+    // Saved layouts from before edge docking are relative to the safe area.
+    const x =
+      control.x === null
+        ? stock.x
+        : viewportCoordinates
+          ? control.x * width
+          : safe.left + control.x * (width - safe.left - safe.right);
+    const y =
+      control.y === null
+        ? stock.y
+        : viewportCoordinates
+          ? control.y * height
+          : safe.top + control.y * (height - safe.top - safe.bottom);
+    result[id] = { ...stock, x, y, scale: control.scale / 100 };
   }
   return result;
 }

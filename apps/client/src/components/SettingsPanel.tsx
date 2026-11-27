@@ -12,7 +12,7 @@ import {
 import type { GraphicsSettings } from '../game/rendering/graphicsConfig';
 import type { AntiAliasingState } from '../game/rendering/antiAliasing';
 import {
-  hudOpacityOptions,
+  hudOpacityRange,
   type MobileHudControl,
 } from '../game/input/mobileHudSettings';
 import { gyroAvailable, type GyroAccess } from '../game/input/GyroInput';
@@ -586,22 +586,14 @@ export function SettingsPanel({
               />{' '}
               Show minimap
             </label>
-            <div className="scope-style-setting">
-              <label htmlFor={`${id}-minimap-opacity`}>Minimap opacity</label>
-              <select
-                id={`${id}-minimap-opacity`}
-                value={minimap.opacity}
-                onChange={(event) =>
-                  onMinimapChange({ opacity: Number(event.target.value) })
-                }
-              >
-                {hudOpacityOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}%
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Range
+              label="Minimap opacity"
+              value={minimap.opacity}
+              min={hudOpacityRange.min}
+              max={hudOpacityRange.max}
+              display={`${minimap.opacity}%`}
+              onChange={(opacity) => onMinimapChange({ opacity })}
+            />
             <div className="scope-style-setting">
               <label htmlFor={`${id}-scope-style`}>Sniper scope style</label>
               <select

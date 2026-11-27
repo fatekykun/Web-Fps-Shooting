@@ -14,11 +14,12 @@ export const mobileHudControlIds = [
   'pause',
   'minimap',
 ] as const;
-export const hudOpacityOptions = [30, 50, 70, 100];
+export const hudOpacityRange = { min: 30, max: 100 } as const;
 export type MobileHudControlId = (typeof mobileHudControlIds)[number];
 export interface MobileHudControl {
   x: number | null;
   y: number | null;
+  coordinates?: 'viewport';
   scale: number;
   opacity: number;
   visible: boolean;
@@ -52,11 +53,11 @@ export function normalizeMobileHudLayout(value: unknown): MobileHudLayout {
     result[id] = {
       x: number(v.x, 0, 1),
       y: number(v.y, 0, 1),
+      ...(v.coordinates === 'viewport' && { coordinates: 'viewport' }),
       scale: Math.round(number(v.scale, 50, 200) ?? 100),
-      opacity:
-        typeof v.opacity === 'number' && hudOpacityOptions.includes(v.opacity)
-          ? v.opacity
-          : 100,
+      opacity: Math.round(
+        number(v.opacity, hudOpacityRange.min, hudOpacityRange.max) ?? 100,
+      ),
       visible: id === 'pause' || v.visible !== false,
     };
   }
