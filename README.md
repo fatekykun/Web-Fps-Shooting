@@ -38,8 +38,11 @@ Landscape locking is attempted, with manual rotation as the browser fallback.
 Desktop and touchscreen laptops keep keyboard/mouse by default; tapping a menu
 button selects touch controls, while clicking with a mouse selects mouse capture.
 
-Drag the **left joystick** to move and the **right side** to look. **Sprint** and
-**ADS** toggle; **Fire** and **Jump** are held. **Crouch** also slides at sprint speed.
+Drag the **left joystick** to walk and the **right side** to look. Push the
+joystick farther forward toward the sprint marker to run. Pull it back toward
+the center to walk again, or release it to stop. In **Customize Touch HUD**,
+move the sprint marker closer to the joystick to sprint sooner. **ADS** toggles.
+Hold **Fire** or **Jump**. **Crouch** also slides at sprint speed.
 **Prone** toggles crawling. **Dive**, **R** (reload),
 **Swap**, **Scores**, and **II** (pause) use the existing actions. Independent
 touches support moving, looking, aiming and firing together. Tablets have larger,

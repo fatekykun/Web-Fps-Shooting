@@ -289,7 +289,13 @@ export class InputManager {
       -1,
       Math.min(1, this.keyboardAxes.right + this.touchAxes.right),
     );
-    this.movement.sprint = this.keyboardAxes.sprint || this.touchAxes.sprint;
+    // A backward slide tap can use the movement controller's existing sprint grace.
+    const touchBackslide =
+      this.touchAxes.forward < 0 &&
+      this.movement.forward < 0 &&
+      this.movement.slidePressed;
+    this.movement.sprint =
+      this.keyboardAxes.sprint || this.touchAxes.sprint || touchBackslide;
     this.movement.jump = this.keyboardAxes.jump || this.touchAxes.jump;
   }
   setMouseButton(button: number, down: boolean): void {
@@ -488,6 +494,7 @@ export class InputManager {
   consumeActions(): void {
     this.movement.jumpPressed = false;
     this.movement.slidePressed = false;
+    if (this.touchAxes.forward < 0) this.mergeAxes();
     this.movement.pronePressed = false;
     this.movement.divePressed = false;
     this.weapon.firePressed = false;

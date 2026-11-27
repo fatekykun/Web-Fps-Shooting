@@ -77,10 +77,10 @@ class Control extends EventTarget {
   captures = new Set<number>();
   constructor(control: string) {
     super();
-    this.dataset = { touchControl: control };
+    this.dataset = control === 'sprint' ? {} : { touchControl: control };
   }
   closest() {
-    return this;
+    return this.dataset.touchControl ? this : null;
   }
   getBoundingClientRect() {
     return { left: 0, top: 0, width: 120, height: 120 };
@@ -120,7 +120,12 @@ class Root extends EventTarget {
     ].map((id) => [id, new Control(id)]),
   );
   querySelectorAll() {
-    return Object.values(this.controls);
+    return Object.values(this.controls).filter(
+      (control) => control.dataset.touchControl,
+    );
+  }
+  querySelector(selector: string) {
+    return selector === '[data-sprint-indicator]' ? this.controls.sprint : null;
   }
   contains(element: Control) {
     return Object.values(this.controls).includes(element);
@@ -236,9 +241,8 @@ describe('touch intentions', () => {
     expect(input.weapon.fire).toBe(false);
   });
   it('supports sprint, slide+jump, dive, reload and restricted weapon cycling', () => {
-    root.pointer('pointerdown', 'sprint', 1);
-    root.pointer('pointerup', 'sprint', 1);
-    root.pointer('pointerdown', 'joystick', 2, 60, 20);
+    root.pointer('pointerdown', 'joystick', 2);
+    root.pointer('pointermove', 'joystick', 2, 60, 20);
     root.pointer('pointerdown', 'slide', 3);
     root.pointer('pointerdown', 'jump', 4);
     expect(input.movement).toMatchObject({
@@ -262,6 +266,61 @@ describe('touch intentions', () => {
     input.consumeActions();
     expect(input.movement.jumpPressed).toBe(false);
     expect(input.movement.jump).toBe(true);
+  });
+  it('walks at normal speed, sprints only forward, and uses separate enter and release distances', () => {
+    root.controls.joystick!.dataset.sprintDistance = '40';
+    root.pointer('pointerdown', 'sprint', 2);
+    expect(input.movement.sprint).toBe(false);
+    root.pointer('pointerdown', 'joystick', 1);
+    root.pointer('pointermove', 'joystick', 1, 60, 53);
+    expect(input.movement).toMatchObject({ forward: 1, sprint: false });
+    root.pointer('pointermove', 'joystick', 1, 60, 24);
+    expect(input.movement).toMatchObject({ forward: 1, sprint: false });
+    root.pointer('pointermove', 'joystick', 1, 60, 20);
+    expect(input.movement.sprint).toBe(true);
+    expect(root.controls.sprint!.dataset.active).toBe('true');
+    root.pointer('pointermove', 'joystick', 1, 60, 24);
+    expect(input.movement.sprint).toBe(true);
+    root.pointer('pointermove', 'joystick', 1, 60, 30);
+    expect(input.movement).toMatchObject({ forward: 1, sprint: false });
+    root.pointer('pointermove', 'joystick', 1, 160, 10);
+    expect(input.movement.sprint).toBe(false);
+    root.pointer('pointermove', 'joystick', 1, 160, 60);
+    expect(input.movement).toMatchObject({
+      forward: 0,
+      right: 1,
+      sprint: false,
+    });
+    root.pointer('pointermove', 'joystick', 1, 60, 160);
+    expect(input.movement).toMatchObject({ forward: -1, sprint: false });
+    root.pointer('pointermove', 'joystick', 1, 60, 10);
+    expect(input.movement.sprint).toBe(true);
+    root.pointer('pointerup', 'joystick', 1);
+    expect(input.movement).toMatchObject({
+      forward: 0,
+      right: 0,
+      sprint: false,
+    });
+    expect(root.controls.sprint!.dataset.active).toBe('false');
+  });
+  it('preserves a backward slide request without latching sprint during backward movement', () => {
+    root.pointer('pointerdown', 'joystick', 1);
+    root.pointer('pointermove', 'joystick', 1, 60, 20);
+    root.pointer('pointermove', 'joystick', 1, 60, 100);
+    expect(input.movement).toMatchObject({ forward: -1, sprint: false });
+    root.pointer('pointerdown', 'slide', 2);
+    expect(input.movement).toMatchObject({
+      forward: -1,
+      sprint: true,
+      slidePressed: true,
+    });
+    expect(root.controls.sprint!.dataset.active).toBe('false');
+    input.consumeActions();
+    expect(input.movement).toMatchObject({
+      forward: -1,
+      sprint: false,
+      slidePressed: false,
+    });
   });
   it('uses a dead zone and never lets another finger steal the joystick or camera', () => {
     root.pointer('pointerdown', 'joystick', 1, 61, 60);

@@ -146,7 +146,7 @@ export function CommandMenu({
         </button>
         <p className="capture-note">
           {touchControls ? (
-            'TOUCH TO PLAY · DRAG RIGHT SIDE TO LOOK · SPRINT / ADS TOGGLE'
+            'DRAG RIGHT SIDE TO LOOK · PUSH JOYSTICK FORWARD TO SPRINT'
           ) : (
             <>
               CLICK TO CAPTURE MOUSE <span>·</span> ESC TO RELEASE

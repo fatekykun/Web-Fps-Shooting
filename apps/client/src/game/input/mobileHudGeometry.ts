@@ -27,7 +27,7 @@ interface ControlBox {
 // Each tuple gives width, height, horizontal inset and vertical inset.
 const phone = {
   joystick: [120, 120, 0, 0],
-  sprint: [48, 48, 36, 140],
+  sprint: [48, 48, 0, 0],
   fire: [72, 72, 72, 83],
   aim: [48, 48, 0, 144],
   jump: [48, 48, 0, 62],
@@ -44,13 +44,12 @@ const phone = {
 const compact = {
   ...phone,
   joystick: [104, 104, 0, 0],
-  sprint: [48, 48, 28, 120],
   swap: [62, 48, 146, 74],
   minimap: [84, 84, 0, 0],
 } as const;
 const tablet = {
   joystick: [164, 164, 16, 24],
-  sprint: [60, 60, 70, 212],
+  sprint: [60, 60, 0, 0],
   fire: [88, 88, 112, 158],
   aim: [60, 60, 20, 230],
   jump: [60, 60, 20, 124],
@@ -177,7 +176,7 @@ export function resolveDefaultMobileHud(
   for (const id of priority) {
     const [w, h, offsetX, offsetY] = metrics[id];
     const map = id === 'minimap';
-    const leftControl = map || id === 'joystick' || id === 'sprint';
+    const leftControl = map || id === 'joystick';
     const topControl =
       map || id === 'pause' || id === 'scores' || id === 'inspect';
     const itemBounds = map
@@ -185,12 +184,18 @@ export function resolveDefaultMobileHud(
       : bounds;
     const feedInset =
       map && viewport.hudClearance ? Math.min(width * 0.28, 240) + 4 : 0;
-    const x = leftControl
-      ? left + offsetX + feedInset + w / 2
-      : right - offsetX - w / 2;
-    const y = topControl
-      ? Math.max(top, itemBounds.top) + offsetY + h / 2
-      : bottom - offsetY - h / 2;
+    const x =
+      id === 'sprint'
+        ? result.joystick.x
+        : leftControl
+          ? left + offsetX + feedInset + w / 2
+          : right - offsetX - w / 2;
+    const y =
+      id === 'sprint'
+        ? result.joystick.y - (result.joystick.height + h) / 2 - 4
+        : topControl
+          ? Math.max(top, itemBounds.top) + offsetY + h / 2
+          : bottom - offsetY - h / 2;
     let scale = 1;
     let position = findPosition(
       x,
@@ -239,7 +244,8 @@ export function resolveMobileHud(
   const result: Partial<Record<MobileHudControlId, ControlBox>> = {};
   for (const id of mobileHudControlIds) {
     const control = layout[id];
-    if (!control.visible) continue;
+    // A hidden sprint marker still sets the activation distance.
+    if (!control.visible && id !== 'sprint') continue;
     const stock = defaults[id];
     const viewportCoordinates = control.coordinates === 'viewport';
     // Saved layouts from before edge docking are relative to the safe area.
@@ -256,6 +262,19 @@ export function resolveMobileHud(
           ? control.y * height
           : safe.top + control.y * (height - safe.top - safe.bottom);
     result[id] = { ...stock, x, y, scale: control.scale / 100 };
+  }
+  const { joystick, sprint } = result;
+  if (joystick && sprint) {
+    // Keep the stock marker paired with the joystick until the player moves it.
+    const stockJoystick = defaults.joystick;
+    if (layout.sprint.x === null) {
+      sprint.x = clamp(sprint.x + joystick.x - stockJoystick.x, 0, width);
+    }
+    if (layout.sprint.y === null) {
+      const upperEdge = joystick.y - (joystick.height * joystick.scale) / 2;
+      const stockUpperEdge = stockJoystick.y - stockJoystick.height / 2;
+      sprint.y = clamp(sprint.y + upperEdge - stockUpperEdge, 0, height);
+    }
   }
   return result;
 }

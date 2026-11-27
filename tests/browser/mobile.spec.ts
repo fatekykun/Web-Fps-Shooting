@@ -412,7 +412,9 @@ test.describe('phone touch controls', () => {
     await page.getByRole('button', { name: 'Close rooms' }).tap();
     await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
     await expect(page.locator('.mobile-hud')).toBeVisible();
-    const controls = page.locator('.mobile-hud button[data-hud-id]');
+    const controls = page.locator(
+      '.mobile-hud :is(button[data-hud-id], [data-sprint-indicator])',
+    );
     await expect(controls).toHaveCount(13);
     await expect(controls.locator('svg[data-control-icon]')).toHaveCount(13);
     for (const control of await controls.all())
@@ -459,14 +461,91 @@ test.describe('phone touch controls', () => {
     );
     const fingers = new Fingers(await page.context().newCDPSession(page));
     const joystick = await point(page, 'joystick');
-    await page.getByRole('button', { name: 'Toggle sprint' }).tap();
+    const marker = page.getByRole('img', { name: 'Sprint indicator' });
+    const trigger = (await marker.boundingBox())!;
+    expect(trigger.y + trigger.height).toBeLessThan(joystick.y);
+    await page.touchscreen.tap(
+      trigger.x + trigger.width / 2,
+      trigger.y + trigger.height / 2,
+    );
+    await expect(marker).not.toHaveAttribute('data-active', 'true');
     await fingers.down(1, joystick);
-    await fingers.move(1, { x: joystick.x, y: joystick.y - 40 });
+    await fingers.move(1, {
+      x: joystick.x,
+      y: trigger.y + trigger.height / 2 - 1,
+    });
+    await expect(marker).toHaveAttribute('data-active', 'true');
     await expect(stance.locator('svg')).toHaveAttribute(
       'data-control-icon',
       'slide',
     );
     await fingers.cancel();
+    await expect(marker).toHaveAttribute('data-active', 'false');
+  });
+  test('the saved sprint marker controls walking and sprinting on one joystick drag', async ({
+    page,
+    context,
+  }) => {
+    await prepare(page);
+    await page.clock.install();
+    await page.goto('/');
+    await page.getByRole('button', { name: 'SETTINGS', exact: true }).tap();
+    await page.getByRole('button', { name: 'CUSTOMIZE TOUCH HUD' }).tap();
+    await page.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
+    const editor = page.getByRole('dialog', { name: 'HUD editor' });
+    const marker = editor.getByRole('button', { name: 'Sprint trigger' });
+    await expect(marker).toBeVisible();
+    const joystick = await point(page, 'joystick');
+    const stockMarker = (await marker.boundingBox())!;
+    const stockDistance = joystick.y - (stockMarker.y + stockMarker.height / 2);
+    const customDistance = 38;
+    expect(stockDistance).toBeGreaterThan(customDistance + 10);
+    const fingers = new Fingers(await context.newCDPSession(page));
+    await fingers.down(1, {
+      x: stockMarker.x + stockMarker.width / 2,
+      y: stockMarker.y + stockMarker.height / 2,
+    });
+    await fingers.move(1, { x: joystick.x, y: joystick.y - customDistance });
+    await fingers.up(1);
+    await editor.getByRole('button', { name: 'Save', exact: true }).tap();
+    await expect(editor).toBeHidden();
+    await page.reload();
+    await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+
+    const indicator = page.getByRole('img', { name: 'Sprint indicator' });
+    const savedMarker = (await indicator.boundingBox())!;
+    expect(joystick.y - (savedMarker.y + savedMarker.height / 2)).toBeCloseTo(
+      customDistance,
+      0,
+    );
+    const speed = page.getByTestId('speed');
+    const state = page.getByTestId('movement-state');
+    // Movement telemetry refreshes every 250 ms.
+    const sampleMovement = () => page.clock.runFor(400);
+    await fingers.down(1, joystick);
+    await fingers.move(1, { x: joystick.x, y: joystick.y - 15 });
+    await sampleMovement();
+    await expect(state).toHaveText('WALKING');
+    const walkSpeed = Number(await speed.textContent());
+    expect(walkSpeed).toBeGreaterThan(4);
+    await fingers.move(1, {
+      x: joystick.x,
+      y: joystick.y - customDistance - 4,
+    });
+    await expect(indicator).toHaveAttribute('data-active', 'true');
+    await sampleMovement();
+    await expect(state).toHaveText('SPRINTING');
+    expect(Number(await speed.textContent())).toBeGreaterThan(walkSpeed);
+    await fingers.move(1, { x: joystick.x, y: joystick.y - 10 });
+    await expect(indicator).toHaveAttribute('data-active', 'false');
+    await sampleMovement();
+    await expect(state).toHaveText('WALKING');
+    expect(Number(await speed.textContent())).toBe(walkSpeed);
+    await fingers.up(1);
+    await sampleMovement();
+    await expect(speed).toHaveText('0.0');
+    await expect(indicator).toHaveAttribute('data-active', 'false');
   });
   test('portrait blocks the lobby, landscape unlocks it, and real multitouch controls movement + ADS + fire + look', async ({
     page,

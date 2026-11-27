@@ -22,7 +22,6 @@ import {
 } from '../game/input/mobileHudSettings';
 
 const actions = [
-  ['sprint', 'Toggle sprint'],
   ['fire', 'Fire weapon'],
   ['aim', 'Toggle ADS'],
   ['jump', 'Jump'],
@@ -124,6 +123,11 @@ export function MobileHUD({
         : {},
     [layout, viewport, defaultBoxes],
   );
+  const { joystick, sprint } = boxes;
+  const sprintDistance =
+    joystick && sprint
+      ? Math.hypot(sprint.x - joystick.x, sprint.y - joystick.y)
+      : undefined;
   const stance = movement?.movementState;
   const showSlide =
     stance === 'sliding' ||
@@ -135,7 +139,6 @@ export function MobileHUD({
     ? {}
     : {
         aim: false,
-        sprint: false,
         slide: stance === 'crouching',
         prone: stance === 'prone',
       };
@@ -187,7 +190,7 @@ export function MobileHUD({
 
   function controlStyle(id: MobileHudControlId): CSSProperties {
     const box = boxes[id];
-    if (!box) return { display: 'none' };
+    if (!box || !layout[id].visible) return { display: 'none' };
     return {
       left: box.x,
       top: box.y,
@@ -244,6 +247,7 @@ export function MobileHUD({
         className="touch-joystick"
         data-touch-control="joystick"
         data-hud-id="joystick"
+        data-sprint-distance={sprintDistance}
         data-selected={editor?.selected === 'joystick'}
         data-silent
         aria-label="Movement joystick"
@@ -253,6 +257,30 @@ export function MobileHUD({
         <MobileControlIcon name="joystick" />
         <span data-joystick-knob className="joystick-knob" />
       </button>
+      {editor ? (
+        <button
+          type="button"
+          className="touch-button touch-sprint"
+          data-hud-id="sprint"
+          data-selected={editor.selected === 'sprint'}
+          aria-label="Sprint trigger"
+          style={controlStyle('sprint')}
+          onClick={() => editor.select('sprint')}
+        >
+          <MobileControlIcon name="sprint" />
+        </button>
+      ) : (
+        <div
+          className="touch-button touch-sprint"
+          data-hud-id="sprint"
+          data-sprint-indicator
+          role="img"
+          aria-label="Sprint indicator"
+          style={controlStyle('sprint')}
+        >
+          <MobileControlIcon name="sprint" />
+        </div>
+      )}
       {actions
         .filter(([control]) => control !== 'inspect' || editor || showInspect)
         .filter(([control]) => control !== 'swap' || editor || !multiplayer)
