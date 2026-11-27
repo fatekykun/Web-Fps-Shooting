@@ -227,6 +227,11 @@ export class Game {
         game.setShotgunRangeActive(true);
       }
     }
+    await game.rendering
+      .prepareViewmodel(game.scene, game.viewmodel)
+      .catch(() => {
+        // Drivers that cannot precompile still compile the materials on first use.
+      });
     return game;
   }
 
@@ -1019,7 +1024,7 @@ export class Game {
     const start = performance.now();
     const delta = this.lastTime === null ? 0 : (time - this.lastTime) / 1000;
     this.lastTime = time;
-    this.input.updateGyroLook(start);
+    this.input.updateLook(start);
     const activeCombat = this.session ? this.networkCombat : this.combat;
     const weapons = activeCombat.weapons;
     const armed =

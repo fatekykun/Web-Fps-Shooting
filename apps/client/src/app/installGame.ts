@@ -1,4 +1,10 @@
 import { readDevice } from '../game/input/deviceCapabilities';
+import { operators } from '@breakpoint/shared/operators';
+import {
+  defaultMeleeSkin,
+  skinDefinitions,
+  type LoadoutProfile,
+} from '@breakpoint/shared/weapons/loadouts';
 
 interface InstallPrompt extends Event {
   prompt(): Promise<unknown>;
@@ -10,7 +16,8 @@ let prompt: InstallPrompt | undefined;
 let installed = false;
 let manualMode: InstallMode = 'hidden';
 let standalone: MediaQueryList | undefined;
-let workerRequested = false;
+let workerRegistration:
+  Promise<ServiceWorkerRegistration | undefined> | undefined;
 
 function installationChanged(): void {
   for (const listener of listeners) listener();
@@ -68,13 +75,57 @@ export function initializePwa(): void {
 
 /** Wait for startup before downloading files for offline play. */
 export function cacheOfflineTraining(): void {
-  if (!standalone || workerRequested) return;
-  workerRequested = true;
-  void navigator.serviceWorker
+  if (!standalone || workerRegistration) return;
+  workerRegistration = navigator.serviceWorker
     .register(`${import.meta.env.BASE_URL}service-worker.js`, {
       updateViaCache: 'none',
     })
     .catch(() => {
-      // The game can still run online when browser storage is unavailable.
+      workerRegistration = undefined;
+      return undefined;
     });
+}
+
+export function supportsLoadoutDownloads(): boolean {
+  return !!standalone;
+}
+
+/** Downloads saved equipment into the same revisioned cache as normal model requests. */
+export async function downloadLoadoutModels(
+  profile: LoadoutProfile,
+): Promise<boolean> {
+  cacheOfflineTraining();
+  if (!(await workerRegistration)) return false;
+  const paths = new Set<string>(['models/first_person_gloves.glb']);
+  for (const slot of profile.slots) {
+    for (const entry of [
+      skinDefinitions[slot.skin],
+      skinDefinitions[slot.meleeSkin ?? defaultMeleeSkin],
+      operators[slot.operator ?? 'standard'],
+    ]) {
+      if ('model' in entry) paths.add(`models/${entry.model}`);
+    }
+  }
+  return new Promise<boolean>((resolve) => {
+    const channel = new MessageChannel();
+    const finish = (ready: boolean) => {
+      clearTimeout(timeout);
+      channel.port1.close();
+      resolve(ready);
+    };
+    const timeout = setTimeout(() => finish(false), 60000);
+    channel.port1.onmessage = (event) => finish(event.data === true);
+    void navigator.serviceWorker.ready
+      .then((registration) => {
+        const worker =
+          navigator.serviceWorker.controller ?? registration.active;
+        if (worker)
+          worker.postMessage(
+            { type: 'download-loadout-models', paths: [...paths] },
+            [channel.port2],
+          );
+        else finish(false);
+      })
+      .catch(() => finish(false));
+  });
 }

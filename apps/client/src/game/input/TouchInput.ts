@@ -97,7 +97,7 @@ export class TouchInput {
     if (owner.camera) {
       const delta = owner.camera.move(event.clientX, event.clientY);
       if (owner.control !== 'adsFire' || this.input.adsFireDragToAim)
-        this.input.touchLook(delta.x, delta.y);
+        this.input.queueTouchLook(delta.x, delta.y);
     }
   };
   private readonly up = (event: PointerEvent): void => this.end(event, false);

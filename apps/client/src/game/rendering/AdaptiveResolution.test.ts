@@ -16,6 +16,20 @@ function run(
 }
 
 describe('adaptive resolution hysteresis', () => {
+  it('steps down sooner on handhelds under sustained load without reacting to one stall', () => {
+    const controller = new AdaptiveResolution(
+      { preset: 'hd', adaptive: true },
+      true,
+    );
+    run(controller, 1000 / 60, 3000);
+    expect(controller.observe(200)).toBeNull();
+    expect(run(controller, 1000 / 60, 1100)).toEqual([]);
+    expect(run(controller, 32, 1500)).toEqual(['quality']);
+    expect(run(controller, 32, 5000)).toEqual(['balanced', 'performance']);
+    controller.configure({ preset: 'hd', adaptive: false });
+    expect(run(controller, 32, 15000)).toEqual([]);
+    expect(controller.current).toBe('hd');
+  });
   it('limits Ultra to one reduction and can recover to its ceiling', () => {
     const controller = new AdaptiveResolution({
       preset: 'ultra',

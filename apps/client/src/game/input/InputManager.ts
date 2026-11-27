@@ -97,6 +97,8 @@ export class InputManager {
   private readonly mouse: MouseInput;
   private readonly gyroFrames = new GyroFrameAim();
   private readonly gyroDelta = { yaw: 0, pitch: 0 };
+  private touchDeltaX = 0;
+  private touchDeltaY = 0;
   private readonly gyro = new GyroInput(
     (sample) => this.gyroLook(sample),
     () => this.gyroFrames.reset(),
@@ -426,6 +428,19 @@ export class InputManager {
     const assist = this.touchAimAssistActive ? this.touchAimScale(ads) : 1;
     this.look(dx * scale * assist, dy * scale * assist);
   }
+
+  queueTouchLook(dx: number, dy: number): void {
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    this.touchDeltaX += dx;
+    this.touchDeltaY += dy;
+  }
+
+  updateLook(time: number): void {
+    const { touchDeltaX: x, touchDeltaY: y } = this;
+    this.touchDeltaX = this.touchDeltaY = 0;
+    this.touchLook(x, y);
+    this.updateGyroLook(time);
+  }
   private get touchAimAssistActive(): boolean {
     return this.touchActive && this.handheld && this.settings.touchAimAssist;
   }
@@ -589,6 +604,7 @@ export class InputManager {
 
   setLook(yaw: number, pitch: number): void {
     this.gyro.reset();
+    this.touchDeltaX = this.touchDeltaY = 0;
     this.movement.yaw = yaw;
     this.pitch = pitch;
     this.coveredReturn.pitch = this.coveredReturn.yaw = 0;
@@ -614,6 +630,7 @@ export class InputManager {
   }
   clearGameplay(): void {
     this.gyro.reset();
+    this.touchDeltaX = this.touchDeltaY = 0;
     this.aimAssistPause = 0;
     this.inspectPressed = false;
     this.coveredReturn.pitch = this.coveredReturn.yaw = 0;

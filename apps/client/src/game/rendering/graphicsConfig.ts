@@ -73,26 +73,29 @@ export function isGraphicsPreset(value: unknown): value is GraphicsPreset {
   return typeof value === 'string' && Object.hasOwn(graphicsPresets, value);
 }
 
-export function loadGraphicsSettings(): GraphicsSettings {
+export function loadGraphicsSettings(handheld = false): GraphicsSettings {
+  const fallback = { ...defaultGraphics, adaptive: handheld };
   try {
-    return normalizeGraphicsSettings(
-      JSON.parse(
-        localStorage.getItem(graphicsStorageKey) ??
-          localStorage.getItem('breakpoint.graphics.v1') ??
-          'null',
-      ),
-    );
+    const stored =
+      localStorage.getItem(graphicsStorageKey) ??
+      localStorage.getItem('breakpoint.graphics.v1');
+    return stored
+      ? normalizeGraphicsSettings(JSON.parse(stored), fallback)
+      : fallback;
   } catch {
     /* Storage is optional, including in private browsing. */
   }
-  return { ...defaultGraphics };
+  return fallback;
 }
 
-export function normalizeGraphicsSettings(value: unknown): GraphicsSettings {
-  if (!value || typeof value !== 'object') return { ...defaultGraphics };
+export function normalizeGraphicsSettings(
+  value: unknown,
+  fallback = defaultGraphics,
+): GraphicsSettings {
+  if (!value || typeof value !== 'object') return { ...fallback };
   const v = value as Record<string, unknown>;
   if (!isGraphicsPreset(v.preset) || typeof v.adaptive !== 'boolean')
-    return { ...defaultGraphics };
+    return { ...fallback };
   const profile = settingsForPreset(v.preset);
   return {
     antiAliasing: isAntiAliasingMode(v.antiAliasing)

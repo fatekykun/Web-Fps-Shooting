@@ -18,6 +18,7 @@ import {
   Texture,
 } from 'three';
 import { AdaptiveResolution } from './AdaptiveResolution';
+import { readDevice } from '../input/deviceCapabilities';
 import { WorldAntiAliasing } from './WorldAntiAliasing';
 import { OpticScope, type OpticView } from './OpticScope';
 import {
@@ -96,7 +97,7 @@ export class GameRenderer {
       settings.preset === 'quality' ||
       settings.preset === 'hd' ||
       settings.preset === 'ultra';
-    this.adaptive = new AdaptiveResolution(settings);
+    this.adaptive = new AdaptiveResolution(settings, readDevice().handheld);
     this.aa = new WorldAntiAliasing(this.renderer, this.target);
     this.aa.configure(settings.antiAliasing);
     this.renderScale = settings.renderScale;
@@ -210,6 +211,22 @@ export class GameRenderer {
       viewmodel.environment = scene.environment;
       viewmodel.environmentIntensity = 0.63;
     }
+  }
+
+  async prepareViewmodel(
+    world: Scene,
+    viewmodel: { scene: Scene; camera: Camera },
+  ): Promise<void> {
+    this.lightMaterials(world, viewmodel.scene);
+    const previous = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(this.target);
+    let compiling: Promise<unknown>;
+    try {
+      compiling = this.renderer.compileAsync(viewmodel.scene, viewmodel.camera);
+    } finally {
+      this.renderer.setRenderTarget(previous);
+    }
+    await compiling;
   }
 
   render(

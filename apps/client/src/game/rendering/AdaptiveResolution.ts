@@ -14,15 +14,20 @@ export class AdaptiveResolution {
   private elapsed = 0;
   private windowTime = 0;
   private samples = 0;
+  private missedFrames = 0;
   private slow = 0;
   private fast = 0;
   private changedAt = -config.cooldownMs;
 
-  constructor(settings: Pick<GraphicsSettings, 'preset' | 'adaptive'>) {
+  constructor(
+    settings: Pick<GraphicsSettings, 'preset' | 'adaptive'>,
+    private readonly handheld = false,
+  ) {
     this.current = settings.preset;
     this.ceiling = presetOrder.indexOf(settings.preset);
     this.floor =
-      settings.preset === 'hd' || settings.preset === 'ultra'
+      !this.handheld &&
+      (settings.preset === 'hd' || settings.preset === 'ultra')
         ? this.ceiling - 1
         : 0;
     this.enabled = settings.adaptive;
@@ -32,7 +37,8 @@ export class AdaptiveResolution {
     this.current = settings.preset;
     this.ceiling = presetOrder.indexOf(settings.preset);
     this.floor =
-      settings.preset === 'hd' || settings.preset === 'ultra'
+      !this.handheld &&
+      (settings.preset === 'hd' || settings.preset === 'ultra')
         ? this.ceiling - 1
         : 0;
     this.enabled = settings.adaptive;
@@ -43,6 +49,7 @@ export class AdaptiveResolution {
     this.elapsed = 0;
     this.windowTime = 0;
     this.samples = 0;
+    this.missedFrames = 0;
     this.slow = 0;
     this.fast = 0;
     this.changedAt = -config.cooldownMs;
@@ -57,20 +64,36 @@ export class AdaptiveResolution {
     }
     const sample = Math.min(frameMs, config.maxSampleMs);
     this.elapsed += sample;
-    if (this.elapsed < config.warmupMs) return null;
+    if (this.elapsed < (this.handheld ? 1000 : config.warmupMs)) return null;
     this.windowTime += sample;
     this.samples++;
+    if (sample > config.slowFrameMs) this.missedFrames++;
     if (this.windowTime < config.windowMs) return null;
     const average = this.windowTime / this.samples;
+    const frequentlyLate = this.missedFrames >= this.samples / 5;
     this.windowTime = 0;
     this.samples = 0;
-    this.slow = average > config.slowFrameMs ? this.slow + 1 : 0;
+    this.missedFrames = 0;
+    this.slow =
+      average > config.slowFrameMs && (!this.handheld || frequentlyLate)
+        ? this.slow + 1
+        : 0;
     this.fast = average < config.fastFrameMs ? this.fast + 1 : 0;
-    if (this.elapsed - this.changedAt < config.cooldownMs) return null;
+    const sinceChange = this.elapsed - this.changedAt;
     const index = presetOrder.indexOf(this.current);
     let next = index;
-    if (this.slow >= config.slowWindows && index > this.floor) next--;
-    else if (this.fast >= config.fastWindows && index < this.ceiling) next++;
+    if (
+      this.slow >= (this.handheld ? 1 : config.slowWindows) &&
+      sinceChange >= (this.handheld ? 2000 : config.cooldownMs) &&
+      index > this.floor
+    )
+      next--;
+    else if (
+      this.fast >= config.fastWindows &&
+      sinceChange >= config.cooldownMs &&
+      index < this.ceiling
+    )
+      next++;
     if (next === index) return null;
     this.current = presetOrder[next]!;
     this.changedAt = this.elapsed;
