@@ -65,6 +65,34 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'download-loadout-models' || !event.ports[0]) return;
+  const reply = event.ports[0];
+  event.waitUntil(
+    (async () => {
+      const paths = event.data.paths;
+      if (!Array.isArray(paths) || paths.length > models.size + 2)
+        throw new Error('Invalid model selection');
+      const cache = await caches.open(modelCacheName);
+      for (const path of new Set(paths)) {
+        const href = new URL(path, scope).href;
+        if (precached.has(href)) continue;
+        const key = models.get(href);
+        if (!key) throw new Error('Unknown model');
+        if (await cache.match(key)) continue;
+        const response = await fetch(href, {
+          cache: 'no-cache',
+          priority: 'low',
+        });
+        if (response.status !== 200 || response.redirected)
+          throw new Error('Model download failed');
+        await cache.put(key, response);
+      }
+      reply.postMessage(true);
+    })().catch(() => reply.postMessage(false)),
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET' || request.headers.has('range')) return;

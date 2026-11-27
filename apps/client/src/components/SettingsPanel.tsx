@@ -19,6 +19,10 @@ import { gyroAvailable, type GyroAccess } from '../game/input/GyroInput';
 import type { GyroMeasurement } from '../game/input/InputManager';
 import type { GyroActivation } from '../game/input/gyroSensitivity';
 import { GraphicsControls } from './GraphicsControls';
+import {
+  downloadLoadoutModels,
+  supportsLoadoutDownloads,
+} from '../app/installGame';
 import { GyroDiagnosticsPanel } from './GyroDiagnosticsPanel';
 import { TacticalDialog } from './TacticalDialog';
 
@@ -129,6 +133,9 @@ export function SettingsPanel({
   const [tab, setTab] = useState<(typeof tabs)[number]>('CONTROLS');
   const [listening, setListening] = useState<BindingAction | null>(null);
   const [notice, setNotice] = useState('');
+  const [loadoutDownload, setLoadoutDownload] = useState<
+    'loading' | 'ready' | 'failed'
+  >();
   const [gyroPending, setGyroPending] = useState(false);
   const [gyroAccess, setGyroAccess] = useState<GyroAccess | null>(null);
   const canUseGyro = showGyro && gyroAvailable();
@@ -583,6 +590,33 @@ export function SettingsPanel({
               idPrefix="settings"
               advanced
             />
+            {supportsLoadoutDownloads() && (
+              <div className="scope-style-setting">
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={loadoutDownload === 'loading'}
+                  onClick={() => {
+                    setLoadoutDownload('loading');
+                    void downloadLoadoutModels(settings.loadouts).then(
+                      (ok) => setLoadoutDownload(ok ? 'ready' : 'failed'),
+                      () => setLoadoutDownload('failed'),
+                    );
+                  }}
+                >
+                  Download loadout assets
+                </button>
+                {loadoutDownload && (
+                  <span role="status">
+                    {loadoutDownload === 'loading'
+                      ? 'Downloading…'
+                      : loadoutDownload === 'ready'
+                        ? 'Saved loadout models downloaded.'
+                        : 'Download unavailable. Try again.'}
+                  </span>
+                )}
+              </div>
+            )}
             <div className="section-heading">
               <h3>PRESENTATION</h3>
               <span>NATIVE HUD / PIXEL WORLD</span>

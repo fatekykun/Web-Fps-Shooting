@@ -16,6 +16,15 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('render resolution and settings', () => {
+  it('defaults handhelds to adaptive resolution and respects a saved fixed mode', () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    expect(loadGraphicsSettings(true).adaptive).toBe(true);
+    expect(loadGraphicsSettings(false).adaptive).toBe(false);
+    vi.stubGlobal('localStorage', {
+      getItem: () => JSON.stringify({ preset: 'hd', adaptive: false }),
+    });
+    expect(loadGraphicsSettings(true)).toEqual(settingsForPreset('hd'));
+  });
   it('uses the selected resolutions and supports an explicit lower render scale', () => {
     expect(calculateResolution('performance', 1280, 720)).toEqual({
       width: 960,

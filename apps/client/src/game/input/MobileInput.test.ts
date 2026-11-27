@@ -189,7 +189,10 @@ describe('touch intentions', () => {
     aimScale.mockReturnValue(0.6);
     root.pointer('pointerdown', 'look', 1);
     expect(aimScale).not.toHaveBeenCalled();
+    root.pointer('pointermove', 'look', 1, 65, 60);
     root.pointer('pointermove', 'look', 1, 72, 60);
+    expect(aimScale).not.toHaveBeenCalled();
+    input.updateLook(16);
     const assisted = input.movement.yaw;
     expect(aimScale).toHaveBeenCalledExactlyOnceWith(0);
     root.pointer('pointerup', 'look', 1);
@@ -197,6 +200,7 @@ describe('touch intentions', () => {
     input.configure({ ...defaultUserSettings(), touchAimAssist: false });
     root.pointer('pointerdown', 'look', 2);
     root.pointer('pointermove', 'look', 2, 72, 60);
+    input.updateLook(32);
     expect(assisted).toBeCloseTo(input.movement.yaw * 0.6, 9);
     input.configure(defaultUserSettings());
     input.mouseLook(12, 0);
@@ -239,6 +243,7 @@ describe('touch intentions', () => {
     root.pointer('pointerdown', 'aim', 3);
     root.pointer('pointerdown', 'fire', 4);
     root.pointer('pointermove', 'look', 2, 540, 110);
+    input.updateLook(16);
     expect(input.movement.forward).toBeCloseTo(1);
     expect(input.movement.yaw).toBeLessThan(0);
     expect(input.pitch).toBeLessThan(0);
@@ -269,6 +274,7 @@ describe('touch intentions', () => {
     input.configure({ ...defaultUserSettings(), adsFireDragToAim: false });
     root.pointer('pointerdown', 'fire', 1, 690, 200);
     root.pointer('pointermove', 'fire', 1, 640, 215);
+    input.updateLook(16);
     expect(input.movement.yaw).toBeGreaterThan(0);
     expect(input.pitch).toBeLessThan(0);
     expect(input.weapon).toMatchObject({ fire: true, aim: false });
@@ -331,15 +337,19 @@ describe('touch intentions', () => {
     });
     root.pointer('pointerdown', 'look', 3, 480, 100);
     root.pointer('pointermove', 'adsFire', 2, 660, 190);
+    input.updateLook(16);
     const yaw = input.movement.yaw;
     expect(yaw).toBeLessThan(0);
     root.pointer('pointermove', 'look', 3, 490, 100);
+    input.updateLook(32);
     expect(input.movement.yaw).toBeCloseTo(yaw * 2);
     input.configure({ ...defaultUserSettings(), adsFireDragToAim: false });
     root.pointer('pointermove', 'adsFire', 2, 700, 190);
+    input.updateLook(48);
     expect(input.movement.yaw).toBeCloseTo(yaw * 2);
     expect(input.weapon).toMatchObject({ aim: true, fire: true });
     root.pointer('pointermove', 'look', 3, 500, 100);
+    input.updateLook(64);
     expect(input.movement.yaw).toBeCloseTo(yaw * 3);
     root.pointer('pointerdown', 'fire', 4);
     input.consumeActions();
@@ -469,6 +479,7 @@ describe('touch intentions', () => {
     root.pointer('pointerdown', 'look', 3, 400, 100);
     root.pointer('pointerdown', 'look', 4, 700, 300);
     root.pointer('pointermove', 'look', 4, 900, 500);
+    input.updateLook(16);
     expect(input.movement.yaw).toBe(0);
     root.pointer('pointerup', 'look', 3);
     root.pointer('pointerdown', 'look', 5, 800, 350);
@@ -527,6 +538,7 @@ describe('touch intentions', () => {
     root.pointer('pointerdown', 'aim', 1);
     root.pointer('pointerdown', 'look', 2, 300, 100);
     root.pointer('pointermove', 'look', 2, 310, 110);
+    input.updateLook(16);
     const expected = ((10 * Math.PI) / (390 * 1.2)) * 0.5;
     expect(input.movement.yaw).toBeCloseTo(-expected);
     expect(input.pitch).toBeCloseTo(expected);
@@ -547,6 +559,26 @@ describe('touch intentions', () => {
     browser.dispatchEvent(event);
     if (render) input.updateGyroLook(time);
   }
+
+  it('applies swipe and gyro on the same frame with no swipe carried into the next frame', () => {
+    Object.assign(browser, {
+      isSecureContext: true,
+      DeviceMotionEvent: Event,
+      screen: { orientation: { angle: 90 } },
+    });
+    input.configure({ ...defaultUserSettings(), gyroActivation: 'always' });
+    root.pointer('pointerdown', 'look', 1, 400, 100);
+    root.pointer('pointermove', 'look', 1, 420, 100);
+    root.pointer('pointerup', 'look', 1);
+    motion(1000, 60, 0, {}, false);
+    motion(1020, 60, 0, {}, false);
+    input.updateLook(1020);
+    const swipe = (-20 * Math.PI) / (390 * 1.2);
+    expect(input.movement.yaw).toBeCloseTo(swipe + (1.2 * Math.PI) / 180, 9);
+    input.updateLook(1028);
+    expect(input.movement.yaw).toBeCloseTo(swipe + (1.68 * Math.PI) / 180, 9);
+    expect(aimScale).toHaveBeenCalledTimes(1);
+  });
 
   it.each([
     [1000, 1020, 1031, 1061, 1079, 1101],

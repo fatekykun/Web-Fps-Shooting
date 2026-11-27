@@ -1,4 +1,46 @@
 import { expect, test } from '@playwright/test';
+import { defaultLoadouts } from '@breakpoint/shared/weapons/loadouts';
+
+test('downloads saved loadout models for later offline use', async ({
+  page,
+  context,
+}) => {
+  const loadouts = defaultLoadouts();
+  Object.assign(loadouts.slots[1], {
+    operator: 'ghost',
+    meleeSkin: 'ember-talon',
+  });
+  await page.addInitScript(
+    (profile) =>
+      localStorage.setItem(
+        'breakpoint.settings.v1',
+        JSON.stringify({ loadouts: profile }),
+      ),
+    loadouts,
+  );
+  await page.goto('/');
+  await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
+  await page.getByRole('tab', { name: /DISPLAY/ }).click();
+  await page.getByRole('button', { name: 'Download loadout assets' }).click();
+  await expect(page.getByText('Saved loadout models downloaded.')).toBeVisible({
+    timeout: 60000,
+  });
+  await context.setOffline(true);
+  const models = await page.evaluate(async () =>
+    Promise.all(
+      ['/models/ghost_character.glb', '/models/ember_talon_karambit.glb'].map(
+        async (path) => {
+          const response = await fetch(path);
+          return [response.status, (await response.arrayBuffer()).byteLength];
+        },
+      ),
+    ),
+  );
+  for (const [status, size] of models) {
+    expect(status).toBe(200);
+    expect(size).toBeGreaterThan(0);
+  }
+});
 
 test('downloads character previews on selection and reuses them across offline visits', async ({
   page,

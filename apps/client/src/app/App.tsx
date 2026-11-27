@@ -68,7 +68,9 @@ export function App() {
   const [entered, setEntered] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<GameTelemetry | null>(null);
-  const [graphics, setGraphics] = useState(loadGraphicsSettings);
+  const [graphics, setGraphics] = useState(() =>
+    loadGraphicsSettings(device.handheld),
+  );
   const graphicsRef = useRef(graphics);
   const [combat, setCombat] = useState<CombatSnapshot | null>(null);
   const owner = combat?.player;
@@ -639,7 +641,7 @@ export function App() {
             onReset={() => {
               ++gyroRequest.current;
               changePreferences(defaultUserSettings());
-              changeGraphics({ ...defaultGraphics });
+              changeGraphics({ ...defaultGraphics, adaptive: device.handheld });
               const { opacity, visible } = defaultMobileHudLayout().minimap;
               saveMobileLayout({
                 ...mobileLayout,
