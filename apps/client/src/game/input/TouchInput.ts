@@ -14,9 +14,9 @@ export class TouchInput {
   private readonly camera = new TouchCamera();
   private forward = 0;
   private right = 0;
-  private sprint = false;
   private aim = false;
   private readonly buttons: HTMLElement[];
+  private readonly sprintMarker: HTMLElement | null;
   constructor(
     private readonly root: HTMLElement,
     private readonly input: InputManager,
@@ -24,6 +24,7 @@ export class TouchInput {
     this.buttons = [
       ...root.querySelectorAll<HTMLElement>('[data-touch-control]'),
     ];
+    this.sprintMarker = root.querySelector('[data-sprint-indicator]');
     root.addEventListener('pointerdown', this.down, { passive: false });
     root.addEventListener('pointermove', this.move, { passive: false });
     root.addEventListener('pointerup', this.up);
@@ -60,7 +61,6 @@ export class TouchInput {
       this.moveJoystick(event);
     }
     if (control === 'look') this.camera.begin(event.clientX, event.clientY);
-    if (control === 'sprint') this.sprint = !this.sprint;
     if (control === 'aim') this.aim = !this.aim;
     if (control === 'jump') this.input.movement.jumpPressed = true;
     if (control === 'slide') this.input.movement.slidePressed = true;
@@ -87,12 +87,7 @@ export class TouchInput {
     event.preventDefault();
     if (owner.control === 'joystick') {
       this.moveJoystick(event);
-      this.input.setTouchAxes(
-        this.forward,
-        this.right,
-        this.sprint,
-        this.has('jump'),
-      );
+      this.syncMovement();
     }
     if (owner.control === 'look') {
       const delta = this.camera.move(event.clientX, event.clientY);
@@ -112,29 +107,23 @@ export class TouchInput {
       this.joystick.clear();
     }
     if (cancelled && owner.control === 'aim') this.aim = false;
-    if (cancelled && owner.control === 'sprint') this.sprint = false;
     if (owner.element.hasPointerCapture(event.pointerId))
       owner.element.releasePointerCapture(event.pointerId);
     this.sync();
   }
+  private syncMovement(): void {
+    const sprint = this.joystick.sprintActive;
+    this.input.setTouchAxes(this.forward, this.right, sprint, this.has('jump'));
+    if (this.sprintMarker) this.sprintMarker.dataset.active = String(sprint);
+  }
   private sync(): void {
-    this.input.setTouchAxes(
-      this.forward,
-      this.right,
-      this.sprint,
-      this.has('jump'),
-    );
+    this.syncMovement();
     this.input.setTouchWeapons(this.has('fire'), this.aim);
     for (const button of this.buttons) {
       const control = button.dataset.touchControl!;
-      const active =
-        control === 'aim'
-          ? this.aim
-          : control === 'sprint'
-            ? this.sprint
-            : this.has(control);
+      const active = control === 'aim' ? this.aim : this.has(control);
       button.dataset.active = String(active);
-      if (control === 'aim' || control === 'sprint')
+      if (control === 'aim')
         button.setAttribute('aria-pressed', String(active));
     }
   }
@@ -145,7 +134,7 @@ export class TouchInput {
       if (owner.element.hasPointerCapture(id))
         owner.element.releasePointerCapture(id);
     this.forward = this.right = 0;
-    this.sprint = this.aim = false;
+    this.aim = false;
     this.joystick.clear();
     this.sync();
   }

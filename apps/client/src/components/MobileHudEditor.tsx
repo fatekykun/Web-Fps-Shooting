@@ -17,7 +17,7 @@ import {
 } from '../game/input/mobileHudSettings';
 const labels: Record<MobileHudControlId, string> = {
   joystick: 'Movement joystick',
-  sprint: 'Sprint',
+  sprint: 'Sprint trigger',
   fire: 'Fire',
   aim: 'ADS',
   jump: 'Jump',
@@ -257,6 +257,11 @@ export function MobileHudEditor({
                 onChange={(e) => patch({ opacity: Number(e.target.value) })}
               />
             </label>
+            {selected === 'sprint' && (
+              <p className="hud-control-hint">
+                Drag the marker closer to the joystick to sprint sooner.
+              </p>
+            )}
           </aside>
         </div>
         <div className="hud-editor-screen">

@@ -154,6 +154,9 @@
   --touch-border: #e9c19ca4;
   border-width: 2px;
 }
+.touch-sprint[data-sprint-indicator] {
+  pointer-events: none;
+}
 .touch-swap {
   border-radius: 12px;
 }
@@ -547,6 +550,11 @@
 .hud-adjustment {
   display: grid;
   gap: 1px;
+}
+.hud-control-hint {
+  grid-column: 1 / -1;
+  margin: 0 0 3px;
+  line-height: 1.4;
 }
 .hud-editor-tools select {
   min-width: 0;
