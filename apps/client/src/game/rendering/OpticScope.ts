@@ -40,6 +40,8 @@ export class OpticScope {
     generateMipmaps: false,
     depthBuffer: true,
     stencilBuffer: false,
+    resolveDepthBuffer: false,
+    storeMultisampledDepthBuffer: false,
     colorSpace: LinearSRGBColorSpace,
   });
   private readonly scene = new Scene();

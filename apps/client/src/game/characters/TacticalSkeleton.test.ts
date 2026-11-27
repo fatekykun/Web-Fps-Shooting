@@ -69,7 +69,8 @@ it('matches every Three.Bone world transform to authoritative server joint evalu
 it('uses bounded rounded segments with outward normals, UVs, and 72 triangles', () => {
   const geometry = createTacticalGeometry();
   try {
-    expect(geometry.getAttribute('position').count / 3).toBe(72);
+    expect(geometry.index?.count).toBe(72 * 3);
+    expect(geometry.getAttribute('position').count).toBeLessThan(72 * 3);
     const point = new Vector3(),
       normal = new Vector3();
     const position = geometry.getAttribute('position'),

@@ -41,6 +41,9 @@ export class GameRenderer {
     generateMipmaps: false,
     depthBuffer: true,
     stencilBuffer: false,
+    // Later layers clear depth or ignore it. Presentation only samples color.
+    resolveDepthBuffer: false,
+    storeMultisampledDepthBuffer: false,
     samples: 0,
     colorSpace: LinearSRGBColorSpace,
   });
@@ -234,7 +237,12 @@ export class GameRenderer {
         scope,
       );
     this.worldDrawCalls = this.renderer.info.render.calls;
-    this.material.map = this.aa.render();
+    const nativeSize =
+      this.target.width === this.outputWidth &&
+      this.target.height === this.outputHeight;
+    const displayTexture = this.aa.render(nativeSize);
+    if (!displayTexture) return;
+    this.material.map = displayTexture;
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.presentation, this.presentationCamera);
   }

@@ -18,7 +18,7 @@ import {
   type Scene,
 } from 'three';
 import type { ArenaBox } from '@breakpoint/shared/maps';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { createIndexedRoundedBox } from '../rendering/RoundedBox';
 import { ArenaSurfaces } from '../rendering/SurfaceAtlas';
 import {
   createArenaSky,
@@ -57,7 +57,7 @@ export class BatchedArena {
   private readonly root = new Group();
   private readonly box = new BoxGeometry();
   private readonly drum = new CylinderGeometry(0.5, 0.5, 1, 12);
-  private readonly trimBox = new RoundedBoxGeometry(1, 1, 1, 1, 0.035);
+  private readonly trimBox = createIndexedRoundedBox(0.035);
   private readonly sky;
   private readonly contactOcclusion;
   private readonly surfaces: ArenaSurfaces;

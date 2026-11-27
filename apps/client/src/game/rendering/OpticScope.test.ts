@@ -88,6 +88,7 @@ it('skips inactive optics, reuses attachments while aiming and matches MSAA with
     destination.samples = 4;
     draw(1, 86);
     expect(target.samples).toBe(4);
+    expect(target.resolveDepthBuffer).toBe(false);
     expect(dispose).toHaveBeenCalledOnce();
     expect(renderer.autoClear).toBe(true);
     expect(renderer.shadowMap.autoUpdate).toBe(true);

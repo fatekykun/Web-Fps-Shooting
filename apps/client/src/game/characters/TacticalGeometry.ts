@@ -1,4 +1,5 @@
 import { BufferGeometry, Float32BufferAttribute } from 'three';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /** Rounded, tapered armor segments with shared smooth normals along the sides. */
 export function createTacticalGeometry(): BufferGeometry {
@@ -42,6 +43,7 @@ export function createTacticalGeometry(): BufferGeometry {
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
   geometry.setAttribute('normal', new Float32BufferAttribute(normals, 3));
   geometry.setAttribute('uv', new Float32BufferAttribute(uv, 2));
-  geometry.computeBoundingSphere();
-  return geometry;
+  const indexed = mergeVertices(geometry, 1e-7);
+  indexed.computeBoundingSphere();
+  return indexed;
 }

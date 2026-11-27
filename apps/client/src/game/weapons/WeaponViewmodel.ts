@@ -33,7 +33,7 @@ import {
 } from '@breakpoint/shared/weapons/loadouts';
 import { weaponAsset } from './WeaponAssets';
 import type { WeaponController } from './WeaponController';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { createIndexedRoundedBox } from '../rendering/RoundedBox';
 import { createEquipmentTexture } from '../rendering/EquipmentSurface';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import type { GraphicsSettings } from '../rendering/graphicsConfig';
@@ -339,7 +339,7 @@ export class WeaponViewmodel {
       this.boltIndex = parts.length;
       parts.push([0.115, 0.045, 0.095, 0.1, 0.035, 0.035, 0x9ca89c]);
     }
-    const geometry = new RoundedBoxGeometry(1, 1, 1, 1, 0.065);
+    const geometry = createIndexedRoundedBox(0.065);
     geometry.setAttribute(
       'equipmentFinish',
       new InstancedBufferAttribute(

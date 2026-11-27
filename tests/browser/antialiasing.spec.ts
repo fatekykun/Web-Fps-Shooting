@@ -47,6 +47,11 @@ test('exclusive AA modes smooth geometry before presentation and survive resize/
   await page.getByLabel('Resolution preset').selectOption('performance');
   const metrics = page.getByTestId('render-resolution');
   const selector = page.getByLabel('Anti-aliasing', { exact: true });
+  const postDraws = () =>
+    metrics.evaluate(
+      (element) =>
+        Number(element.dataset.draws) - Number(element.dataset.worldDraws),
+    );
   await expect(metrics).toHaveAttribute('data-aa-active', 'off');
   const baseline = await roofPixels(page);
   const supported = (await metrics.getAttribute('data-aa-supported'))!.split(
@@ -64,6 +69,9 @@ test('exclusive AA modes smooth geometry before presentation and survive resize/
       'data-aa-passes',
       mode === 'fxaa' ? '1' : mode === 'smaa' ? '3' : '0',
     );
+    await expect
+      .poll(postDraws)
+      .toBe(mode === 'fxaa' ? 2 : mode === 'smaa' ? 4 : 1);
     const pixels = await roofPixels(page);
     let changed = 0;
     for (let i = 0; i < pixels.length; i += 4)
@@ -76,12 +84,22 @@ test('exclusive AA modes smooth geometry before presentation and survive resize/
   }
   // Settings changes retain one selected technique and resize its buffers/uniforms.
   await page.getByLabel('Resolution preset').selectOption('quality');
+  if (supported.includes('smaa')) {
+    await selector.selectOption('smaa');
+    await expect(metrics).toHaveAttribute('data-aa-active', 'smaa');
+    await expect.poll(postDraws).toBe(3);
+  }
   await selector.selectOption('fxaa');
   await expect(metrics).toHaveAttribute('data-width', '1280');
   await expect(metrics).toHaveAttribute('data-aa-active', 'fxaa');
+  await expect.poll(postDraws).toBe(1);
+  const scale = page.getByLabel('Render scale', { exact: true });
+  await scale.selectOption('0.75');
+  await expect.poll(postDraws).toBe(2);
   await page.setViewportSize({ width: 960, height: 640 });
   await expect(metrics).toHaveAttribute('data-output-width', '960');
   await expect(metrics).toHaveAttribute('data-aa-active', 'fxaa');
+  await expect.poll(postDraws).toBe(1);
   await page.reload();
   await expect(
     page.getByRole('button', { name: 'ENTER TRAINING' }),

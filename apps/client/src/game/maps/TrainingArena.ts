@@ -17,7 +17,7 @@ import {
   SRGBColorSpace,
 } from 'three';
 import { arenaBoxes } from './arenaLayout';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { createIndexedRoundedBox } from '../rendering/RoundedBox';
 import { ArenaSurfaces } from '../rendering/SurfaceAtlas';
 import {
   createArenaSky,
@@ -40,7 +40,7 @@ const surfaceColors = [
 export class TrainingArena {
   private readonly root = new Group();
   private readonly geometry = new BoxGeometry(1, 1, 1);
-  private readonly trimGeometry = new RoundedBoxGeometry(1, 1, 1, 1, 0.045);
+  private readonly trimGeometry = createIndexedRoundedBox(0.045);
   private readonly solidGeometry = this.geometry.clone();
   private readonly sky = createArenaSky(fogColor);
   private readonly contactOcclusion = createContactOcclusion(arenaBoxes);
