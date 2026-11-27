@@ -190,7 +190,7 @@ test.describe('touch inspect', () => {
     const hud = page.getByTestId('weapon-status');
     await inspect.tap();
     await expect(hud).toHaveAttribute('data-inspecting', 'true');
-    await page.getByRole('button', { name: 'Toggle ADS' }).tap();
+    await page.getByRole('button', { name: 'Aim down sights' }).tap();
     await expect(hud).toHaveAttribute('data-inspecting', 'false');
     await expect(page.locator('.crosshair')).toHaveCSS('visibility', 'hidden');
     await page.getByRole('button', { name: 'Switch weapon' }).tap();

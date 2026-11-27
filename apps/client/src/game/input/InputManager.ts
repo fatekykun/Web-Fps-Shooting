@@ -84,7 +84,9 @@ export class InputManager {
   private keyboardAxes = { forward: 0, right: 0, sprint: false, jump: false };
   private touchAxes = { forward: 0, right: 0, sprint: false, jump: false };
   private mouseHeld = { fire: false, aim: false };
-  private touchHeld = { fire: false, aim: false };
+  private touchHeld = { fire: false, aim: false, adsFire: false };
+  private adsFirePending = false;
+  private adsFireReady = false;
   private scoreboard = false;
   private automaticLock = false;
   private settings = defaultUserSettings();
@@ -158,12 +160,14 @@ export class InputManager {
     event.stopImmediatePropagation();
   };
   configure(settings: UserSettings): void {
-    const changed = bindingActions.some(
+    const bindingsChanged = bindingActions.some(
       (action) => this.settings.bindings[action] !== settings.bindings[action],
     );
+    const touchAdsModeChanged =
+      this.settings.touchAdsMode !== settings.touchAdsMode;
     this.settings = settings;
     this.weapon.autoReload = settings.autoReload;
-    if (changed) this.clear();
+    if (bindingsChanged || touchAdsModeChanged) this.clear();
     this.syncGyro();
   }
   requestSavedGyroAccess(): void {
@@ -309,15 +313,59 @@ export class InputManager {
     }
     this.mergeWeapons();
   }
-  setTouchWeapons(fire: boolean, aim: boolean): void {
+  get touchAdsMode(): UserSettings['touchAdsMode'] {
+    return this.settings.touchAdsMode;
+  }
+  get adsFireDragToAim(): boolean {
+    return this.settings.adsFireDragToAim;
+  }
+  setTouchWeapons(fire: boolean, aim: boolean, adsFire = false): void {
     if (fire && !this.touchHeld.fire) this.weapon.firePressed = true;
     if (aim && !this.touchHeld.aim) this.weapon.aimPressed = true;
-    this.touchHeld = { fire, aim };
+    if (adsFire && !this.touchHeld.adsFire) {
+      if (!this.weapon.aim) this.weapon.aimPressed = true;
+      this.adsFirePending = true;
+      this.adsFireReady = false;
+    }
+    this.touchHeld = { fire, aim, adsFire };
+    this.mergeWeapons();
+  }
+  prepareAdsFire(canFire = true): void {
+    if (!this.touchHeld.adsFire && !this.adsFirePending) return;
+    const weapon = this.getWeapon();
+    const switching = this.weapon.switchTo !== null;
+    const busy =
+      !canFire ||
+      switching ||
+      this.weapon.reloadPressed ||
+      weapon?.reloading ||
+      weapon?.equipping;
+    if (!this.touchHeld.adsFire && (busy || weapon?.cycling)) {
+      this.cancelAdsFire();
+      return;
+    }
+    // Wait for the existing ADS animation so the first round uses aimed spread.
+    this.adsFireReady =
+      !busy && (!weapon || weapon.selected === 'melee' || weapon.ads >= 0.9);
+    if (this.adsFireReady && this.adsFirePending)
+      this.weapon.firePressed = true;
+    this.mergeWeapons();
+  }
+  cancelAdsFire(): void {
+    this.touchHeld.adsFire = false;
+    this.adsFirePending = this.adsFireReady = false;
     this.mergeWeapons();
   }
   private mergeWeapons(): void {
-    this.weapon.fire = this.mouseHeld.fire || this.touchHeld.fire;
-    this.weapon.aim = this.mouseHeld.aim || this.touchHeld.aim;
+    this.weapon.fire =
+      this.mouseHeld.fire ||
+      this.touchHeld.fire ||
+      (this.touchHeld.adsFire && this.adsFireReady);
+    this.weapon.aim =
+      this.mouseHeld.aim ||
+      this.touchHeld.aim ||
+      this.touchHeld.adsFire ||
+      this.adsFirePending;
   }
   cycleWeapon(): void {
     if (this.cycleLoadout) {
@@ -498,6 +546,10 @@ export class InputManager {
     this.movement.pronePressed = false;
     this.movement.divePressed = false;
     this.weapon.firePressed = false;
+    if (this.adsFireReady && this.adsFirePending) {
+      this.adsFirePending = false;
+      this.mergeWeapons();
+    }
     this.weapon.aimPressed = false;
     this.weapon.reloadPressed = false;
     this.weapon.switchTo = null;
@@ -514,7 +566,8 @@ export class InputManager {
     this.touch?.clear();
     this.touchAxes = { forward: 0, right: 0, sprint: false, jump: false };
     this.mouseHeld = { fire: false, aim: false };
-    this.touchHeld = { fire: false, aim: false };
+    this.touchHeld = { fire: false, aim: false, adsFire: false };
+    this.adsFirePending = this.adsFireReady = false;
     this.mergeAxes();
     this.mergeWeapons();
     this.consumeActions();

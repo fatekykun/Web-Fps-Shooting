@@ -891,6 +891,10 @@ export class Game {
   };
 
   private readonly simulate = (dt: number): void => {
+    if (this.input.locked)
+      this.input.prepareAdsFire(
+        !this.session || this.session.view?.phase === 'playing',
+      );
     if (!this.session && this.input.weapon.switchTo) {
       const next = this.input.weapon.switchTo;
       if (next === 'melee') {

@@ -134,7 +134,7 @@ test.describe('Android installation and offline Training', () => {
     await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
     const hud = page.getByTestId('weapon-status');
     await expect(hud).toHaveAttribute('data-ammo', '30');
-    await page.getByRole('button', { name: 'Fire weapon' }).tap();
+    await page.getByRole('button', { name: 'Hip Fire' }).tap();
     await expect(hud).toHaveAttribute('data-ammo', '29');
     await page
       .getByRole('button', { name: 'Switch weapon', exact: true })

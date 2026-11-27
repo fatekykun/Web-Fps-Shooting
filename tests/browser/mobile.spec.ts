@@ -141,6 +141,97 @@ for (const device of ['phone', 'tablet'] as const) {
 
 test.describe('phone touch controls', () => {
   test.use(phone);
+  test('the standalone ADS button holds aim until release in the saved Hold mode', async ({
+    page,
+    context,
+  }) => {
+    await prepare(page);
+    await page.clock.install();
+    await page.goto('/');
+    const settings = page.getByRole('button', {
+      name: 'SETTINGS',
+      exact: true,
+    });
+    await settings.tap();
+    const mode = page.getByLabel('ADS button mode');
+    await expect(mode).toHaveValue('tap');
+    await mode.selectOption('hold');
+    await page.reload();
+    await settings.tap();
+    await expect(mode).toHaveValue('hold');
+    await page.getByRole('button', { name: 'Close settings' }).tap();
+    await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
+    const aim = page.getByRole('button', { name: 'Aim down sights' });
+    await expect(aim).toBeVisible();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    const fingers = new Fingers(await context.newCDPSession(page));
+    const weapon = page.getByTestId('weapon-status');
+    await fingers.down(1, await point(page, 'aim'));
+    await expect(aim).toHaveAttribute('aria-pressed', 'true');
+    await page.clock.runFor(500);
+    expect(Number(await weapon.getAttribute('data-ads'))).toBeGreaterThan(0.9);
+    await fingers.up(1);
+    await expect(aim).toHaveAttribute('aria-pressed', 'false');
+    await page.clock.runFor(550);
+    expect(Number(await weapon.getAttribute('data-ads'))).toBeLessThan(0.01);
+  });
+  for (const dragEnabled of [true, false]) {
+    test(`ADS Fire aims and shoots with drag-to-aim ${dragEnabled ? 'on' : 'off'}`, async ({
+      page,
+      context,
+    }) => {
+      await prepare(page);
+      await page.clock.install();
+      await page.goto('/');
+      await page.getByRole('button', { name: 'SETTINGS', exact: true }).tap();
+      const dragToggle = page.getByRole('switch', {
+        name: 'ADS Fire Drag to Aim',
+      });
+      await expect(dragToggle).toBeChecked();
+      if (dragEnabled) {
+        await page.getByRole('button', { name: 'Close settings' }).tap();
+      } else {
+        await dragToggle.uncheck();
+        await page.reload();
+        await page.getByRole('button', { name: 'SETTINGS', exact: true }).tap();
+        await expect(dragToggle).not.toBeChecked();
+        await page.getByRole('button', { name: 'Close settings' }).tap();
+      }
+      await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
+      await expect(
+        page.getByRole('button', { name: 'Hip Fire', exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'ADS Fire', exact: true }),
+      ).toBeVisible();
+      await page.clock.pauseAt(new Date(Date.now() + 1000));
+      const weapon = page.getByTestId('weapon-status');
+      const marker = page.getByTestId('minimap-player');
+      const heading = () =>
+        marker.evaluate((element) => getComputedStyle(element).transform);
+      const start = await point(page, 'adsFire');
+      const initialHeading = await heading();
+      const fingers = new Fingers(await context.newCDPSession(page));
+      await fingers.down(1, start);
+      await fingers.move(1, { x: start.x - 32, y: start.y });
+      await page.clock.runFor(90);
+      await expect(weapon).toHaveAttribute('data-ammo', '30');
+      if (dragEnabled) await expect.poll(heading).not.toBe(initialHeading);
+      else expect(await heading()).toBe(initialHeading);
+      await page.clock.runFor(460);
+      expect(Number(await weapon.getAttribute('data-ads'))).toBeGreaterThan(
+        0.9,
+      );
+      expect(Number(await weapon.getAttribute('data-ammo'))).toBeLessThan(30);
+      await fingers.up(1);
+      await page.clock.runFor(550);
+      expect(Number(await weapon.getAttribute('data-ads'))).toBeLessThan(0.01);
+      const ammo = Number(await weapon.getAttribute('data-ammo'));
+      await page.getByRole('button', { name: 'ADS Fire', exact: true }).tap();
+      await page.clock.runFor(700);
+      await expect(weapon).toHaveAttribute('data-ammo', String(ammo - 1));
+    });
+  }
   test('HUD editor previews touch drag and opacity, discards a draft, and applies the saved layout after reload', async ({
     page,
     context,
@@ -199,7 +290,7 @@ test.describe('phone touch controls', () => {
     await page.keyboard.press('End');
     await expect(slider).toHaveValue('200');
     await page.getByRole('slider', { name: 'Control opacity' }).fill('37');
-    const fire = page.getByRole('button', { name: 'Fire weapon' });
+    const fire = page.getByRole('button', { name: 'Hip Fire' });
     await expect(fire).toHaveAttribute('data-selected', 'true');
     await expect(fire.locator('svg[data-control-icon="fire"]')).toBeVisible();
     const before = await fire.boundingBox();
@@ -335,8 +426,8 @@ test.describe('phone touch controls', () => {
     await page.getByRole('button', { name: 'EDIT HUD LAYOUT' }).tap();
 
     const editor = page.getByRole('dialog', { name: 'HUD editor' });
-    const fire = editor.getByRole('button', { name: 'Fire weapon' });
-    const aim = editor.getByRole('button', { name: 'Toggle ADS' });
+    const fire = editor.getByRole('button', { name: 'Hip Fire' });
+    const aim = editor.getByRole('button', { name: 'Aim down sights' });
     const map = editor.getByRole('button', { name: 'Minimap', exact: true });
     const center = async (item: typeof map) => {
       const box = (await item.boundingBox())!;
@@ -367,7 +458,7 @@ test.describe('phone touch controls', () => {
     await editor.getByRole('button', { name: 'Save', exact: true }).tap();
     await page.reload();
     await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
-    const liveFire = page.getByRole('button', { name: 'Fire weapon' });
+    const liveFire = page.getByRole('button', { name: 'Hip Fire' });
     await expect.poll(() => center(liveFire)).toEqual(edge);
     await expect
       .poll(() => center(page.getByTestId('minimap')))
@@ -415,8 +506,8 @@ test.describe('phone touch controls', () => {
     const controls = page.locator(
       '.mobile-hud :is(button[data-hud-id], [data-sprint-indicator])',
     );
-    await expect(controls).toHaveCount(13);
-    await expect(controls.locator('svg[data-control-icon]')).toHaveCount(13);
+    await expect(controls).toHaveCount(14);
+    await expect(controls.locator('svg[data-control-icon]')).toHaveCount(14);
     for (const control of await controls.all())
       await expect(control).toHaveText('');
     const boxes = await page.locator('.touch-button').evaluateAll((buttons) =>
@@ -507,7 +598,9 @@ test.describe('phone touch controls', () => {
     });
     await fingers.move(1, { x: joystick.x, y: joystick.y - customDistance });
     await fingers.up(1);
-    await editor.getByRole('button', { name: 'Save', exact: true }).tap();
+    await editor
+      .getByRole('button', { name: 'Save', exact: true })
+      .press('Enter');
     await expect(editor).toBeHidden();
     await page.reload();
     await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
@@ -591,7 +684,7 @@ test.describe('phone touch controls', () => {
     expect(Number(await weapon.getAttribute('data-ads'))).toBeGreaterThan(0.9);
     expect(Number(await weapon.getAttribute('data-ammo'))).toBeLessThan(30);
     await expect(
-      page.getByRole('button', { name: 'Toggle ADS' }),
+      page.getByRole('button', { name: 'Aim down sights' }),
     ).toHaveAttribute('aria-pressed', 'true');
     await page.screenshot({ path: 'test-results/bp13-phone-gameplay.png' });
     await fingers.cancel();
@@ -609,7 +702,7 @@ test.describe('phone touch controls', () => {
     await page.getByRole('button', { name: 'RESUME TRAINING' }).tap();
     await page.clock.runFor(300);
     await expect(
-      page.getByRole('button', { name: 'Toggle ADS' }),
+      page.getByRole('button', { name: 'Aim down sights' }),
     ).toHaveAttribute('aria-pressed', 'false');
     await expect(weapon).toHaveAttribute('data-ammo', ammo!);
     await page.getByRole('button', { name: 'Pause game' }).tap();
@@ -645,7 +738,7 @@ test.describe('phone touch controls', () => {
       await page.screenshot({ path: 'test-results/mobile-loadout.png' });
       await page.setViewportSize({ width: 1180, height: 820 });
       await expect(page.locator('.mobile-hud.tablet')).toBeVisible();
-      const picker = page.getByRole('region', { name: 'CHOOSE YOUR WEAPON' });
+      const picker = page.getByRole('region', { name: 'CHOOSE YOUR LOADOUT' });
       await expect(picker.getByRole('button')).toHaveCount(4);
       expect(
         await picker.evaluate(
@@ -694,14 +787,14 @@ test.describe('phone touch controls', () => {
       const start = host().z;
       await fingers.down(1, joystick);
       await fingers.move(1, { x: joystick.x, y: joystick.y - 40 });
-      await fingers.down(2, await point(page, 'fire'));
+      await fingers.down(2, await point(page, 'adsFire'));
       await expect.poll(() => host().z).toBeGreaterThan(start + 0.5);
+      const weapon = page.getByTestId('weapon-status');
       await expect
-        .poll(async () =>
-          Number(
-            await page.getByTestId('weapon-status').getAttribute('data-ammo'),
-          ),
-        )
+        .poll(async () => Number(await weapon.getAttribute('data-ads')))
+        .toBeGreaterThan(0.9);
+      await expect
+        .poll(async () => Number(await weapon.getAttribute('data-ammo')))
         .toBeLessThan(35);
       await page.waitForTimeout(1000);
       const metrics = await page.locator('.telemetry').evaluate((element) => ({
@@ -777,7 +870,7 @@ test.describe('tablet and hybrid layouts', () => {
         'data-weapon',
         'sniper',
       );
-      await page.getByRole('button', { name: 'Toggle ADS' }).tap();
+      await page.getByRole('button', { name: 'Aim down sights' }).tap();
       await expect
         .poll(async () =>
           Number(
@@ -786,7 +879,7 @@ test.describe('tablet and hybrid layouts', () => {
         )
         .toBeGreaterThan(0.95);
       await page.screenshot({ path: 'test-results/bp13-tablet-sniper.png' });
-      await page.getByRole('button', { name: 'Fire weapon' }).tap();
+      await page.getByRole('button', { name: 'Hip Fire' }).tap();
       await expect(page.getByTestId('weapon-status')).toHaveAttribute(
         'data-ammo',
         '4',

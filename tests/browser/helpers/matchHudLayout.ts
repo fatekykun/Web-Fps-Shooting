@@ -70,7 +70,7 @@ export async function expectMatchHudLayout(page: Page, touch = false) {
         };
       }),
     );
-  expect(controls).toHaveLength(12);
+  expect(controls).toHaveLength(13);
   for (const control of controls)
     for (const panel of boxes)
       expect(

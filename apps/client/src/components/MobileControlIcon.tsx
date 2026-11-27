@@ -27,6 +27,13 @@ const icons: Record<MobileControlIconName, ReactNode> = {
       <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
     </>
   ),
+  adsFire: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 2v2m0 16v2M2 12h2m16 0h2" />
+      <path d="m9 12.5 3.9-3.9 3.6-1.1-1.1 3.6-3.9 3.9Zm.2 2.3-1.7 1.7" />
+    </>
+  ),
   jump: (
     <>
       <circle cx="14" cy="4.4" r="1.7" fill="currentColor" stroke="none" />

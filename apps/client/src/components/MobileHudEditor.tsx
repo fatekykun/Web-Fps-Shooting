@@ -18,7 +18,8 @@ import {
 const labels: Record<MobileHudControlId, string> = {
   joystick: 'Movement joystick',
   sprint: 'Sprint trigger',
-  fire: 'Fire',
+  fire: 'Hip Fire',
+  adsFire: 'ADS Fire',
   aim: 'ADS',
   jump: 'Jump',
   slide: 'Crouch / slide',

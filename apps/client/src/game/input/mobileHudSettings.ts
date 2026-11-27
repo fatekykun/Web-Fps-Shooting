@@ -2,6 +2,7 @@ export const mobileHudControlIds = [
   'joystick',
   'sprint',
   'fire',
+  'adsFire',
   'aim',
   'jump',
   'slide',

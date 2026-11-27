@@ -5,16 +5,16 @@ import { VirtualJoystick } from './VirtualJoystick';
 interface TouchOwner {
   control: string;
   element: HTMLElement;
+  camera?: TouchCamera;
 }
 
 /** Independent ownership allows movement, camera and weapon buttons together. */
 export class TouchInput {
   private readonly pointers = new Map<number, TouchOwner>();
   private readonly joystick = new VirtualJoystick();
-  private readonly camera = new TouchCamera();
   private forward = 0;
   private right = 0;
-  private aim = false;
+  private aimToggled = false;
   private readonly buttons: HTMLElement[];
   private readonly sprintMarker: HTMLElement | null;
   constructor(
@@ -54,14 +54,19 @@ export class TouchInput {
     const control = element.dataset.touchControl!;
     if ((control === 'joystick' || control === 'look') && this.has(control))
       return;
-    this.pointers.set(event.pointerId, { control, element });
+    const owner: TouchOwner = { control, element };
+    if (control === 'look' || control === 'adsFire') {
+      owner.camera = new TouchCamera();
+      owner.camera.begin(event.clientX, event.clientY);
+    }
+    this.pointers.set(event.pointerId, owner);
     element.setPointerCapture(event.pointerId);
     if (control === 'joystick') {
       this.joystick.begin(element);
       this.moveJoystick(event);
     }
-    if (control === 'look') this.camera.begin(event.clientX, event.clientY);
-    if (control === 'aim') this.aim = !this.aim;
+    if (control === 'aim' && this.input.touchAdsMode === 'tap')
+      this.aimToggled = !this.aimToggled;
     if (control === 'jump') this.input.movement.jumpPressed = true;
     if (control === 'slide') this.input.movement.slidePressed = true;
     if (control === 'prone') this.input.movement.pronePressed = true;
@@ -89,9 +94,10 @@ export class TouchInput {
       this.moveJoystick(event);
       this.syncMovement();
     }
-    if (owner.control === 'look') {
-      const delta = this.camera.move(event.clientX, event.clientY);
-      this.input.touchLook(delta.x, delta.y);
+    if (owner.camera) {
+      const delta = owner.camera.move(event.clientX, event.clientY);
+      if (owner.control === 'look' || this.input.adsFireDragToAim)
+        this.input.touchLook(delta.x, delta.y);
     }
   };
   private readonly up = (event: PointerEvent): void => this.end(event, false);
@@ -106,7 +112,9 @@ export class TouchInput {
       this.right = 0;
       this.joystick.clear();
     }
-    if (cancelled && owner.control === 'aim') this.aim = false;
+    if (cancelled && owner.control === 'aim') this.aimToggled = false;
+    if (cancelled && owner.control === 'adsFire' && !this.has('adsFire'))
+      this.input.cancelAdsFire();
     if (owner.element.hasPointerCapture(event.pointerId))
       owner.element.releasePointerCapture(event.pointerId);
     this.sync();
@@ -118,10 +126,12 @@ export class TouchInput {
   }
   private sync(): void {
     this.syncMovement();
-    this.input.setTouchWeapons(this.has('fire'), this.aim);
+    const aim =
+      this.input.touchAdsMode === 'tap' ? this.aimToggled : this.has('aim');
+    this.input.setTouchWeapons(this.has('fire'), aim, this.has('adsFire'));
     for (const button of this.buttons) {
       const control = button.dataset.touchControl!;
-      const active = control === 'aim' ? this.aim : this.has(control);
+      const active = control === 'aim' ? aim : this.has(control);
       button.dataset.active = String(active);
       if (control === 'aim')
         button.setAttribute('aria-pressed', String(active));
@@ -134,8 +144,9 @@ export class TouchInput {
       if (owner.element.hasPointerCapture(id))
         owner.element.releasePointerCapture(id);
     this.forward = this.right = 0;
-    this.aim = false;
+    this.aimToggled = false;
     this.joystick.clear();
+    this.input.cancelAdsFire();
     this.sync();
   }
   dispose(): void {

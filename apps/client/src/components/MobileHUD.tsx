@@ -22,8 +22,9 @@ import {
 } from '../game/input/mobileHudSettings';
 
 const actions = [
-  ['fire', 'Fire weapon'],
-  ['aim', 'Toggle ADS'],
+  ['fire', 'Hip Fire'],
+  ['adsFire', 'ADS Fire'],
+  ['aim', 'Aim down sights'],
   ['jump', 'Jump'],
   ['slide', 'Crouch or slide'],
   ['prone', 'Toggle prone'],

@@ -95,6 +95,8 @@ export interface UserSettings {
   sensitivity: SensitivitySettings;
   touchSensitivity: { camera: number; ads: number; sniper: number };
   touchAimAssist: boolean;
+  touchAdsMode: 'tap' | 'hold';
+  adsFireDragToAim: boolean;
   gyroVersion: 2;
   gyroActivation: GyroActivation;
   gyroDeadZone: number;
@@ -142,6 +144,8 @@ export function defaultUserSettings(): UserSettings {
     },
     touchSensitivity: { camera: 100, ads: 100, sniper: 100 },
     touchAimAssist: true,
+    touchAdsMode: 'tap',
+    adsFireDragToAim: true,
     gyroVersion: 2,
     gyroActivation: 'off',
     gyroDeadZone: 0.1,
@@ -272,6 +276,8 @@ export function normalizeUserSettings(value: unknown): UserSettings {
       sniper: number(object(v.touchSensitivity).sniper, 100, 1, 300),
     },
     touchAimAssist: bool('touchAimAssist', d.touchAimAssist),
+    touchAdsMode: v.touchAdsMode === 'hold' ? 'hold' : d.touchAdsMode,
+    adsFireDragToAim: bool('adsFireDragToAim', d.adsFireDragToAim),
     gyroVersion: 2,
     gyroActivation,
     gyroDeadZone: number(
