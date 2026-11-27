@@ -537,6 +537,7 @@ describe('touch intentions', () => {
     beta: number,
     gamma: number,
     sensor: DeviceMotionEventInit = {},
+    render = true,
   ) {
     const event = Object.assign(new Event('devicemotion'), {
       rotationRate: { alpha: 90, beta, gamma },
@@ -544,7 +545,67 @@ describe('touch intentions', () => {
     });
     Object.defineProperty(event, 'timeStamp', { value: time });
     browser.dispatchEvent(event);
+    if (render) input.updateGyroLook(time);
   }
+
+  it.each([
+    [1000, 1020, 1031, 1061, 1079, 1101],
+    [1000, 1050, 1100, 1150],
+  ])(
+    'advances evenly each display frame between sensor readings %j',
+    (...samples) => {
+      Object.assign(browser, {
+        isSecureContext: true,
+        DeviceMotionEvent: Event,
+        screen: { orientation: { angle: 90 } },
+      });
+      input.configure({ ...defaultUserSettings(), gyroActivation: 'always' });
+      const last = samples.at(-1)!;
+      const firstFrame = samples[1]!;
+      let nextSample = 0;
+      for (let frame = firstFrame; frame < last; frame += 8) {
+        while (nextSample < samples.length && samples[nextSample]! <= frame)
+          motion(samples[nextSample++]!, 60, 30, {}, false);
+        input.updateGyroLook(frame);
+        const scale = ((frame - 1000) * Math.PI) / 180000;
+        expect(input.movement.yaw).toBeCloseTo(60 * scale, 9);
+        expect(input.pitch).toBeCloseTo(-30 * scale, 9);
+      }
+      while (nextSample < samples.length)
+        motion(samples[nextSample++]!, 60, 30, {}, false);
+      const finalYaw = (60 * (last - 1000) * Math.PI) / 180000;
+      input.updateGyroLook(last + 8);
+      expect(input.movement.yaw).toBeGreaterThan(finalYaw);
+      input.updateGyroLook(last + 150);
+      expect(input.movement.yaw).toBeCloseTo(finalYaw, 9);
+      const settled = input.movement.yaw;
+      input.updateGyroLook(last + 1000);
+      expect(input.movement.yaw).toBe(settled);
+    },
+  );
+
+  it('clears pending and predicted gyro input when pausing and releasing ADS', () => {
+    Object.assign(browser, {
+      isSecureContext: true,
+      DeviceMotionEvent: Event,
+      screen: { orientation: { angle: 90 } },
+    });
+    input.configure({ ...defaultUserSettings(), gyroActivation: 'ads' });
+    input.setTouchWeapons(false, true);
+    motion(1000, 60, 0, {}, false);
+    motion(1020, 60, 0, {}, false);
+    input.updateGyroLook(1028);
+    const before = input.movement.yaw;
+    motion(1040, 60, 0, {}, false);
+    input.setTouchWeapons(false, false);
+    input.updateGyroLook(1048);
+    expect(input.movement.yaw).toBe(before);
+    input.setTouchWeapons(false, true);
+    motion(1060, 60, 0, {}, false);
+    input.release();
+    input.updateGyroLook(1068);
+    expect(input.movement.yaw).toBe(before);
+  });
 
   it('blends gyro sensitivity and FOV scaling across aim modes', () => {
     Object.assign(browser, {
@@ -754,12 +815,13 @@ describe('touch intentions', () => {
       input.startGyroMeasurement();
       let nextFrame = 0;
       for (let elapsed = 0; elapsed <= 1000; elapsed += sampleMs) {
-        while (nextFrame <= elapsed) {
-          input.consumeActions();
+        while (nextFrame < elapsed) {
+          input.updateGyroLook(1000 + nextFrame);
           nextFrame += renderMs;
         }
-        motion(1000 + elapsed, 360, 0);
+        motion(1000 + elapsed, 360, 0, {}, false);
       }
+      input.updateGyroLook(2000);
       expect(input.getGyroMeasurement()?.physicalYaw).toBeCloseTo(
         2 * Math.PI,
         9,
