@@ -3,6 +3,7 @@ import {
   presetOrder,
   isGraphicsPreset,
   normalizeGraphicsSettings,
+  settingsForPreset,
   type GraphicsSettings,
 } from '../game/rendering/graphicsConfig';
 import {
@@ -26,9 +27,7 @@ export function GraphicsControls({
 }) {
   return (
     <section className="graphics-controls" aria-label="Graphics settings">
-      <h2>
-        GRAPHICS <span>CRISP RETRO</span>
-      </h2>
+      <h2>GRAPHICS</h2>
       <div className="graphics-preset">
         <label htmlFor={`${idPrefix}-graphics-preset`}>Resolution preset</label>
         <select
@@ -36,7 +35,10 @@ export function GraphicsControls({
           value={settings.preset}
           onChange={(event) => {
             if (isGraphicsPreset(event.target.value))
-              onChange({ ...settings, preset: event.target.value });
+              onChange({
+                ...settingsForPreset(event.target.value),
+                adaptive: settings.adaptive,
+              });
           }}
         >
           {presetOrder.map((preset) => (
@@ -72,8 +74,9 @@ export function GraphicsControls({
                 'Texture detail',
                 'textureQuality',
                 [
-                  ['low', 'Low · 16 px tiles'],
-                  ['high', 'High · 32 px tiles'],
+                  ['low', 'Low · 512 px atlas'],
+                  ['high', 'High · 1K atlas'],
+                  ['hd', 'HD · 2K atlas'],
                 ],
               ],
               [
@@ -81,8 +84,9 @@ export function GraphicsControls({
                 'shadowQuality',
                 [
                   ['off', 'Off · fastest'],
-                  ['low', 'Low'],
-                  ['high', 'High'],
+                  ['low', 'Low · 1024 px'],
+                  ['high', 'High · 2048 px'],
+                  ['ultra', 'Ultra · 4096 px'],
                 ],
               ],
               [
@@ -95,12 +99,12 @@ export function GraphicsControls({
                 ],
               ],
               [
-                'Pixel effect',
+                'Render scale',
                 'renderScale',
                 [
-                  [1, 'Crisp · full preset'],
-                  [0.75, 'Retro · 75% resolution'],
-                  [0.5, 'Classic · 50% resolution'],
+                  [1, '100% · full preset'],
+                  [0.75, '75%'],
+                  [0.5, '50%'],
                 ],
               ],
             ] as const
@@ -154,14 +158,14 @@ export function GraphicsControls({
           {antiAliasing?.loading
             ? 'Loading SMAA…'
             : antiAliasing && antiAliasing.requested !== antiAliasing.active
-              ? 'Selected anti-aliasing is unavailable on this device. Using OFF.'
-              : 'OFF keeps the sharpest pixels. FXAA is softer; SMAA and MSAA favor cleaner edges.'}
+              ? `Active anti-aliasing: ${antiAliasingLabels[antiAliasing.active]}`
+              : 'SMAA and MSAA clean up edges. FXAA uses fewer GPU resources.'}
         </p>
       )}
       <p>
-        Adaptive resolution favors steady frames within your preset.
-        <br />
-        HUD stays sharp.{!advanced && ' More display options in Settings.'}
+        {settings.adaptive
+          ? 'Resolution adjusts under sustained load to target 60 FPS.'
+          : 'Render resolution stays fixed during play.'}
       </p>
     </section>
   );

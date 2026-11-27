@@ -7,7 +7,7 @@ export const antiAliasingModes = [
 ] as const;
 export type AntiAliasingMode = (typeof antiAliasingModes)[number];
 export const antiAliasingLabels: Record<AntiAliasingMode, string> = {
-  off: 'OFF · sharpest / fastest',
+  off: 'Off · fastest',
   fxaa: 'FXAA · lightweight',
   smaa: 'SMAA · sharper edges',
   msaa2: 'MSAA 2X',
@@ -44,5 +44,7 @@ export function resolveAntiAliasing(
   requested: AntiAliasingMode,
   supported: readonly AntiAliasingMode[],
 ): AntiAliasingMode {
-  return supported.includes(requested) ? requested : 'off';
+  if (supported.includes(requested)) return requested;
+  if (requested === 'msaa4' && supported.includes('msaa2')) return 'msaa2';
+  return supported.includes('fxaa') ? 'fxaa' : 'off';
 }

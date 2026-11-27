@@ -1,7 +1,6 @@
 import {
   LinearFilter,
   LinearSRGBColorSpace,
-  NearestFilter,
   WebGLRenderTarget,
   type Texture,
   type WebGLRenderer,
@@ -15,6 +14,7 @@ import {
   type AntiAliasingState,
 } from './antiAliasing';
 import type { ReadySmaaPass } from './SmaaPass';
+import { withDisplayColor } from './postProcessColor';
 
 /** Mutually exclusive world-resolution AA, with no history buffers or HUD filtering. */
 export class WorldAntiAliasing {
@@ -83,37 +83,23 @@ export class WorldAntiAliasing {
       this.target.samples = samples;
       this.target.dispose(); // Reallocate attachments even if dimensions did not change.
     }
-    this.filterSource(false);
-    if (next === 'fxaa' || next === 'smaa') {
-      this.output = new WebGLRenderTarget(
-        this.target.width,
-        this.target.height,
-        {
-          minFilter: NearestFilter,
-          magFilter: NearestFilter,
-          depthBuffer: false,
-          stencilBuffer: false,
-          generateMipmaps: false,
-          colorSpace: LinearSRGBColorSpace,
-        },
-      );
-    }
     if (next === 'fxaa') {
-      // FXAA detects perceptual contrast. Encode each linear input sample, then
-      // decode its result so the existing presentation performs sRGB output once.
+      // FXAA detects perceptual contrast, then returns the result to linear space.
       this.pass = new ShaderPass({
         ...FXAAShader,
-        fragmentShader: FXAAShader.fragmentShader
-          .replace(
-            'return texture( tex2D, uv );',
-            'return sRGBTransferOETF( texture( tex2D, uv ) );',
-          )
-          .replace(
-            'gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );',
-            'gl_FragColor = sRGBTransferEOTF( ApplyFXAA( tDiffuse, resolution.xy, vUv ) );',
-          )
-          .replace('_RelativeThreshold = 0.063', '_RelativeThreshold = 0.125')
-          .replace('_SubpixelBlending = 1.0', '_SubpixelBlending = 0.25'),
+        fragmentShader: withDisplayColor(
+          FXAAShader.fragmentShader
+            .replace(
+              'return texture( tex2D, uv );',
+              'return sRGBTransferOETF( texture( tex2D, uv ) );',
+            )
+            .replace(
+              'gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );',
+              'gl_FragColor = sRGBTransferEOTF( ApplyFXAA( tDiffuse, resolution.xy, vUv ) );',
+            )
+            .replace('_RelativeThreshold = 0.063', '_RelativeThreshold = 0.125')
+            .replace('_SubpixelBlending = 1.0', '_SubpixelBlending = 0.25'),
+        ),
       });
       this.pass.material.depthTest = false;
       this.pass.material.depthWrite = false;
@@ -143,23 +129,34 @@ export class WorldAntiAliasing {
 
   prepare(): void {
     if (this.smaa?.failed) this.disableSmaa();
-    // Apply sampler changes before drawing: Three does not re-upload sampler
-    // parameters on render-target textures in response to needsUpdate alone.
-    this.filterSource(!!this.pass && (!this.smaa || this.smaa.ready));
   }
 
-  render(): Texture {
-    if (!this.pass || !this.output || (this.smaa && !this.smaa.ready))
+  /** Return the texture to present, or null when the last AA pass presented it. */
+  render(nativeSize: boolean): Texture | null {
+    if (!this.pass || (this.smaa && !this.smaa.ready))
       return this.target.texture;
+    this.pass.renderToScreen = nativeSize;
+    if (nativeSize) {
+      this.output?.dispose();
+      this.output = null;
+      // Three ignores the write buffer when renderToScreen is true.
+      this.pass.render(this.renderer, this.target, this.target, 0, false);
+      return null;
+    }
+    this.output ??= new WebGLRenderTarget(
+      this.target.width,
+      this.target.height,
+      {
+        minFilter: LinearFilter,
+        magFilter: LinearFilter,
+        depthBuffer: false,
+        stencilBuffer: false,
+        generateMipmaps: false,
+        colorSpace: LinearSRGBColorSpace,
+      },
+    );
     this.pass.render(this.renderer, this.output, this.target, 0, false);
-    return this.output.texture; // Nearest presentation preserves the intentional pixel scale.
-  }
-
-  private filterSource(linear: boolean): void {
-    const filter = linear ? LinearFilter : NearestFilter;
-    if (this.target.texture.magFilter === filter) return;
-    this.target.texture.minFilter = this.target.texture.magFilter = filter;
-    this.target.dispose(); // Rebuild with the new filter before the next world draw.
+    return this.output.texture;
   }
   private disableSmaa(): void {
     this.supported = this.supported.filter((mode) => mode !== 'smaa');

@@ -24,9 +24,11 @@ test('presets retain a native HUD, persist settings and resize without stretchin
   ).toBeEnabled();
   const readout = page.getByTestId('render-resolution');
   for (const [preset, width, height] of [
-    ['performance', 640, 360],
-    ['balanced', 960, 540],
+    ['performance', 960, 540],
+    ['balanced', 1280, 720],
     ['quality', 1280, 720],
+    ['hd', 1280, 720],
+    ['ultra', 1280, 720],
   ] as const) {
     await configure(page, preset);
     await expect(readout).toHaveAttribute('data-width', String(width));
@@ -38,7 +40,7 @@ test('presets retain a native HUD, persist settings and resize without stretchin
     ).toEqual([1280, 720]);
   }
   await page.setViewportSize({ width: 1920, height: 1080 });
-  await configure(page, 'ultra');
+  await configure(page, 'hd');
   await expect(readout).toHaveAttribute('data-width', '1920');
   await expect(readout).toHaveAttribute('data-height', '1080');
   expect(
@@ -46,8 +48,13 @@ test('presets retain a native HUD, persist settings and resize without stretchin
       .locator('canvas')
       .evaluate((canvas: HTMLCanvasElement) => [canvas.width, canvas.height]),
   ).toEqual([1920, 1080]);
+  await page.getByRole('button', { name: 'ENTER TRAINING' }).click();
+  await expect(page.locator('.crosshair')).toBeVisible();
+  await page
+    .locator('canvas')
+    .screenshot({ path: 'test-results/breakpoint-hd-depot.png' });
   await page.reload();
-  await expect(page.getByLabel('Resolution preset')).toHaveValue('ultra');
+  await expect(page.getByLabel('Resolution preset')).toHaveValue('hd');
   await expect(
     page.getByRole('checkbox', { name: 'Adaptive resolution' }),
   ).not.toBeChecked();
@@ -66,7 +73,7 @@ test('presets retain a native HUD, persist settings and resize without stretchin
   expect(errors).toEqual([]);
 });
 
-test('performance upscale stays sharp with a brighter scene and one presentation draw', async ({
+test('low resolution uses smooth presentation with textured output and one presentation draw', async ({
   page,
 }) => {
   await page.goto('/');
@@ -76,7 +83,7 @@ test('performance upscale stays sharp with a brighter scene and one presentation
   await configure(page, 'performance');
   await expect(page.getByTestId('render-resolution')).toHaveAttribute(
     'data-width',
-    '640',
+    '960',
   );
   const pixels = await page.locator('canvas').evaluate(
     (canvas: HTMLCanvasElement) =>
@@ -140,19 +147,16 @@ test('performance upscale stays sharp with a brighter scene and one presentation
       }),
   );
   expect(pixels.colors).toBeGreaterThan(16);
-  expect(pixels.mismatches).toBe(0);
+  expect(pixels.mismatches).toBeGreaterThan(100);
   expect(pixels.antialias).toBe(false);
-  expect(pixels.smoothing).toBe('pixelated');
-  // Background #869389 must survive the linear target and one sRGB output conversion.
-  [134, 147, 137].forEach((channel, index) =>
-    expect(Math.abs(pixels.sky[index]! - channel)).toBeLessThanOrEqual(2),
-  );
+  expect(pixels.smoothing).toBe('auto');
+  expect(pixels.sky[2]).toBeGreaterThan(pixels.sky[0]!);
   const calls = Number(
     await page
       .getByTestId('render-resolution')
       .getAttribute('data-world-draws'),
   );
-  expect(calls).toBeLessThanOrEqual(8);
+  expect(calls).toBeLessThanOrEqual(14);
   expect(
     Number(
       await page.getByTestId('render-resolution').getAttribute('data-draws'),
@@ -164,7 +168,7 @@ test('performance upscale stays sharp with a brighter scene and one presentation
   await page.screenshot({ path: 'test-results/bp01-performance-playing.png' });
 });
 
-test('texture, shadows, view distance and pixel intensity are applied and persist', async ({
+test('texture, shadows, view distance and render scale are applied and persist', async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -181,16 +185,16 @@ test('texture, shadows, view distance and pixel intensity are applied and persis
   await configure(page, 'quality');
   const metrics = page.getByTestId('render-resolution');
   await page.getByLabel('Texture detail', { exact: true }).selectOption('low');
-  await expect(metrics).toHaveAttribute('data-texture-tile-size', '16');
+  await expect(metrics).toHaveAttribute('data-texture-tile-size', '128');
   await page.getByLabel('Shadow quality', { exact: true }).selectOption('low');
-  await expect(metrics).toHaveAttribute('data-shadow-map-size', '512');
-  await page.getByLabel('Shadow quality', { exact: true }).selectOption('high');
   await expect(metrics).toHaveAttribute('data-shadow-map-size', '1024');
+  await page.getByLabel('Shadow quality', { exact: true }).selectOption('high');
+  await expect(metrics).toHaveAttribute('data-shadow-map-size', '2048');
   await page.getByLabel('View distance', { exact: true }).selectOption('40');
   await expect(metrics).toHaveAttribute('data-view-distance', '40');
   await expect(metrics).toHaveAttribute('data-camera-far', '40');
-  await page.getByLabel('Pixel effect', { exact: true }).selectOption('0.5');
-  await expect(metrics).toHaveAttribute('data-width', '640');
+  await page.getByLabel('Render scale', { exact: true }).selectOption('0.5');
+  await expect(metrics).toHaveAttribute('data-width', '800');
   await page.screenshot({
     path: 'test-results/bp01-graphics-settings.png',
     animations: 'disabled',
@@ -199,18 +203,18 @@ test('texture, shadows, view distance and pixel intensity are applied and persis
   await expect(
     page.getByRole('button', { name: 'ENTER TRAINING' }),
   ).toBeEnabled();
-  await expect(metrics).toHaveAttribute('data-texture-tile-size', '16');
-  await expect(metrics).toHaveAttribute('data-shadow-map-size', '1024');
+  await expect(metrics).toHaveAttribute('data-texture-tile-size', '128');
+  await expect(metrics).toHaveAttribute('data-shadow-map-size', '2048');
   await expect(metrics).toHaveAttribute('data-view-distance', '40');
-  await expect(metrics).toHaveAttribute('data-width', '640');
+  await expect(metrics).toHaveAttribute('data-width', '800');
   await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
   await page.getByRole('tab', { name: /DISPLAY/ }).click();
-  await page.getByLabel('Pixel effect', { exact: true }).selectOption('1');
+  await page.getByLabel('Render scale', { exact: true }).selectOption('1');
   await page.getByLabel('Shadow quality', { exact: true }).selectOption('off');
   await page.getByLabel('Texture detail', { exact: true }).selectOption('high');
   await page.getByLabel('View distance', { exact: true }).selectOption('80');
   await expect(metrics).toHaveAttribute('data-shadow-map-size', '0');
-  await expect(metrics).toHaveAttribute('data-texture-tile-size', '32');
+  await expect(metrics).toHaveAttribute('data-texture-tile-size', '256');
   await expect(metrics).toHaveAttribute('data-width', '1280');
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.getByRole('button', { name: 'ENTER TRAINING' }).click();

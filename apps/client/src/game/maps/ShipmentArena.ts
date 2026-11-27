@@ -1,4 +1,5 @@
 import type { Scene } from 'three';
+import type { GraphicsSettings } from '../rendering/graphicsConfig';
 import { arenas } from '@breakpoint/shared/maps';
 import {
   BatchedArena,
@@ -106,7 +107,7 @@ function decorateGround(trim: Part[], paint: Part[]): void {
 export class ShipmentArena extends BatchedArena {
   private readonly removeFence: () => void;
 
-  constructor(scene: Scene) {
+  constructor(scene: Scene, settings?: GraphicsSettings) {
     const solids: Surface[] = [{ ...yard.floor, tile: 7 }];
     const trim: Part[] = [...yard.forklift.structure];
     const barrels: Part[] = [];
@@ -142,6 +143,7 @@ export class ShipmentArena extends BatchedArena {
         normalBias: 0.035,
         textureTheme: 'yard',
       },
+      settings,
     );
     this.removeFence = addShipmentFence(scene, panels);
   }

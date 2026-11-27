@@ -36,16 +36,24 @@ if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
   throw new Error('--url must be a website HTTP(S) URL without credentials.');
 if (!Number.isInteger(seconds) || seconds < 10 || seconds > 120)
   throw new Error('--seconds must be 10–120.');
-if (!['performance', 'balanced', 'quality', 'ultra'].includes(values.preset))
-  throw new Error('--preset must be performance, balanced, quality or ultra.');
-if (!['off', 'low', 'high'].includes(values.shadows))
-  throw new Error('--shadows must be off, low or high.');
+if (
+  !['performance', 'balanced', 'quality', 'hd', 'ultra'].includes(values.preset)
+)
+  throw new Error(
+    '--preset must be performance, balanced, quality, hd or ultra.',
+  );
+if (!['off', 'low', 'high', 'ultra'].includes(values.shadows))
+  throw new Error('--shadows must be off, low, high or ultra.');
 if (!['off', 'fxaa', 'smaa', 'msaa2', 'msaa4'].includes(values.aa))
   throw new Error('--aa must be off, fxaa, smaa, msaa2 or msaa4.');
 const viewport =
   values.preset === 'ultra'
-    ? { width: 1920, height: 1080 }
-    : { width: 1280, height: 720 };
+    ? { width: 2560, height: 1440 }
+    : values.preset === 'hd'
+      ? { width: 1920, height: 1080 }
+      : values.preset === 'quality'
+        ? { width: 1600, height: 900 }
+        : { width: 1280, height: 720 };
 const browser = await chromium.launch({
   channel: process.env.PLAYWRIGHT_CHANNEL,
   headless: !values.headed,

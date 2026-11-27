@@ -1,3 +1,5 @@
+import { Mesh } from 'three';
+import { filterEquipmentMaps } from '../rendering/EquipmentSurface';
 import {
   skinDefinitions,
   type WeaponSkin,
@@ -33,6 +35,16 @@ export function weaponAsset(skin: WeaponSkin): Promise<GLTF> | undefined {
           .setMeshoptDecoder(MeshoptDecoder)
           .parseAsync(bytes, folder),
       )
+      .then((asset) => {
+        asset.scene.traverse((node) => {
+          if (!(node instanceof Mesh)) return;
+          for (const material of Array.isArray(node.material)
+            ? node.material
+            : [node.material])
+            filterEquipmentMaps(material);
+        });
+        return asset;
+      })
       .catch((error: unknown) => {
         cache.delete(model);
         throw error;

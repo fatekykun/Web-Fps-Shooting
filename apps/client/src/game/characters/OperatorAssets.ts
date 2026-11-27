@@ -9,6 +9,7 @@ import {
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { filterEquipmentMaps } from '../rendering/EquipmentSurface';
 import { operators, type ImportedOperator } from '@breakpoint/shared/operators';
 
 const assets = new Map<ImportedOperator, Promise<GLTF | undefined>>();
@@ -17,6 +18,7 @@ function createBatchMaterial(
   source: MeshStandardMaterial,
 ): MeshStandardMaterial {
   const material = source.clone();
+  filterEquipmentMaps(material);
   material.color.set(0xffffff);
   material.vertexColors = true;
   material.onBeforeCompile = (shader) => {

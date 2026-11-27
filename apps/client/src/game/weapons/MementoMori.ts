@@ -5,8 +5,8 @@ import {
   Matrix4,
   Mesh,
   MeshStandardMaterial,
-  NearestFilter,
-  NearestMipmapNearestFilter,
+  LinearFilter,
+  LinearMipmapLinearFilter,
   Vector3,
   type BufferGeometry,
   type Object3D,
@@ -164,9 +164,10 @@ export class MementoMori {
         if (shardNodes.has(owner)) this.shards.push(mesh);
       }
       for (const texture of this.textures.values()) {
-        texture.magFilter = NearestFilter;
-        texture.minFilter = NearestMipmapNearestFilter;
+        texture.magFilter = LinearFilter;
+        texture.minFilter = LinearMipmapLinearFilter;
         texture.generateMipmaps = true;
+        texture.anisotropy = 8;
         texture.needsUpdate = true;
       }
       this.material.map = this.textures.values().next().value ?? null;

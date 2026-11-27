@@ -1,7 +1,7 @@
 import {
   LinearSRGBColorSpace,
   Mesh,
-  NearestFilter,
+  LinearFilter,
   PerspectiveCamera,
   Scene,
   ShaderMaterial,
@@ -35,11 +35,13 @@ export class OpticScope {
   readonly peripheralCamera = new PerspectiveCamera();
   private readonly camera = new PerspectiveCamera();
   private readonly target = new WebGLRenderTarget(1, 1, {
-    minFilter: NearestFilter,
-    magFilter: NearestFilter,
+    minFilter: LinearFilter,
+    magFilter: LinearFilter,
     generateMipmaps: false,
     depthBuffer: true,
     stencilBuffer: false,
+    resolveDepthBuffer: false,
+    storeMultisampledDepthBuffer: false,
     colorSpace: LinearSRGBColorSpace,
   });
   private readonly scene = new Scene();

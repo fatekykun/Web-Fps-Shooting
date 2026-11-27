@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 test.use({
   viewport: { width: 844, height: 390 },
+  deviceScaleFactor: 2,
   isMobile: true,
   hasTouch: true,
   userAgent:
@@ -37,7 +38,7 @@ test('requests permission, saves gyro settings, and applies horizontal inversion
       Promise.reject(new Error('Fullscreen denied'));
     localStorage.setItem(
       'breakpoint.graphics.v2',
-      JSON.stringify({ preset: 'performance', adaptive: false }),
+      JSON.stringify({ preset: 'hd', adaptive: false, antiAliasing: 'fxaa' }),
     );
   });
   await page.goto('/');
@@ -117,7 +118,12 @@ test('requests permission, saves gyro settings, and applies horizontal inversion
         window.dispatchEvent(event);
       }
     });
+  const raster = page.getByTestId('render-resolution');
+  await expect(raster).toHaveAttribute('data-preset', 'hd');
+  await expect(raster).toHaveAttribute('data-width', '1688');
+  await expect(raster).toHaveAttribute('data-height', '780');
   await tilt();
+  await expect(raster).toHaveAttribute('data-width', '1688');
   await expect.poll(heading).toBeCloseTo((15 * Math.PI * 0.04 * 12) / 180);
 
   await page.getByRole('button', { name: 'Pause game' }).tap();
@@ -127,11 +133,18 @@ test('requests permission, saves gyro settings, and applies horizontal inversion
   await page.getByRole('button', { name: 'Close settings' }).tap();
   await enter.tap();
   await expect(marker).toBeVisible();
+  await expect.poll(async () => Number.isFinite(await heading())).toBe(true);
   const before = await heading();
   await tilt();
-  // Let the minimap receive another telemetry sample after sending motion.
-  await page.waitForTimeout(350);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
   expect(await heading()).toBeCloseTo(before);
+  await expect(raster).toHaveAttribute('data-width', '1688');
+  await expect(raster).toHaveAttribute('data-height', '780');
 });
 
 test.describe('Android gyro', () => {

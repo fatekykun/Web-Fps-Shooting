@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   calculateResolution,
+  calculateAdaptiveResolution,
+  calculateOutputResolution,
+  settingsForPreset,
   defaultGraphics,
   graphicsPresets,
   loadGraphicsSettings,
@@ -12,27 +15,27 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe('pixel resolution and settings', () => {
-  it('uses the ticket resolution targets and supports explicit classic pixel density', () => {
+describe('render resolution and settings', () => {
+  it('uses the selected resolutions and supports an explicit lower render scale', () => {
     expect(calculateResolution('performance', 1280, 720)).toEqual({
-      width: 640,
-      height: 360,
-    });
-    expect(calculateResolution('balanced', 1280, 720)).toEqual({
       width: 960,
       height: 540,
+    });
+    expect(calculateResolution('balanced', 1280, 720)).toEqual({
+      width: 1280,
+      height: 720,
     });
     expect(calculateResolution('quality', 1280, 720)).toEqual({
       width: 1280,
       height: 720,
     });
     expect(calculateResolution('quality', 1280, 720, 0.5)).toEqual({
-      width: 640,
-      height: 360,
+      width: 800,
+      height: 450,
     });
     const wide = calculateResolution('quality', 2560, 1080, 0.75);
     expect(wide.width * wide.height).toBeLessThanOrEqual(
-      1280 * 720 * 0.75 ** 2,
+      1600 * 900 * 0.75 ** 2,
     );
     expect(Math.abs(wide.width / wide.height - 2560 / 1080)).toBeLessThan(0.01);
   });
@@ -44,8 +47,7 @@ describe('pixel resolution and settings', () => {
           : null,
     });
     expect(loadGraphicsSettings()).toEqual({
-      ...defaultGraphics,
-      preset: 'quality',
+      ...settingsForPreset('quality'),
       adaptive: false,
     });
     expect(graphicsStorageKey).toBe('breakpoint.graphics.v2');
@@ -55,14 +57,20 @@ describe('pixel resolution and settings', () => {
         adaptive: true,
         renderScale: -5,
         viewDistance: NaN,
-        shadowQuality: 'ultra',
+        shadowQuality: 'cinematic',
       }),
-    ).toEqual(defaultGraphics);
+    ).toEqual({ ...defaultGraphics, adaptive: true });
   });
-  it.each(['performance', 'balanced', 'quality'] as GraphicsPreset[])(
-    'uses the exact %s preset at 1280×720',
+  it.each([
+    'performance',
+    'balanced',
+    'quality',
+    'hd',
+    'ultra',
+  ] as GraphicsPreset[])(
+    'uses the exact %s budget at a large viewport',
     (preset) => {
-      expect(calculateResolution(preset, 1280, 720)).toEqual({
+      expect(calculateResolution(preset, 3840, 2160)).toEqual({
         width: graphicsPresets[preset].width,
         height: graphicsPresets[preset].height,
       });
@@ -76,7 +84,7 @@ describe('pixel resolution and settings', () => {
     [1280, 800],
   ])('keeps the pixel budget and aspect for %i×%i', (width, height) => {
     const result = calculateResolution('balanced', width, height);
-    expect(result.width * result.height).toBeLessThanOrEqual(960 * 540);
+    expect(result.width * result.height).toBeLessThanOrEqual(1280 * 720);
     expect(
       Math.abs(result.width / result.height - width / height),
     ).toBeLessThan(0.01);
@@ -92,18 +100,50 @@ describe('pixel resolution and settings', () => {
     expect(size.height).toBeLessThanOrEqual(180);
   });
 
-  it('renders Ultra at 1080p, clamps smaller windows and preserves wide-screen aspect', () => {
-    expect(calculateResolution('ultra', 1920, 1080)).toEqual({
+  it('renders HD at 1080p, clamps smaller windows and preserves wide-screen aspect', () => {
+    expect(calculateResolution('hd', 1920, 1080)).toEqual({
       width: 1920,
       height: 1080,
     });
-    expect(calculateResolution('ultra', 1280, 720)).toEqual({
+    expect(calculateResolution('hd', 1280, 720)).toEqual({
       width: 1280,
       height: 720,
     });
-    const wide = calculateResolution('ultra', 3440, 1440);
+    const wide = calculateResolution('hd', 3440, 1440);
     expect(wide.width * wide.height).toBeLessThanOrEqual(1920 * 1080);
     expect(Math.abs(wide.width / wide.height - 3440 / 1440)).toBeLessThan(0.01);
+  });
+
+  it('uses native device pixels up to the preset budget', () => {
+    expect(calculateOutputResolution('hd', 960, 540, 3)).toEqual({
+      width: 1920,
+      height: 1080,
+    });
+    expect(calculateOutputResolution('performance', 844, 390, 3)).toEqual({
+      width: 844,
+      height: 390,
+    });
+    expect(calculateOutputResolution('ultra', 1920, 1080, 2)).toEqual({
+      width: 2560,
+      height: 1440,
+    });
+  });
+
+  it('reduces pixel work when a phone viewport fits both adaptive tier budgets', () => {
+    expect(calculateAdaptiveResolution('hd', 'hd', 1688, 780, 1)).toEqual({
+      width: 1688,
+      height: 780,
+    });
+    expect(calculateAdaptiveResolution('hd', 'quality', 1688, 780, 1)).toEqual({
+      width: 1406,
+      height: 650,
+    });
+    expect(calculateAdaptiveResolution('hd', 'quality', 1920, 1080, 1)).toEqual(
+      {
+        width: 1600,
+        height: 900,
+      },
+    );
   });
 
   it('rejects corrupt, unsupported or unavailable persisted settings', () => {

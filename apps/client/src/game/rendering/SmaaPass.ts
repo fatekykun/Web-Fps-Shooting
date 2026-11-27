@@ -1,5 +1,12 @@
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
-import type { Texture } from 'three';
+import {
+  RGFormat,
+  UnsignedByteType,
+  type ShaderMaterial,
+  type Texture,
+  type WebGLRenderTarget,
+} from 'three';
+import { withDisplayColor } from './postProcessColor';
 
 /** Three's embedded lookup PNGs decode asynchronously. Wait before sampling them.
  * These fields are present in the installed Three implementation but absent from its typings.
@@ -7,6 +14,18 @@ import type { Texture } from 'three';
 export class ReadySmaaPass extends SMAAPass {
   declare _areaTexture: Texture;
   declare _searchTexture: Texture;
+  declare _edgesRT: WebGLRenderTarget;
+  declare _materialBlend: ShaderMaterial;
+
+  constructor() {
+    super();
+    // Edge detection writes two binary flags. The blend weights retain their full precision.
+    this._edgesRT.texture.format = RGFormat;
+    this._edgesRT.texture.type = UnsignedByteType;
+    this._materialBlend.fragmentShader = withDisplayColor(
+      this._materialBlend.fragmentShader,
+    );
+  }
 
   private get images(): HTMLImageElement[] {
     return [

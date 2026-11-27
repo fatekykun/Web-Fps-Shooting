@@ -9,6 +9,7 @@ import {
 export class AdaptiveResolution {
   current: GraphicsPreset;
   private ceiling: number;
+  private floor: number;
   private enabled: boolean;
   private elapsed = 0;
   private windowTime = 0;
@@ -20,12 +21,20 @@ export class AdaptiveResolution {
   constructor(settings: Pick<GraphicsSettings, 'preset' | 'adaptive'>) {
     this.current = settings.preset;
     this.ceiling = presetOrder.indexOf(settings.preset);
+    this.floor =
+      settings.preset === 'hd' || settings.preset === 'ultra'
+        ? this.ceiling - 1
+        : 0;
     this.enabled = settings.adaptive;
   }
 
   configure(settings: Pick<GraphicsSettings, 'preset' | 'adaptive'>): void {
     this.current = settings.preset;
     this.ceiling = presetOrder.indexOf(settings.preset);
+    this.floor =
+      settings.preset === 'hd' || settings.preset === 'ultra'
+        ? this.ceiling - 1
+        : 0;
     this.enabled = settings.adaptive;
     this.reset();
   }
@@ -60,7 +69,7 @@ export class AdaptiveResolution {
     if (this.elapsed - this.changedAt < config.cooldownMs) return null;
     const index = presetOrder.indexOf(this.current);
     let next = index;
-    if (this.slow >= config.slowWindows && index > 0) next--;
+    if (this.slow >= config.slowWindows && index > this.floor) next--;
     else if (this.fast >= config.fastWindows && index < this.ceiling) next++;
     if (next === index) return null;
     this.current = presetOrder[next]!;

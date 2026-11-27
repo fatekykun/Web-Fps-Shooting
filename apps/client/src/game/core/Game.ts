@@ -241,7 +241,7 @@ export class Game {
     this.audio.configure(preferences);
     this.soulRequiem.configure(preferences.eliminationQuality);
     this.rendering = new GameRenderer(host, settings);
-    this.arena = new TrainingArena(this.scene);
+    this.arena = new TrainingArena(this.scene, settings);
     this.remotes = new RemotePlayers(this.scene);
     this.trails = new ShotTrails(this.scene);
     this.physics = new PhysicsWorld(arenas.depot.colliders, spawn);
@@ -784,10 +784,9 @@ export class Game {
   }
   selectLoadout(selection: LoadoutSelection): void {
     this.session?.selectLoadout(selection);
-    const skin = this.userSettings.loadouts.slots[selection.slot].skin;
-    void weaponAsset(skin)?.catch(() => {
-      // WeaponViewmodel retains its standard fallback if the model is unavailable.
-    });
+    const slot = this.userSettings.loadouts.slots[selection.slot];
+    this.viewmodel.prepareGunSkin(slot.skin);
+    if (isMeleeSkin(slot.skin)) void weaponAsset(slot.skin)?.catch(() => {});
   }
   configureRoom(settings: MatchSettings): void {
     this.session?.configure(settings);
@@ -842,8 +841,8 @@ export class Game {
     this.physics.setArena(arenas[id].colliders);
     this.arena.dispose();
     const Arena = arenaRenderers[id];
-    this.arena = new Arena(this.scene);
-    this.arena.configure(this.graphicsSettings);
+    this.arena = new Arena(this.scene, this.graphicsSettings);
+    this.rendering.invalidateShadows();
     this.rendering.renderer.domElement.setAttribute(
       'aria-label',
       `${arenas[id].name} ${arenas[id].venue}`,
@@ -1194,7 +1193,7 @@ export class Game {
       this.scene,
       this.camera.camera,
       delta * 1000,
-      this.input.locked && armed ? this.viewmodel : null,
+      this.viewmodel.visible ? this.viewmodel : null,
       hasScope ? this.opticView : null,
     );
     this.monitor.record(delta * 1000, performance.now() - start);

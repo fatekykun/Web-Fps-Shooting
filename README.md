@@ -1,7 +1,7 @@
 # BREAKPOINT
 
 A browser FPS for desktop and touchscreens. **Milestones 1–8** provide
-a momentum-based, pixel-rendered FPS arena, local weapon training and eight-player
+a momentum-based, low-poly FPS arena, local weapon training and eight-player
 private rooms with server-authoritative FFA and TDM matches, a retro tactical
 interface, persistent settings and procedural audio. The original project brief
 is preserved in [prompt.md](prompt.md).
@@ -505,10 +505,9 @@ spread sampling is browser-independent in `apps/shared/src/combat/spread.ts`.
 
 The weapon rules do not depend on Three.js or Rapier. `PracticeCombat` supplies
 local raycasts, hitbox/damage resolution and feedback. The initial viewmodels use
-pooled low-poly parts and a 4 KiB nearest-filtered pixel texture, with procedural
-ADS/reload/kick motion. A depth clear draws the viewmodel over the world in the
-same low-resolution target before presentation, preserving sharp pixels without
-clipping the gun through nearby walls. Impacts use a fixed 32-slot instance pool;
+pooled beveled parts with brushed metal, painted frames and polymer finishes.
+A depth clear draws the viewmodel into the world target before presentation,
+keeping nearby walls clear of the gun. Impacts use a fixed 32-slot instance pool;
 muzzle flashes add no lights. Combat HUD snapshots update on events plus telemetry,
 and crosshair presentation uses DOM properties rather than a React game loop.
 
@@ -602,8 +601,8 @@ and edge shading frame both styles. Optical keeps the rifle visible around the
 optic; Classic hands over to the whole zoomed view when the scope reaches the eye.
 There is no fullscreen black mask, peripheral blur or temporal history. Optical
 uses one pooled lens-sized render target only while scoping, composited before
-the selected world AA. Classic uses the existing single world view. Pixel textures
-retain nearest filtering and HUD text stays native.
+the selected world AA. Classic uses the existing single world view. The lens
+samples the scene with linear filtering and HUD text stays native.
 
 Scoped walking is **45% of normal speed (2.25 m/s)**. Sniper ADS can start and
 remain active while sprinting, sliding, backsliding, diving, recovering or jumping,
@@ -637,84 +636,34 @@ feed with a friend. Run the repeatable native-GPU scenario with
 `npm run profile:browser -- --weapon sniper --preset quality --seconds 20` while
 the preview is running; detailed validation is recorded in `DEVELOPMENT.md`.
 
-## Pixel graphics
+## HD graphics
 
-Press **Esc** to access the graphics controls beside the training overlay.
-Settings persist locally when browser storage is available.
+Choose a preset under **Settings → Display**. Presets set resolution,
+anti-aliasing, texture detail, shadow quality and view distance. Changes to
+individual settings are saved in this browser.
 
-| Preset             | World resolution at 16:9 | World pixels versus 1280×720 |
-| ------------------ | ------------------------ | ---------------------------- |
-| Performance        | 640×360                  | 25%                          |
-| Balanced (default) | 960×540                  | 56.25%                       |
-| Quality            | 1280×720                 | 100%                         |
-| Ultra (1080p)      | 1920×1080                | 225%                         |
+| Preset           | 16:9 render budget | Default edge smoothing |
+| ---------------- | ------------------ | ---------------------- |
+| Low              | 960 × 540          | Off                    |
+| Medium (default) | 1280 × 720         | FXAA                   |
+| High             | 1600 × 900         | MSAA 2×                |
+| HD               | 1920 × 1080        | SMAA                   |
+| Ultra            | 2560 × 1440        | MSAA 4×                |
 
-The world renders into a `WebGLRenderTarget` without mipmaps or stencil. With AA
-Off (the default), it uses no multisampling or additional filtering passes. One
-fullscreen triangle presents the result with nearest-neighbor sampling to a
-native-size canvas. Optional AA operates at the actual world resolution, before
-this upscale. There is no bloom, temporal history or full-screen blur. CSS
-`image-rendering: pixelated` also prevents compositor smoothing. The output pixel ratio is capped
-at 1 to avoid extra high-DPI world-rendering cost; the HTML HUD, controls and
-crosshair retain the browser's native text/display resolution.
+The world and optic lens use linear sampling. The canvas uses the device pixel
+ratio up to the preset’s resolution and density limits. The renderer uses a fixed
+world resolution by default, with a manual scale and optional adaptive
+resolution. Adaptive HD and Ultra can drop one tier under sustained load.
+Unsupported anti-aliasing modes fall back to a supported MSAA mode or FXAA.
+The HUD and crosshair render independently at the browser’s display resolution.
 
-Performance gives exact 2×2 output blocks at 1280×720. Balanced uses smaller,
-sharply sampled pixels, and Quality renders at the full 1280×720 target.
-**Ultra (1080p)** adds a 1920×1080 budget for stronger devices, with 2.25 times the
-world pixels of Quality. Balanced remains the default. World targets never exceed
-the browser viewport, so Ultra reaches 1920×1080 in a viewport at least that large.
-Other scale factors use sharp nearest-neighbor sampling with occasionally unequal
-block widths; they do not blend neighboring world pixels. Other display aspect ratios keep a comparable
-preset pixel budget while the camera uses the actual viewport aspect. Small
-windows never require a world target larger than their output.
-
-**Adaptive resolution** is enabled by default. The selected preset is its ceiling.
-After a 2-second warm-up, two consecutive slow 1-second windows (>20 ms average
-frame duration) allow a step down. Recovery needs eight stable windows (<17.5 ms),
-with at least 10 seconds between changes. Resizing, visibility and mouse capture
-changes reset sampling; a single stall does not immediately change resolution.
-Disable adaptive resolution to hold your chosen preset exactly.
-
-**Settings → Display** also provides real rendering controls:
-
-- **Texture detail:** Low uses 16 px atlas tiles; High uses 32 px tiles. Weapon
-  textures switch too. Both retain nearest magnification and nearest mip selection.
-- **Anti-aliasing:** choose one of OFF, FXAA, SMAA, MSAA 2X or MSAA 4X.
-  OFF retains the sharpest pixels and lowest cost. FXAA is a single lightweight
-  edge pass with reduced subpixel blending, but can soften fine detail. SMAA
-  uses three edge/weight/blend passes and loads only when selected. MSAA smooths
-  geometric coverage using actual multisampled world-target attachments, without
-  filtering texture detail. Higher MSAA uses more GPU memory/bandwidth. Unsupported
-  choices are disabled; saved unsupported selections use OFF with a visible notice.
-  Resolution presets retain your AA choice; adaptive resolution can lower its
-  pixel budget. None of these modes filters the native HTML HUD or crosshair.
-- **Shadow quality:** Off by default; Low/High use one cached 512/1024 directional
-  shadow map for static architecture. Moving avatars do not regenerate shadows.
-- **View distance:** 40/60/80 m sets the camera far plane and corresponding fog.
-- **Pixel effect:** Crisp uses the full preset budget; Retro/Classic use 75%/50%
-  dimensions for an explicit coarser look. HUD resolution is unaffected.
-
-The new clarity defaults use `breakpoint.graphics.v2`; older v1 preset/adaptive
-preferences migrate automatically. Adaptive scaling stops at the new Performance
-budget instead of the previous 426×240. Lower pixel-effect scales are opt-in.
-
-The Depot uses a generated 128×64 texture atlas containing eight 32px industrial
-tiles: concrete, panels, corrugated steel, crate reinforcement and caution paint.
-Both atlas qualities together occupy 40 KiB before mip levels and require no
-asset requests. Continuous world-UV gradients select mip levels without false LOD
-jumps at repeats; magnification and mip selection stay nearest. Brighter concrete,
-separate container colors, panel divisions and batched edge trim improve reading.
-Hemisphere fill and one directional light define surfaces without crushed blacks.
-Optional shadows are static and cached. The world target itself has no mipmaps,
-stays linear and converts to sRGB once on display.
-
-Remote avatars keep the shared body/head geometry, brighter team/part colors and
-subtle opaque rim shading in the same instance draw. Normal depth testing hides
-them behind cover; there is no through-wall outline or extra silhouette pass.
-Weapons add clearer magazines, cuffs, receiver trim and sight supports, plus
-matte directional lighting. Their aiming, recoil, equip and reload logic is unchanged.
-
-Graphics tuning lives in `apps/client/src/game/rendering/graphicsConfig.ts`.
+All three arenas use original industrial surface atlases with mipmaps,
+anisotropic filtering and material relief. The HD atlas is 2048 × 1024.
+Sky lighting, cached directional shadows and baked floor contact occlusion
+provide depth, with environment reflections on High, HD and Ultra where
+supported. The Depot has a distance-based skyline mesh. Standard characters
+use rounded tactical geometry with fabric detail. Weapons use beveled geometry
+and distinct roughness and metalness values.
 
 ## Movement controls
 
@@ -810,11 +759,9 @@ Advanced browser checks pause Playwright's clock between real key events and use
 regression still runs with normal browser time. Neither automated test is a GPU
 benchmark.
 
-Graphics checks switch all presets, reload persisted settings, test another
-viewport aspect, and read the real WebGL framebuffer. They verify Ultra's actual
-1920×1080 target and persistence, exact 2×2 pixel blocks at Performance/1280×720,
-nonblank textured output, disabled canvas MSAA,
-correct display color conversion and one presentation draw. GPU readback exists
+Graphics checks switch presets, reload persisted settings, verify viewport and
+DPR handling, and read the WebGL framebuffer. They verify Full HD world targets,
+linear scaling, distinct textures and anti-aliasing. GPU readback exists
 only in the browser test, never in the game loop.
 
 To use an existing local Chrome installation instead of downloading Chromium:
@@ -843,7 +790,7 @@ npm.cmd run test:browser
 | `apps/client/src/game/movement/`                  | Compatibility exports of the shared movement rules                                    |
 | `apps/client/src/game/physics/`                   | Compatibility exports of shared Rapier collision                                      |
 | `apps/client/src/game/maps/`                      | Shared visible/collision layout and industrial arena                                  |
-| `apps/client/src/game/rendering/`                 | Pixel target/presentation, atlas, presets, adaptive resolution and resource lifecycle |
+| `apps/client/src/game/rendering/`                 | World target, materials, presets, adaptive resolution and resource lifecycle          |
 | `apps/client/src/game/networking/`                | Colyseus transport, prediction/replay, remote interpolation and avatar pool           |
 | `apps/client/src/game/combat/NetworkCombat.ts`    | Predicted presentation, server combat readouts, confirmed effects and kill feed       |
 | `apps/shared/src/`                                | Movement FSM, Rapier adapter, collision map, protocol validation, combat types/tuning |
@@ -940,8 +887,8 @@ filtering draw. Renderer statistics
 include world, viewmodel and presentation rather than reporting only the final
 triangle. Target buffers resize only on
 settings, viewport or adaptive-level changes. Physics remains fixed at 60 Hz and
-React receives telemetry at 4 Hz. Nearest mip selection and restrained texture
-detail reduce distance shimmer without smoothing magnified pixel art.
+React receives telemetry at 4 Hz. Trilinear mipmaps and anisotropic filtering
+reduce shimmer on distant and angled surfaces.
 Adaptive resolution cannot fix CPU, scheduling or network bottlenecks. BP-01's
 native Intel UHD 620 training measurements and their limits are recorded in
 `DEVELOPMENT.md`; full eight-player performance still needs a live match check.

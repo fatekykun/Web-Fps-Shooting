@@ -6,6 +6,7 @@ import {
 } from './antiAliasing';
 import {
   defaultGraphics,
+  settingsForPreset,
   graphicsStorageKey,
   loadGraphicsSettings,
   normalizeGraphicsSettings,
@@ -25,11 +26,11 @@ it('requires exact color AND depth support and float buffers for SMAA', () => {
   expect(supportedAntiAliasing([8, 4, 2], [4, 2], true)).toEqual(
     antiAliasingModes,
   );
-  expect(resolveAntiAliasing('msaa2', ['off', 'fxaa', 'msaa4'])).toBe('off');
-  expect(resolveAntiAliasing('smaa', ['off', 'fxaa'])).toBe('off');
+  expect(resolveAntiAliasing('msaa2', ['off', 'fxaa', 'msaa4'])).toBe('fxaa');
+  expect(resolveAntiAliasing('smaa', ['off', 'fxaa'])).toBe('fxaa');
 });
 
-it('upgrades existing v2 preferences to OFF without changing other choices', () => {
+it('fills missing AA from the selected profile and respects explicit preferences', () => {
   vi.stubGlobal('localStorage', {
     getItem: (key: string) =>
       key === graphicsStorageKey
@@ -41,16 +42,13 @@ it('upgrades existing v2 preferences to OFF without changing other choices', () 
         : null,
   });
   expect(loadGraphicsSettings()).toEqual({
-    ...defaultGraphics,
-    preset: 'ultra',
-    adaptive: false,
+    ...settingsForPreset('ultra'),
     textureQuality: 'low',
-    antiAliasing: 'off',
   });
   expect(
     normalizeGraphicsSettings({ ...defaultGraphics, antiAliasing: 'taa' })
       .antiAliasing,
-  ).toBe('off');
+  ).toBe('fxaa');
 });
 
 it.each(antiAliasingModes)(

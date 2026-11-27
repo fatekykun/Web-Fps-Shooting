@@ -4,7 +4,7 @@ import {
   InstancedMesh,
   Matrix4,
   MeshBasicMaterial,
-  NearestFilter,
+  LinearFilter,
   PlaneGeometry,
   RepeatWrapping,
   SRGBColorSpace,
@@ -96,7 +96,8 @@ export function addShipmentFence(
   const texture = new CanvasTexture(canvas);
   texture.wrapS = texture.wrapT = RepeatWrapping;
   texture.repeat.set(12, 12);
-  texture.magFilter = NearestFilter;
+  texture.magFilter = LinearFilter;
+  texture.anisotropy = 8;
   texture.colorSpace = SRGBColorSpace;
   const geometry = new PlaneGeometry(1, 1);
   const material = new MeshBasicMaterial({

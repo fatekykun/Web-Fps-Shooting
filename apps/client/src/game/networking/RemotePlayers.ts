@@ -16,6 +16,7 @@ import {
 } from '@breakpoint/shared/character';
 import { TacticalSkeleton } from '../characters/TacticalSkeleton';
 import { createTacticalGeometry } from '../characters/TacticalGeometry';
+import { createEquipmentTexture } from '../rendering/EquipmentSurface';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import { weaponMuzzles } from '../weapons/WeaponMuzzles';
 import type { GunId, Vector3Like, WeaponId } from '@breakpoint/shared';
@@ -58,7 +59,12 @@ function avatarPalette(player: PublicPlayer) {
 export class RemotePlayers {
   private readonly meleeMatrix = new Matrix4();
   private readonly geometry = createTacticalGeometry();
-  private readonly material = createReadableMaterial();
+  private readonly fabric = createEquipmentTexture(256, true);
+  private readonly material = createReadableMaterial({
+    map: this.fabric,
+    roughness: 0.83,
+    metalness: 0.05,
+  });
   private readonly mesh = new InstancedMesh(
     this.geometry,
     this.material,
@@ -305,5 +311,6 @@ export class RemotePlayers {
     this.skins.dispose();
     this.clearOperators();
     this.material.dispose();
+    this.fabric.dispose();
   }
 }

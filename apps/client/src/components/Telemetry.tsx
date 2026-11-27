@@ -107,7 +107,7 @@ export function Telemetry({
         <span>
           WORLD {stats ? `${stats.renderWidth} × ${stats.renderHeight}` : '—'}
         </span>
-        <span>{stats?.adaptiveResolution ? 'AUTO' : 'FIXED'} / NEAREST</span>
+        <span>{stats?.adaptiveResolution ? 'AUTO' : 'FIXED'} / LINEAR</span>
       </div>
       <div
         className="position-readout"
