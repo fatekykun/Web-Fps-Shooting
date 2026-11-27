@@ -41,15 +41,21 @@ button selects touch controls, while clicking with a mouse selects mouse capture
 Drag the **left joystick** to walk and the **right side** to look. Push the
 joystick farther forward toward the sprint marker to run. Pull it back toward
 the center to walk again, or release it to stop. In **Customize Touch HUD**,
-move the sprint marker closer to the joystick to sprint sooner. **ADS** toggles.
-Hold **Fire** or **Jump**. **Crouch** also slides at sprint speed.
+move the sprint marker closer to the joystick to sprint sooner. In **Settings →
+Controls → ADS button mode**, choose **Tap to toggle** (default) or **Hold to aim**.
+Hold **Hip Fire** to shoot using your current aim mode. **ADS Fire** aims the weapon
+before shooting. Drag the same finger to steer while holding either fire button.
+You can turn off **ADS Fire Drag to Aim** in **Settings → Controls**. Both buttons can
+be placed independently in **Customize Touch HUD**.
+Hold **Jump**. **Crouch** also slides at sprint speed.
 **Prone** toggles crawling. **Dive**, **R** (reload),
 **Swap**, **Scores**, and **II** (pause) use the existing actions. Independent
 touches support moving, looking, aiming and firing together. Tablets have larger,
 more widely spaced controls. Settings → Sensitivity → **Touch camera** provides
 independent general, ADS and sniper sliders. **Touch Aim Assist** is on by default
-for handheld touch play. It slows aiming near the training dummy or an opponent
-with a clear line of sight, with a stronger effect in ADS. Rotation, focus loss
+for handheld touch play. It slows swipes near visible targets and gently pulls
+the sights toward them while aiming or firing. Swiping or steering with the
+gyroscope takes priority. Rotation, focus loss
 and pause clear held controls. Online matches continue while paused, as on desktop.
 
 In **Settings → Sensitivity → Gyroscope**, choose **Off**, **ADS only**, or

@@ -149,7 +149,8 @@
   outline: 2px solid #eeac76;
   outline-offset: 2px;
 }
-.touch-fire {
+.touch-fire,
+.touch-adsFire {
   --touch-fill: #1e1915dd;
   --touch-border: #e9c19ca4;
   border-width: 2px;

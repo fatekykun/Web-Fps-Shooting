@@ -18,6 +18,8 @@ it('sanitizes malformed storage and clamps finite controls without sharing defau
     invertY: 'yes',
     syncAdsFov: 'on',
     touchAimAssist: 'off',
+    touchAdsMode: 'long',
+    adsFireDragToAim: 'off',
     masterVolume: -1,
     crosshair: {
       color: 'red',
@@ -38,6 +40,8 @@ it('sanitizes malformed storage and clamps finite controls without sharing defau
   expect(settings.invertY).toBe(false);
   expect(settings.syncAdsFov).toBe(false);
   expect(settings.touchAimAssist).toBe(true);
+  expect(settings.touchAdsMode).toBe('tap');
+  expect(settings.adsFireDragToAim).toBe(true);
   expect(settings.rifleSkin).toBe('standard');
   expect(settings.masterVolume).toBe(0);
   expect(settings.crosshair).toEqual({
@@ -83,6 +87,8 @@ it('persists preferences and tolerates blocked or corrupt browser storage', () =
       syncAdsFov: true,
       muted: true,
       touchAimAssist: false,
+      touchAdsMode: 'hold',
+      adsFireDragToAim: false,
       rifleSkin: 'cinder-wyrm',
     },
     'reload',

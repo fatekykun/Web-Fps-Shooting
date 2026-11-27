@@ -183,7 +183,7 @@ test.describe('Lotus Lava touch controls', () => {
     await expect(hud).toHaveAttribute('data-sniper-skin-status', 'ready');
     await page.getByRole('button', { name: 'Inspect weapon' }).tap();
     await expect(hud).toHaveAttribute('data-inspecting', 'true');
-    await page.getByRole('button', { name: 'Toggle ADS' }).tap();
+    await page.getByRole('button', { name: 'Aim down sights' }).tap();
     await expect(scope).toHaveAttribute('data-style', 'optic');
     await expect(scope).toHaveCSS('opacity', '1');
     await expectLotusReticle(scope);

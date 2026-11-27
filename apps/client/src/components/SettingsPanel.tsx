@@ -292,12 +292,40 @@ export function SettingsPanel({
         {tab === 'CONTROLS' && (
           <>
             {onControllerSettings && (
-              <button
-                className="enter-button controller-settings-button"
-                onClick={onControllerSettings}
-              >
-                CUSTOMIZE TOUCH HUD
-              </button>
+              <div className="setting-grid touch-controls-settings">
+                <button
+                  className="enter-button controller-settings-button"
+                  onClick={onControllerSettings}
+                >
+                  CUSTOMIZE TOUCH HUD
+                </button>
+                <label className="scope-style-setting touch-ads-setting">
+                  ADS button mode
+                  <select
+                    value={settings.touchAdsMode}
+                    onChange={(event) =>
+                      change({
+                        touchAdsMode:
+                          event.target.value === 'hold' ? 'hold' : 'tap',
+                      })
+                    }
+                  >
+                    <option value="tap">Tap to toggle</option>
+                    <option value="hold">Hold to aim</option>
+                  </select>
+                </label>
+                <label className="setting-toggle">
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={settings.adsFireDragToAim}
+                    onChange={(event) =>
+                      change({ adsFireDragToAim: event.target.checked })
+                    }
+                  />{' '}
+                  ADS Fire Drag to Aim
+                </label>
+              </div>
             )}
             <div className="setting-grid">
               <Range
@@ -403,7 +431,8 @@ export function SettingsPanel({
                 Touch Aim Assist
               </label>
               <p className="settings-note" id={`${id}-touch-aim-assist-note`}>
-                Slows touch aiming near visible targets on phones and tablets.
+                Slows swipes near visible targets and gently guides your aim
+                while aiming or firing.
               </p>
               <p className="settings-note">
                 Touch ADS and sniper sensitivity blend with zoom.

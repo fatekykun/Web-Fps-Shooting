@@ -274,8 +274,14 @@
     }
 
     .settings-page[data-tab='AUDIO'] .setting-grid,
+    .settings-page .touch-controls-settings,
     .settings-page .touch-sensitivity .setting-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .settings-page .touch-ads-setting {
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
     }
 
     :is(.settings-page, .controller-settings-panel)

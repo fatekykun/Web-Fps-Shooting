@@ -107,6 +107,7 @@ class Root extends EventTarget {
       'joystick',
       'look',
       'fire',
+      'adsFire',
       'aim',
       'sprint',
       'jump',
@@ -208,6 +209,30 @@ describe('touch intentions', () => {
     vi.unstubAllGlobals();
   });
 
+  it('only applies the aim pull while aiming or firing and yields to a manual swipe', () => {
+    const correction = vi.fn(() => ({ yaw: 0.008, pitch: -0.002 }));
+    const tick = 1 / 60;
+    input.updateTouchAimAssist(tick, correction);
+    expect(correction).not.toHaveBeenCalled();
+    root.pointer('pointerdown', 'aim', 1);
+    root.pointer('pointerup', 'aim', 1);
+    input.touchLook(5, 0);
+    const manualYaw = input.movement.yaw;
+    for (let i = 0; i < 5; i++) input.updateTouchAimAssist(tick, correction);
+    expect(input.movement.yaw).toBe(manualYaw);
+    for (let i = 0; i < 3; i++) input.updateTouchAimAssist(tick, correction);
+    expect(input.movement.yaw).toBeCloseTo(manualYaw + 0.008);
+    expect(input.pitch).toBeCloseTo(-0.002);
+    root.pointer('pointerdown', 'aim', 1);
+    root.pointer('pointerup', 'aim', 1);
+    root.pointer('pointerdown', 'fire', 2);
+    input.updateTouchAimAssist(tick, correction);
+    expect(input.movement.yaw).toBeCloseTo(manualYaw + 0.016);
+    input.configure({ ...defaultUserSettings(), touchAimAssist: false });
+    input.updateTouchAimAssist(tick, correction);
+    expect(correction).toHaveBeenCalledTimes(2);
+  });
+
   it('supports joystick + camera + ADS + fire with independent pointers', () => {
     root.pointer('pointerdown', 'joystick', 1, 60, 20);
     root.pointer('pointerdown', 'look', 2, 500, 100);
@@ -239,6 +264,117 @@ describe('touch intentions', () => {
     expect(input.weapon).toMatchObject({ fire: true, firePressed: false });
     root.pointer('pointerup', 'fire', 2);
     expect(input.weapon.fire).toBe(false);
+  });
+  it('steers from Hip Fire while keeping ADS and the ADS Fire drag setting independent', () => {
+    input.configure({ ...defaultUserSettings(), adsFireDragToAim: false });
+    root.pointer('pointerdown', 'fire', 1, 690, 200);
+    root.pointer('pointermove', 'fire', 1, 640, 215);
+    expect(input.movement.yaw).toBeGreaterThan(0);
+    expect(input.pitch).toBeLessThan(0);
+    expect(input.weapon).toMatchObject({ fire: true, aim: false });
+    root.pointer('pointerup', 'fire', 1);
+    expect(input.weapon.fire).toBe(false);
+  });
+  it('toggles ADS by default and releases hold-mode ADS with the last pointer', () => {
+    root.pointer('pointerdown', 'aim', 1);
+    root.pointer('pointerup', 'aim', 1);
+    expect(input.weapon.aim).toBe(true);
+    root.pointer('pointerdown', 'aim', 1);
+    root.pointer('pointerup', 'aim', 1);
+    expect(input.weapon.aim).toBe(false);
+    input.configure({ ...defaultUserSettings(), touchAdsMode: 'hold' });
+    root.pointer('pointerdown', 'aim', 1);
+    expect(input.weapon.aim).toBe(true);
+    root.pointer('pointerdown', 'aim', 2);
+    root.pointer('pointerup', 'aim', 1);
+    expect(input.weapon.aim).toBe(true);
+    root.pointer('lostpointercapture', 'aim', 2);
+    expect(input.weapon.aim).toBe(false);
+  });
+  it('holds aim for a quick ADS Fire tap and sends one aimed shot', () => {
+    weapon = new WeaponController(() => {});
+    root.pointer('pointerdown', 'adsFire', 1);
+    root.pointer('pointerup', 'adsFire', 1);
+    input.prepareAdsFire();
+    expect(input.weapon).toMatchObject({
+      aim: true,
+      fire: false,
+      firePressed: false,
+    });
+    input.consumeActions();
+    weapon.updateAds(0.1, true);
+    weapon.updateAds(0.1, true);
+    weapon.updateAds(0.1, true);
+    input.prepareAdsFire();
+    expect(input.weapon).toMatchObject({
+      aim: true,
+      fire: false,
+      firePressed: true,
+    });
+    input.consumeActions();
+    input.prepareAdsFire();
+    expect(input.weapon).toMatchObject({
+      aim: false,
+      fire: false,
+      firePressed: false,
+    });
+  });
+  it('steers from the ADS Fire finger and keeps look and ADS toggle independent', () => {
+    root.pointer('pointerdown', 'aim', 1);
+    root.pointer('pointerup', 'aim', 1);
+    root.pointer('pointerdown', 'adsFire', 2, 650, 190);
+    input.prepareAdsFire();
+    expect(input.weapon).toMatchObject({
+      aim: true,
+      fire: true,
+      firePressed: true,
+    });
+    root.pointer('pointerdown', 'look', 3, 480, 100);
+    root.pointer('pointermove', 'adsFire', 2, 660, 190);
+    const yaw = input.movement.yaw;
+    expect(yaw).toBeLessThan(0);
+    root.pointer('pointermove', 'look', 3, 490, 100);
+    expect(input.movement.yaw).toBeCloseTo(yaw * 2);
+    input.configure({ ...defaultUserSettings(), adsFireDragToAim: false });
+    root.pointer('pointermove', 'adsFire', 2, 700, 190);
+    expect(input.movement.yaw).toBeCloseTo(yaw * 2);
+    expect(input.weapon).toMatchObject({ aim: true, fire: true });
+    root.pointer('pointermove', 'look', 3, 500, 100);
+    expect(input.movement.yaw).toBeCloseTo(yaw * 3);
+    root.pointer('pointerdown', 'fire', 4);
+    input.consumeActions();
+    root.pointer('pointerup', 'adsFire', 2);
+    expect(input.weapon).toMatchObject({ aim: true, fire: true });
+    root.pointer('pointerup', 'fire', 4);
+    expect(input.weapon).toMatchObject({ aim: true, fire: false });
+  });
+  it('discards a queued ADS shot when the touch is cancelled or the game pauses', () => {
+    weapon = new WeaponController(() => {});
+    root.pointer('pointerdown', 'adsFire', 1);
+    root.pointer('pointercancel', 'adsFire', 1);
+    input.prepareAdsFire();
+    expect(input.weapon).toMatchObject({
+      aim: false,
+      fire: false,
+      firePressed: false,
+    });
+    root.pointer('pointerdown', 'adsFire', 2);
+    root.pointer('pointerup', 'adsFire', 2);
+    input.prepareAdsFire(false);
+    expect(input.weapon).toMatchObject({
+      aim: false,
+      fire: false,
+      firePressed: false,
+    });
+    root.pointer('pointerdown', 'adsFire', 3);
+    root.pointer('pointerup', 'adsFire', 3);
+    root.pointer('pointerdown', 'pause', 4);
+    input.prepareAdsFire();
+    expect(input.weapon).toMatchObject({
+      aim: false,
+      fire: false,
+      firePressed: false,
+    });
   });
   it('supports sprint, slide+jump, dive, reload and restricted weapon cycling', () => {
     root.pointer('pointerdown', 'joystick', 2);

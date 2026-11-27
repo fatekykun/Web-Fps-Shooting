@@ -860,14 +860,14 @@ export class Game {
     );
   }
 
-  private readonly touchAimScale = (ads: number): number => {
+  private collectTouchAimTargets(): void {
     const targets = this.touchAimTargets;
     targets.length = 0;
     if (this.session) {
       const view = this.session.view;
-      if (view?.phase !== 'playing') return 1;
+      if (view?.phase !== 'playing') return;
       const owner = view.players.find((player) => player.id === view.selfId);
-      if (!owner?.alive) return 1;
+      if (!owner?.alive) return;
       for (const player of view.players) {
         if (!isTouchAimOpponent(owner, player)) continue;
         const point = this.remotes.aimPoint(player.id);
@@ -879,18 +879,38 @@ export class Game {
     const origin = this.touchAimOrigin;
     Object.assign(origin, this.physics.position);
     origin.y += this.movement.eyeOffset;
+  }
+
+  private readonly touchAimScale = (ads: number): number => {
+    this.collectTouchAimTargets();
     const weapons = (this.session ? this.networkCombat : this.combat).weapons;
     const recoil = this.input.previewRecoil(weapons.recoil, 0);
     return this.touchAimAssist.scale(
-      origin,
+      this.touchAimOrigin,
       this.input.movement.yaw + recoil.yaw,
       this.input.pitch + recoil.pitch,
       ads,
-      targets,
+      this.touchAimTargets,
+    );
+  };
+
+  private readonly touchAimCorrection = (dt: number, ads: number) => {
+    this.collectTouchAimTargets();
+    return this.touchAimAssist.correction(
+      this.touchAimOrigin,
+      this.input.movement.yaw,
+      this.input.pitch,
+      ads,
+      this.touchAimTargets,
+      dt,
     );
   };
 
   private readonly simulate = (dt: number): void => {
+    if (this.input.locked)
+      this.input.prepareAdsFire(
+        !this.session || this.session.view?.phase === 'playing',
+      );
     if (!this.session && this.input.weapon.switchTo) {
       const next = this.input.weapon.switchTo;
       if (next === 'melee') {
@@ -940,6 +960,7 @@ export class Game {
       }
       if (!this.networkCombat.owner?.alive) this.input.clearGameplay();
       this.input.recoverRecoil(weapons.recoil, dt);
+      this.input.updateTouchAimAssist(dt, this.touchAimCorrection);
       const weaponInput = this.networkCombat.filterInput(this.input.weapon);
       weapons.updateAds(
         dt,
@@ -955,6 +976,7 @@ export class Game {
     } else {
       if (this.input.locked) {
         this.input.recoverRecoil(weapons.recoil, dt);
+        this.input.updateTouchAimAssist(dt, this.touchAimCorrection);
         weapons.updateAds(dt, this.input.weapon.aim);
       }
       this.movement.step(this.input.movement, dt, scale);

@@ -20,6 +20,7 @@ import { gyroTurnScale, type GyroAimMode } from './gyroSensitivity';
 import { readDevice } from './deviceCapabilities';
 
 const lookLimit = Math.PI / 2 - 0.02;
+const manualAimPause = 0.12;
 
 function wrapYaw(yaw: number): number {
   return (
@@ -81,10 +82,13 @@ export class InputManager {
   private readonly handheld = readDevice().handheld;
   touchMode = this.handheld;
   private touchActive = false;
+  private aimAssistPause = 0;
   private keyboardAxes = { forward: 0, right: 0, sprint: false, jump: false };
   private touchAxes = { forward: 0, right: 0, sprint: false, jump: false };
   private mouseHeld = { fire: false, aim: false };
-  private touchHeld = { fire: false, aim: false };
+  private touchHeld = { fire: false, aim: false, adsFire: false };
+  private adsFirePending = false;
+  private adsFireReady = false;
   private scoreboard = false;
   private automaticLock = false;
   private settings = defaultUserSettings();
@@ -158,12 +162,14 @@ export class InputManager {
     event.stopImmediatePropagation();
   };
   configure(settings: UserSettings): void {
-    const changed = bindingActions.some(
+    const bindingsChanged = bindingActions.some(
       (action) => this.settings.bindings[action] !== settings.bindings[action],
     );
+    const touchAdsModeChanged =
+      this.settings.touchAdsMode !== settings.touchAdsMode;
     this.settings = settings;
     this.weapon.autoReload = settings.autoReload;
-    if (changed) this.clear();
+    if (bindingsChanged || touchAdsModeChanged) this.clear();
     this.syncGyro();
   }
   requestSavedGyroAccess(): void {
@@ -309,15 +315,59 @@ export class InputManager {
     }
     this.mergeWeapons();
   }
-  setTouchWeapons(fire: boolean, aim: boolean): void {
+  get touchAdsMode(): UserSettings['touchAdsMode'] {
+    return this.settings.touchAdsMode;
+  }
+  get adsFireDragToAim(): boolean {
+    return this.settings.adsFireDragToAim;
+  }
+  setTouchWeapons(fire: boolean, aim: boolean, adsFire = false): void {
     if (fire && !this.touchHeld.fire) this.weapon.firePressed = true;
     if (aim && !this.touchHeld.aim) this.weapon.aimPressed = true;
-    this.touchHeld = { fire, aim };
+    if (adsFire && !this.touchHeld.adsFire) {
+      if (!this.weapon.aim) this.weapon.aimPressed = true;
+      this.adsFirePending = true;
+      this.adsFireReady = false;
+    }
+    this.touchHeld = { fire, aim, adsFire };
+    this.mergeWeapons();
+  }
+  prepareAdsFire(canFire = true): void {
+    if (!this.touchHeld.adsFire && !this.adsFirePending) return;
+    const weapon = this.getWeapon();
+    const switching = this.weapon.switchTo !== null;
+    const busy =
+      !canFire ||
+      switching ||
+      this.weapon.reloadPressed ||
+      weapon?.reloading ||
+      weapon?.equipping;
+    if (!this.touchHeld.adsFire && (busy || weapon?.cycling)) {
+      this.cancelAdsFire();
+      return;
+    }
+    // Wait for the existing ADS animation so the first round uses aimed spread.
+    this.adsFireReady =
+      !busy && (!weapon || weapon.selected === 'melee' || weapon.ads >= 0.9);
+    if (this.adsFireReady && this.adsFirePending)
+      this.weapon.firePressed = true;
+    this.mergeWeapons();
+  }
+  cancelAdsFire(): void {
+    this.touchHeld.adsFire = false;
+    this.adsFirePending = this.adsFireReady = false;
     this.mergeWeapons();
   }
   private mergeWeapons(): void {
-    this.weapon.fire = this.mouseHeld.fire || this.touchHeld.fire;
-    this.weapon.aim = this.mouseHeld.aim || this.touchHeld.aim;
+    this.weapon.fire =
+      this.mouseHeld.fire ||
+      this.touchHeld.fire ||
+      (this.touchHeld.adsFire && this.adsFireReady);
+    this.weapon.aim =
+      this.mouseHeld.aim ||
+      this.touchHeld.aim ||
+      this.touchHeld.adsFire ||
+      this.adsFirePending;
   }
   cycleWeapon(): void {
     if (this.cycleLoadout) {
@@ -354,6 +404,7 @@ export class InputManager {
   }
   touchLook(dx: number, dy: number): void {
     if ((!dx && !dy) || !Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    this.aimAssistPause = manualAimPause;
     const weapon = this.getWeapon();
     const ads = weapon ? weapon.ads : Number(this.weapon.aim);
     const s = this.settings.touchSensitivity;
@@ -364,11 +415,32 @@ export class InputManager {
         (Math.max(1, Math.min(window.innerWidth, window.innerHeight)) * 1.2)) *
       this.lookScale *
       sensitivity;
-    const assist =
-      this.touchActive && this.handheld && this.settings.touchAimAssist
-        ? this.touchAimScale(ads)
-        : 1;
+    const assist = this.touchAimAssistActive ? this.touchAimScale(ads) : 1;
     this.look(dx * scale * assist, dy * scale * assist);
+  }
+  private get touchAimAssistActive(): boolean {
+    return this.touchActive && this.handheld && this.settings.touchAimAssist;
+  }
+  updateTouchAimAssist(
+    dt: number,
+    correction: (dt: number, ads: number) => RecoilAxes | null,
+  ): void {
+    this.aimAssistPause = Math.max(0, this.aimAssistPause - dt);
+    if (!this.touchAimAssistActive || this.aimAssistPause > 0) return;
+    const weapon = this.getWeapon();
+    if (
+      weapon?.selected === 'melee' ||
+      (!this.weapon.aim && !this.isFiring(weapon))
+    )
+      return;
+    const delta = correction(dt, weapon?.ads ?? Number(this.weapon.aim));
+    if (!delta) return;
+    // Guide the base look angles and leave the recoil spring in control of kick.
+    this.movement.yaw = wrapYaw(this.movement.yaw + delta.yaw);
+    this.pitch = Math.max(
+      -lookLimit,
+      Math.min(lookLimit, this.pitch + delta.pitch),
+    );
   }
   startGyroMeasurement(): void {
     this.gyro.reset();
@@ -407,6 +479,8 @@ export class InputManager {
         ? sample.pitch * pitchGain * (this.settings.gyroInvertVertical ? -1 : 1)
         : 0;
     if (!Number.isFinite(deltaYaw) || !Number.isFinite(deltaPitch)) return;
+    if (Math.hypot(deltaYaw, deltaPitch) >= 0.0025)
+      this.aimAssistPause = manualAimPause;
     const beforePitch = this.pitch;
     if (deltaYaw || deltaPitch) this.look(-deltaYaw, -deltaPitch, false);
 
@@ -498,6 +572,10 @@ export class InputManager {
     this.movement.pronePressed = false;
     this.movement.divePressed = false;
     this.weapon.firePressed = false;
+    if (this.adsFireReady && this.adsFirePending) {
+      this.adsFirePending = false;
+      this.mergeWeapons();
+    }
     this.weapon.aimPressed = false;
     this.weapon.reloadPressed = false;
     this.weapon.switchTo = null;
@@ -508,13 +586,15 @@ export class InputManager {
   }
   clearGameplay(): void {
     this.gyro.reset();
+    this.aimAssistPause = 0;
     this.inspectPressed = false;
     this.coveredReturn.pitch = this.coveredReturn.yaw = 0;
     this.keyboard.clear();
     this.touch?.clear();
     this.touchAxes = { forward: 0, right: 0, sprint: false, jump: false };
     this.mouseHeld = { fire: false, aim: false };
-    this.touchHeld = { fire: false, aim: false };
+    this.touchHeld = { fire: false, aim: false, adsFire: false };
+    this.adsFirePending = this.adsFireReady = false;
     this.mergeAxes();
     this.mergeWeapons();
     this.consumeActions();

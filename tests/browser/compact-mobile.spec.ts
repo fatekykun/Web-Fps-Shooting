@@ -37,6 +37,12 @@ test('short landscape keeps main navigation and primary settings in view', async
   await expect(
     settings.getByRole('button', { name: /CUSTOMIZE TOUCH HUD/ }),
   ).toBeInViewport({ ratio: 1 });
+  await expect(
+    settings.getByRole('switch', { name: 'ADS Fire Drag to Aim' }),
+  ).toBeInViewport({ ratio: 1 });
+  await expect(settings.getByLabel('ADS button mode')).toBeInViewport({
+    ratio: 1,
+  });
   await expect(settings.getByLabel('Field of view')).toBeInViewport({
     ratio: 1,
   });
