@@ -431,7 +431,8 @@ export function SettingsPanel({
                 Touch Aim Assist
               </label>
               <p className="settings-note" id={`${id}-touch-aim-assist-note`}>
-                Slows touch aiming near visible targets on phones and tablets.
+                Slows swipes near visible targets and gently guides your aim
+                while aiming or firing.
               </p>
               <p className="settings-note">
                 Touch ADS and sniper sensitivity blend with zoom.

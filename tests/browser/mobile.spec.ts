@@ -141,6 +141,78 @@ for (const device of ['phone', 'tablet'] as const) {
 
 test.describe('phone touch controls', () => {
   test.use(phone);
+  test('Touch Aim Assist gently pulls toward the training target while aiming down sights', async ({
+    page,
+    context,
+  }) => {
+    await prepare(page);
+    await page.clock.install();
+    await page.goto('/');
+    await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
+    const marker = page.getByTestId('minimap-player');
+    await expect(marker).toBeVisible();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    const heading = () =>
+      marker.evaluate((element) => {
+        const matrix = new DOMMatrix(getComputedStyle(element).transform);
+        return Math.atan2(matrix.b, matrix.a);
+      });
+    const center = await heading();
+    const error = async () => {
+      const offset = (await heading()) - center;
+      return Math.abs(Math.atan2(Math.sin(offset), Math.cos(offset)));
+    };
+    const fingers = new Fingers(await context.newCDPSession(page));
+    const start = { x: 472, y: 125 };
+    await fingers.down(1, start);
+    await fingers.move(1, { ...start, x: start.x + 9 });
+    await fingers.up(1);
+    await page.clock.runFor(250);
+    const before = await error();
+    expect(before).toBeGreaterThan(0.02);
+    await fingers.down(2, await point(page, 'aim'));
+    await fingers.up(2);
+    await page.clock.runFor(650);
+    expect(await error()).toBeLessThan(before - 0.006);
+    await expect(page.getByTestId('weapon-status')).toHaveAttribute(
+      'data-ammo',
+      '30',
+    );
+  });
+  test('dragging off Hip Fire turns the camera while the trigger stays held', async ({
+    page,
+    context,
+  }) => {
+    await prepare(page);
+    await page.clock.install();
+    await page.goto('/');
+    await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
+    const fire = page.getByRole('button', { name: 'Hip Fire' });
+    await expect(fire).toBeVisible();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    const weapon = page.getByTestId('weapon-status');
+    const heading = () =>
+      page.getByTestId('minimap-player').evaluate((marker) => {
+        const matrix = new DOMMatrix(getComputedStyle(marker).transform);
+        return Math.atan2(matrix.b, matrix.a);
+      });
+    const initialHeading = await heading();
+    const start = await point(page, 'fire');
+    const fingers = new Fingers(await context.newCDPSession(page));
+    await fingers.down(1, start);
+    await fingers.move(1, { x: start.x - 100, y: start.y });
+    await page.clock.runFor(540);
+    const turn = (await heading()) - initialHeading;
+    expect(
+      Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))),
+    ).toBeGreaterThan(0.25);
+    expect(Number(await weapon.getAttribute('data-ammo'))).toBeLessThan(29);
+    await expect(weapon).toHaveAttribute('data-ads', '0');
+    const ammo = await weapon.getAttribute('data-ammo');
+    await fingers.up(1);
+    await page.clock.runFor(500);
+    await expect(weapon).toHaveAttribute('data-ammo', ammo!);
+  });
   test('the standalone ADS button holds aim until release in the saved Hold mode', async ({
     page,
     context,
@@ -208,7 +280,10 @@ test.describe('phone touch controls', () => {
       const weapon = page.getByTestId('weapon-status');
       const marker = page.getByTestId('minimap-player');
       const heading = () =>
-        marker.evaluate((element) => getComputedStyle(element).transform);
+        marker.evaluate((element) => {
+          const matrix = new DOMMatrix(getComputedStyle(element).transform);
+          return Math.atan2(matrix.b, matrix.a);
+        });
       const start = await point(page, 'adsFire');
       const initialHeading = await heading();
       const fingers = new Fingers(await context.newCDPSession(page));
@@ -216,8 +291,11 @@ test.describe('phone touch controls', () => {
       await fingers.move(1, { x: start.x - 32, y: start.y });
       await page.clock.runFor(90);
       await expect(weapon).toHaveAttribute('data-ammo', '30');
-      if (dragEnabled) await expect.poll(heading).not.toBe(initialHeading);
-      else expect(await heading()).toBe(initialHeading);
+      if (dragEnabled)
+        expect(Math.abs((await heading()) - initialHeading)).toBeGreaterThan(
+          0.02,
+        );
+      else expect(await heading()).toBeCloseTo(initialHeading, 4);
       await page.clock.runFor(460);
       expect(Number(await weapon.getAttribute('data-ads'))).toBeGreaterThan(
         0.9,

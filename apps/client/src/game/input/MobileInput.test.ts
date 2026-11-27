@@ -209,6 +209,30 @@ describe('touch intentions', () => {
     vi.unstubAllGlobals();
   });
 
+  it('only applies the aim pull while aiming or firing and yields to a manual swipe', () => {
+    const correction = vi.fn(() => ({ yaw: 0.008, pitch: -0.002 }));
+    const tick = 1 / 60;
+    input.updateTouchAimAssist(tick, correction);
+    expect(correction).not.toHaveBeenCalled();
+    root.pointer('pointerdown', 'aim', 1);
+    root.pointer('pointerup', 'aim', 1);
+    input.touchLook(5, 0);
+    const manualYaw = input.movement.yaw;
+    for (let i = 0; i < 5; i++) input.updateTouchAimAssist(tick, correction);
+    expect(input.movement.yaw).toBe(manualYaw);
+    for (let i = 0; i < 3; i++) input.updateTouchAimAssist(tick, correction);
+    expect(input.movement.yaw).toBeCloseTo(manualYaw + 0.008);
+    expect(input.pitch).toBeCloseTo(-0.002);
+    root.pointer('pointerdown', 'aim', 1);
+    root.pointer('pointerup', 'aim', 1);
+    root.pointer('pointerdown', 'fire', 2);
+    input.updateTouchAimAssist(tick, correction);
+    expect(input.movement.yaw).toBeCloseTo(manualYaw + 0.016);
+    input.configure({ ...defaultUserSettings(), touchAimAssist: false });
+    input.updateTouchAimAssist(tick, correction);
+    expect(correction).toHaveBeenCalledTimes(2);
+  });
+
   it('supports joystick + camera + ADS + fire with independent pointers', () => {
     root.pointer('pointerdown', 'joystick', 1, 60, 20);
     root.pointer('pointerdown', 'look', 2, 500, 100);
@@ -239,6 +263,16 @@ describe('touch intentions', () => {
     root.pointer('pointercancel', 'fire', 1);
     expect(input.weapon).toMatchObject({ fire: true, firePressed: false });
     root.pointer('pointerup', 'fire', 2);
+    expect(input.weapon.fire).toBe(false);
+  });
+  it('steers from Hip Fire while keeping ADS and the ADS Fire drag setting independent', () => {
+    input.configure({ ...defaultUserSettings(), adsFireDragToAim: false });
+    root.pointer('pointerdown', 'fire', 1, 690, 200);
+    root.pointer('pointermove', 'fire', 1, 640, 215);
+    expect(input.movement.yaw).toBeGreaterThan(0);
+    expect(input.pitch).toBeLessThan(0);
+    expect(input.weapon).toMatchObject({ fire: true, aim: false });
+    root.pointer('pointerup', 'fire', 1);
     expect(input.weapon.fire).toBe(false);
   });
   it('toggles ADS by default and releases hold-mode ADS with the last pointer', () => {

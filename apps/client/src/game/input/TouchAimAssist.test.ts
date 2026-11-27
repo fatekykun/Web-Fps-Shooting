@@ -27,6 +27,62 @@ it('rejects obstructed targets and uses the strongest visible slowdown without s
   expect(assist.scale(eye, 0, 0, 1, [center, clear, clear])).toBe(scale);
 });
 
+it('gently pulls toward the torso on both axes without snapping or overshooting', () => {
+  const assist = new TouchAimAssist(() => false);
+  const target = { ...center, x: 0.5, y: 1.25 };
+  const tick = 1 / 60;
+  const hip = assist.correction(eye, 0, 0, 0, [target], tick)!;
+  const ads = assist.correction(eye, 0, 0, 1, [target], tick)!;
+  expect(ads.yaw).toBeLessThan(hip.yaw);
+  expect(ads.pitch).toBeLessThan(hip.pitch);
+  expect(Math.hypot(ads.yaw, ads.pitch)).toBeLessThanOrEqual(
+    (6 * Math.PI * tick) / 180 + 1e-9,
+  );
+  const heading = { yaw: 0, pitch: 0 };
+  for (let i = 0; i < 120; i++) {
+    const step = assist.correction(
+      eye,
+      heading.yaw,
+      heading.pitch,
+      1,
+      [target],
+      tick,
+    );
+    if (!step) break;
+    heading.yaw += step.yaw;
+    heading.pitch += step.pitch;
+  }
+  expect(heading.yaw).toBeGreaterThan(Math.atan2(-0.5, 12));
+  expect(heading.yaw).toBeLessThan(-0.035);
+  expect(heading.pitch).toBeGreaterThan(Math.atan2(-0.25, Math.hypot(0.5, 12)));
+});
+
+it('only pulls near visible targets and leaves the sight alone at the center', () => {
+  const assist = new TouchAimAssist((_, __, distance) => distance <= 12);
+  const tick = 1 / 60;
+  const blocked = { ...center, x: 0.25, z: -11 };
+  expect(assist.correction(eye, 0, 0, 1, [blocked], tick)).toBeNull();
+  expect(
+    assist.correction(eye, 0, 0, 1, [{ ...center, x: 2 }], tick),
+  ).toBeNull();
+  expect(
+    assist.correction(eye, 0, 0, 1, [{ ...center, x: 0.3, z: -45 }], tick),
+  ).toBeNull();
+  expect(
+    assist.correction(eye, 0, 0, 1, [{ ...center, z: -14 }], tick),
+  ).toBeNull();
+  expect(
+    assist.correction(
+      eye,
+      0,
+      0,
+      1,
+      [blocked, { ...center, x: -0.4, z: -14 }],
+      tick,
+    )?.yaw,
+  ).toBeGreaterThan(0);
+});
+
 it('filters self, teammates, dead players and protected players out of online assistance', () => {
   const owner = { id: 'self', team: 'blue' } as const;
   const foe = {

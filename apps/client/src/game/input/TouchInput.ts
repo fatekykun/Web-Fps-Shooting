@@ -55,7 +55,7 @@ export class TouchInput {
     if ((control === 'joystick' || control === 'look') && this.has(control))
       return;
     const owner: TouchOwner = { control, element };
-    if (control === 'look' || control === 'adsFire') {
+    if (control === 'look' || control === 'fire' || control === 'adsFire') {
       owner.camera = new TouchCamera();
       owner.camera.begin(event.clientX, event.clientY);
     }
@@ -96,7 +96,7 @@ export class TouchInput {
     }
     if (owner.camera) {
       const delta = owner.camera.move(event.clientX, event.clientY);
-      if (owner.control === 'look' || this.input.adsFireDragToAim)
+      if (owner.control !== 'adsFire' || this.input.adsFireDragToAim)
         this.input.touchLook(delta.x, delta.y);
     }
   };
