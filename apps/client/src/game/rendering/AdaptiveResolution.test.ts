@@ -52,6 +52,15 @@ describe('adaptive resolution hysteresis', () => {
     expect(run(controller, 1000 / 60, 30000)).toEqual([]);
   });
 
+  it('responds to sustained 55 FPS while tolerating 60 Hz refresh jitter', () => {
+    const controller = new AdaptiveResolution({
+      preset: 'balanced',
+      adaptive: true,
+    });
+    expect(run(controller, 17, 5000)).toEqual([]);
+    expect(run(controller, 1000 / 55, 4500)).toEqual(['performance']);
+  });
+
   it('keeps manual and minimum settings stable', () => {
     const manual = new AdaptiveResolution({
       preset: 'quality',

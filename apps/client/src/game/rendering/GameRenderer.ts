@@ -21,7 +21,7 @@ import { AdaptiveResolution } from './AdaptiveResolution';
 import { WorldAntiAliasing } from './WorldAntiAliasing';
 import { OpticScope, type OpticView } from './OpticScope';
 import {
-  calculateResolution,
+  calculateAdaptiveResolution,
   calculateOutputResolution,
   type GraphicsPreset,
   type GraphicsSettings,
@@ -101,6 +101,9 @@ export class GameRenderer {
     this.aa.configure(settings.antiAliasing);
     this.renderScale = settings.renderScale;
     this.renderer.shadowMap.enabled = settings.shadowQuality !== 'off';
+    // The arena's shadow casters are static. Skip the WebGL shadow setup on steady frames.
+    this.renderer.shadowMap.autoUpdate = false;
+    this.invalidateShadows();
     this.renderer.shadowMap.type = PCFShadowMap;
     this.renderer.setPixelRatio(1);
     this.renderer.outputColorSpace = SRGBColorSpace;
@@ -140,12 +143,17 @@ export class GameRenderer {
     this.aa.configure(settings.antiAliasing);
     this.renderScale = settings.renderScale;
     this.renderer.shadowMap.enabled = settings.shadowQuality !== 'off';
+    this.invalidateShadows();
     this.adaptive.configure(settings);
     this.resizeOutput();
   }
 
   resetTiming(): void {
     this.adaptive.reset();
+  }
+
+  invalidateShadows(): void {
+    this.renderer.shadowMap.needsUpdate = true;
   }
 
   private resizeOutput(): void {
@@ -167,7 +175,8 @@ export class GameRenderer {
   }
 
   private updateResolution(): void {
-    const size = calculateResolution(
+    const size = calculateAdaptiveResolution(
+      this.selectedPreset,
       this.adaptive.current,
       this.outputWidth,
       this.outputHeight,

@@ -784,10 +784,9 @@ export class Game {
   }
   selectLoadout(selection: LoadoutSelection): void {
     this.session?.selectLoadout(selection);
-    const skin = this.userSettings.loadouts.slots[selection.slot].skin;
-    void weaponAsset(skin)?.catch(() => {
-      // WeaponViewmodel retains its standard fallback if the model is unavailable.
-    });
+    const slot = this.userSettings.loadouts.slots[selection.slot];
+    this.viewmodel.prepareGunSkin(slot.skin);
+    if (isMeleeSkin(slot.skin)) void weaponAsset(slot.skin)?.catch(() => {});
   }
   configureRoom(settings: MatchSettings): void {
     this.session?.configure(settings);
@@ -843,6 +842,7 @@ export class Game {
     this.arena.dispose();
     const Arena = arenaRenderers[id];
     this.arena = new Arena(this.scene, this.graphicsSettings);
+    this.rendering.invalidateShadows();
     this.rendering.renderer.domElement.setAttribute(
       'aria-label',
       `${arenas[id].name} ${arenas[id].venue}`,
@@ -1193,7 +1193,7 @@ export class Game {
       this.scene,
       this.camera.camera,
       delta * 1000,
-      this.input.locked && armed ? this.viewmodel : null,
+      this.viewmodel.visible ? this.viewmodel : null,
       hasScope ? this.opticView : null,
     );
     this.monitor.record(delta * 1000, performance.now() - start);

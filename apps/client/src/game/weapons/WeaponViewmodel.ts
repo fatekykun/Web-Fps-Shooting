@@ -30,6 +30,7 @@ import {
 import {
   defaultMeleeSkin,
   type MeleeSkin,
+  type WeaponSkin,
 } from '@breakpoint/shared/weapons/loadouts';
 import { weaponAsset } from './WeaponAssets';
 import type { WeaponController } from './WeaponController';
@@ -175,6 +176,7 @@ export class WeaponViewmodel {
   private readonly boltMatrix = new Matrix4();
   private readonly boltScale = new Vector3(0.1, 0.035, 0.035);
   private boltIndex = 0;
+  private boltProgress = 0;
   private cinder?: CinderWyrm;
   private memento?: MementoMori;
   private mementoRequest?: AbortController;
@@ -408,6 +410,10 @@ export class WeaponViewmodel {
     );
   }
 
+  get visible(): boolean {
+    return this.root.visible;
+  }
+
   get rifleSkinStatus(): WeaponSkinStatus {
     if (this.rifleSkin !== 'memento-mori' || this.memento) return 'ready';
     return this.mementoUnavailable ? 'unavailable' : 'loading';
@@ -439,6 +445,17 @@ export class WeaponViewmodel {
     return this.inspectTime !== null;
   }
 
+  prepareGunSkin(skin: WeaponSkin): void {
+    if (skin === 'memento-mori' && !this.memento && !this.mementoRequest)
+      void this.loadMemento();
+    if (skin === 'lotus-lava' && !this.lotus && !this.lotusRequest)
+      void this.loadLotus();
+    if (skin === 'glorious-blaze' && !this.blaze && !this.blazeRequest)
+      void this.loadBlaze();
+    if (skin === 'neon-blade' && !this.neon && !this.neonRequest)
+      void this.loadNeon();
+  }
+
   setRifleSkin(skin: RifleSkin): void {
     if (this.rifleSkin === skin) return;
     this.rifleSkin = skin;
@@ -447,8 +464,7 @@ export class WeaponViewmodel {
       this.cinder = new CinderWyrm(this.material.map ?? this.texture);
       this.root.add(this.cinder.model, this.cinder.reticle);
     }
-    if (skin === 'memento-mori' && !this.memento && !this.mementoRequest)
-      void this.loadMemento();
+    this.prepareGunSkin(skin);
   }
 
   private async loadMemento(): Promise<void> {
@@ -475,8 +491,7 @@ export class WeaponViewmodel {
     if (this.sniperSkin === skin) return;
     this.sniperSkin = skin;
     if (this.selected === 'sniper') this.resetInspect();
-    if (skin === 'lotus-lava' && !this.lotus && !this.lotusRequest)
-      void this.loadLotus();
+    this.prepareGunSkin(skin);
   }
 
   private async loadLotus(): Promise<void> {
@@ -503,8 +518,7 @@ export class WeaponViewmodel {
     if (this.shotgunSkin === skin) return;
     this.shotgunSkin = skin;
     if (this.selected === 'shotgun') this.resetInspect();
-    if (skin === 'glorious-blaze' && !this.blaze && !this.blazeRequest)
-      void this.loadBlaze();
+    this.prepareGunSkin(skin);
   }
 
   private async loadBlaze(): Promise<void> {
@@ -531,8 +545,7 @@ export class WeaponViewmodel {
     if (this.smgSkin === skin) return;
     this.smgSkin = skin;
     if (this.selected === 'smg') this.resetInspect();
-    if (skin === 'neon-blade' && !this.neon && !this.neonRequest)
-      void this.loadNeon();
+    this.prepareGunSkin(skin);
   }
 
   private async loadNeon(): Promise<void> {
@@ -708,6 +721,21 @@ export class WeaponViewmodel {
     this.recoil.reset();
   }
 
+  private skinLoading(weapon: WeaponId): boolean {
+    switch (weapon) {
+      case 'rifle':
+        return this.rifleSkinStatus === 'loading';
+      case 'sniper':
+        return this.sniperSkinStatus === 'loading';
+      case 'shotgun':
+        return this.shotgunSkinStatus === 'loading';
+      case 'smg':
+        return this.smgSkinStatus === 'loading';
+      case 'melee':
+        return this.meleeSkinStatus === 'loading';
+    }
+  }
+
   update(
     weapons: WeaponController,
     speed: number,
@@ -724,7 +752,13 @@ export class WeaponViewmodel {
       this.resetInspect();
       this.selected = weapons.selected;
       if (this.recoilWeapon !== this.selected) this.resetRecoil();
-      for (const [id, mesh] of this.models) mesh.visible = id === this.selected;
+    }
+    // A pending skin owns the viewmodel slot from equip until it is ready.
+    if (this.skinLoading(this.selected)) {
+      this.root.visible = this.flash.visible = false;
+      this.updateAimDot(weapons, false, 0);
+      this.resetInspect();
+      return;
     }
     const cinder =
       this.selected === 'rifle' && this.rifleSkin === 'cinder-wyrm'
@@ -783,12 +817,15 @@ export class WeaponViewmodel {
     this.root.visible =
       active &&
       (!scoped || scopeStyle === 'optic' || sniperScopeBlend(ads) < 1);
-    if (weapons.selected === 'sniper' && !lotus) {
-      const progress = weapons.cycleProgress;
-      const pull = weapons.cycling ? Math.sin(Math.PI * progress) : 0;
-      const lift = weapons.cycling
-        ? Math.sin(Math.PI * Math.min(1, progress * 3))
-        : 0;
+    const progress = weapons.cycling ? weapons.cycleProgress : 0;
+    if (
+      weapons.selected === 'sniper' &&
+      !lotus &&
+      progress !== this.boltProgress
+    ) {
+      this.boltProgress = progress;
+      const pull = Math.sin(Math.PI * progress);
+      const lift = Math.sin(Math.PI * Math.min(1, progress * 3));
       this.boltMatrix
         .makeRotationZ(lift * 0.8)
         .scale(this.boltScale)

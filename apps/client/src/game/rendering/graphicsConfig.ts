@@ -60,8 +60,9 @@ export const graphicsStorageKey = 'breakpoint.graphics.v2';
 export const adaptiveConfig = Object.freeze({
   warmupMs: 2000,
   windowMs: 1000,
-  slowFrameMs: 20,
-  fastFrameMs: 17.5,
+  // Allow a small amount of refresh-timing jitter around the 60 FPS budget.
+  slowFrameMs: 1000 / 58,
+  fastFrameMs: 1000 / 59,
   slowWindows: 2,
   fastWindows: 8,
   cooldownMs: 10000,
@@ -186,5 +187,22 @@ export function calculateResolution(
   return {
     width: Math.max(1, Math.floor(width * scale)),
     height: Math.max(1, Math.floor(height * scale)),
+  };
+}
+
+/** A lower tier must reduce pixel work even when the viewport fits both budgets. */
+export function calculateAdaptiveResolution(
+  ceiling: GraphicsPreset,
+  active: GraphicsPreset,
+  width: number,
+  height: number,
+  renderScale: number,
+) {
+  const target = calculateResolution(ceiling, width, height, renderScale);
+  if (active === ceiling) return target;
+  const ratio = graphicsPresets[active].width / graphicsPresets[ceiling].width;
+  return {
+    width: Math.max(1, Math.floor(target.width * ratio)),
+    height: Math.max(1, Math.floor(target.height * ratio)),
   };
 }

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   calculateResolution,
+  calculateAdaptiveResolution,
   calculateOutputResolution,
   settingsForPreset,
   defaultGraphics,
@@ -126,6 +127,23 @@ describe('render resolution and settings', () => {
       width: 2560,
       height: 1440,
     });
+  });
+
+  it('reduces pixel work when a phone viewport fits both adaptive tier budgets', () => {
+    expect(calculateAdaptiveResolution('hd', 'hd', 1688, 780, 1)).toEqual({
+      width: 1688,
+      height: 780,
+    });
+    expect(calculateAdaptiveResolution('hd', 'quality', 1688, 780, 1)).toEqual({
+      width: 1406,
+      height: 650,
+    });
+    expect(calculateAdaptiveResolution('hd', 'quality', 1920, 1080, 1)).toEqual(
+      {
+        width: 1600,
+        height: 900,
+      },
+    );
   });
 
   it('rejects corrupt, unsupported or unavailable persisted settings', () => {

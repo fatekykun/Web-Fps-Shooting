@@ -35,7 +35,10 @@ export function GraphicsControls({
           value={settings.preset}
           onChange={(event) => {
             if (isGraphicsPreset(event.target.value))
-              onChange(settingsForPreset(event.target.value));
+              onChange({
+                ...settingsForPreset(event.target.value),
+                adaptive: settings.adaptive,
+              });
           }}
         >
           {presetOrder.map((preset) => (
@@ -161,7 +164,7 @@ export function GraphicsControls({
       )}
       <p>
         {settings.adaptive
-          ? 'Resolution can adjust during sustained GPU load.'
+          ? 'Resolution adjusts under sustained load to target 60 FPS.'
           : 'Render resolution stays fixed during play.'}
       </p>
     </section>

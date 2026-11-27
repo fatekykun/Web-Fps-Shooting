@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loadoutsWithSkin } from './helpers/loadouts';
 
+// These tests control model requests directly, independently of the offline cache.
+test.use({ serviceWorkers: 'block' });
+
 async function trackAudioSamples(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const decode = BaseAudioContext.prototype.decodeAudioData;
@@ -159,9 +162,17 @@ test.describe('Memento Mori touch controls', () => {
     userAgent:
       'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36',
   });
-  test('the imported model supports touch inspect and ADS on Performance', async ({
+  test('a slow skin download skips the standard rifle and supports touch inspect and ADS once ready', async ({
     page,
   }) => {
+    let releaseDownload!: () => void;
+    const pendingDownload = new Promise<void>((resolve) => {
+      releaseDownload = resolve;
+    });
+    await page.route('**/models/memento.glb', async (route) => {
+      await pendingDownload;
+      await route.continue();
+    });
     const loadouts = loadoutsWithSkin(0, 'memento-mori');
     await page.addInitScript((loadouts) => {
       localStorage.setItem(
@@ -175,10 +186,26 @@ test.describe('Memento Mori touch controls', () => {
       Element.prototype.requestFullscreen = () =>
         Promise.reject(new Error('Fullscreen denied'));
     }, loadouts);
-    await page.goto('/');
-    await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
     const hud = page.getByTestId('weapon-status');
+    const draws = () =>
+      page
+        .getByTestId('render-resolution')
+        .getAttribute('data-world-draws')
+        .then(Number);
+    let menuDraws: number;
+    try {
+      await page.goto('/');
+      await expect.poll(draws).toBeGreaterThan(0);
+      menuDraws = await draws();
+      await page.getByRole('button', { name: 'ENTER TRAINING' }).tap();
+      await expect(hud).toHaveAttribute('data-rifle-skin-status', 'loading');
+      await expect(hud).toContainText('LOADING MEMENTO MORI');
+      await expect.poll(draws).toBe(menuDraws);
+    } finally {
+      releaseDownload();
+    }
     await expect(hud).toHaveAttribute('data-rifle-skin-status', 'ready');
+    await expect.poll(draws).toBeGreaterThan(menuDraws);
     await page.getByRole('button', { name: 'Inspect weapon' }).tap();
     await expect(hud).toHaveAttribute('data-inspecting', 'true');
     await page.getByRole('button', { name: 'Aim down sights' }).tap();
