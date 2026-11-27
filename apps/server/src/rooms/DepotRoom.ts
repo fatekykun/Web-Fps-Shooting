@@ -46,7 +46,6 @@ export class DepotRoom extends Room<{ state: RoomState }> {
   private releaseCapacity?: () => void;
   state = new RoomState();
   maxClients: number = networkConfig.maxPlayers;
-  patchRate = networkConfig.patchRate;
   maxMessagesPerSecond = 120;
   private arena: ArenaDefinition = arenas[defaultMultiplayerMapId];
   private readonly simulations = new Map<string, ServerPlayer>();
@@ -193,7 +192,7 @@ export class DepotRoom extends Room<{ state: RoomState }> {
         this.match.afterCombat();
       }
       if (this.state.phase !== 'playing') this.footsteps.length = 0;
-      if (this.state.tick % 3 === 0) {
+      if (this.state.tick % networkConfig.snapshotTicks === 0) {
         for (const client of this.clients) {
           const player = this.simulations.get(client.sessionId);
           if (player) {
@@ -225,8 +224,11 @@ export class DepotRoom extends Room<{ state: RoomState }> {
           }
         }
         this.footsteps.length = 0;
+        this.broadcastPatch();
       }
     }, networkConfig.tickRate);
+    // Disable the independent patch timer after the simulation owns the room clock.
+    this.patchRate = null;
   }
 
   onAuth(_client: Client, options: unknown): boolean {

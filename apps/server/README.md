@@ -46,9 +46,10 @@ checks a running local server; URL/origin flags target your real hosted service.
 delta-synchronized public fields with schema 5's `schema()`/`t` API. Each
 `players/ServerPlayer.ts` owns a bounded queue and a shared movement controller.
 It accepts consecutive sequenced input, never client positions or elapsed time.
-The room targets 60 fixed ticks/second and patches state at 20 Hz. Full correction
-snapshots are sent only to their owner for movement replay; remote clients get
-public transforms, roster, health/alive/life, protection and selected weapon.
+The room targets 60 fixed ticks per second and sends delta state patches and
+owner corrections every two ticks. Owners use full correction snapshots for
+movement replay. Remote clients get public transforms, roster, health/alive/life,
+protection and selected weapon.
 Private correction messages also carry the owner's authoritative inventory,
 reload/accuracy status and confirmed damage/hit counters.
 

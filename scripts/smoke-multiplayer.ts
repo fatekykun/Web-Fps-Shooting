@@ -18,12 +18,16 @@ const { values } = parseArgs({
     },
     origin: { type: 'string' },
     seconds: { type: 'string', default: '10' },
+    'send-hz': { type: 'string', default: '60' },
     output: { type: 'string', default: 'test-results/multiplayer-smoke.json' },
   },
 });
 const seconds = Number(values.seconds);
 if (!Number.isInteger(seconds) || seconds < 5 || seconds > 120)
   throw new Error('--seconds must be 5–120 per mode.');
+const sendHz = Number(values['send-hz']);
+if (sendHz !== 30 && sendHz !== 60)
+  throw new Error('--send-hz must be 30 or 60.');
 const endpoint = validateServerUrl(
   values.server,
   !isLoopback(new URL(values.server).hostname),
@@ -123,10 +127,12 @@ async function modeCheck(mode: 'ffa' | 'tdm') {
       room.onMessage('correction', (correction: Correction) => {
         acknowledgements.set(room.sessionId, correction.ack);
         const pending = sent.get(room.sessionId)!;
-        const at = pending.get(correction.ack);
-        if (at !== undefined) latencies.push(performance.now() - at);
-        for (const key of pending.keys())
-          if (key <= correction.ack) pending.delete(key);
+        const arrivedAt = performance.now();
+        for (const [seq, at] of pending) {
+          if (seq > correction.ack) break;
+          latencies.push(arrivedAt - at);
+          pending.delete(seq);
+        }
       });
     }
     const host = rooms[0]!;
@@ -167,6 +173,13 @@ async function modeCheck(mode: 'ffa' | 'tdm') {
     );
     const started = performance.now();
     const startingTick = host.state.tick;
+    let latestSnapshot = startingTick;
+    let snapshotCount = 0;
+    host.onStateChange((state) => {
+      if (state.tick <= latestSnapshot || state.phase !== 'playing') return;
+      latestSnapshot = state.tick;
+      snapshotCount++;
+    });
     timer = setInterval(() => {
       const elapsed = (performance.now() - started) / 1000;
       for (const [index, room] of rooms.entries()) {
@@ -183,7 +196,7 @@ async function modeCheck(mode: 'ffa' | 'tdm') {
         for (let step = 0; step < batchSize; step++) {
           const seq = sequence.get(room.sessionId)! + 1;
           sequence.set(room.sessionId, seq);
-          sent.get(room.sessionId)!.set(seq, performance.now());
+          sent.get(room.sessionId)!.set(seq, started + (seq * 1000) / 60);
           const fire = Math.floor(elapsed) % 4 < 2;
           batch.push({
             seq,
@@ -211,10 +224,12 @@ async function modeCheck(mode: 'ffa' | 'tdm') {
         if (sent.get(room.sessionId)!.size > 240)
           faults.push('Acknowledgements stalled for more than four seconds.');
       }
-    }, 1000 / 30);
+    }, 1000 / sendHz);
     await delay(seconds * 1000);
     clearInterval(timer);
     timer = undefined;
+    const snapshots = snapshotCount;
+    const serverTicks = latestSnapshot - startingTick;
     await until(
       () =>
         rooms.every(
@@ -230,7 +245,10 @@ async function modeCheck(mode: 'ffa' | 'tdm') {
     for (const room of rooms)
       if (room.state.players.size !== 8)
         throw new Error('Eight clients did not remain connected.');
-    const serverTicks = host.state.tick - startingTick;
+    if (serverTicks < seconds * 60 * 0.9)
+      throw new Error(
+        'The room could not sustain its 60 Hz simulation target.',
+      );
     for (const count of sequence.values())
       if (count < seconds * 60 * 0.9)
         throw new Error(
@@ -248,8 +266,10 @@ async function modeCheck(mode: 'ffa' | 'tdm') {
       seconds,
       ninthRejected,
       targetInputHz: 60,
+      sendHz,
       sentInputs: Object.fromEntries(sequence),
       serverTicks,
+      snapshotHz: Math.round((snapshots / seconds) * 10) / 10,
       serverConfirmedShots: shots,
       inputAcknowledgements: Object.fromEntries(acknowledgements),
       ackLatencyMs: {

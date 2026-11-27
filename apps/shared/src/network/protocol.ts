@@ -14,12 +14,12 @@ export const networkConfig = Object.freeze({
   roomType: 'depot',
   maxPlayers: 8,
   tickRate: 60,
-  patchRate: 50,
-  batchSize: 2,
+  snapshotTicks: 2,
   maxBatch: 6,
   maxQueuedInputs: 90,
   maxPrediction: 180,
-  interpolationDelay: 6,
+  interpolationDelay: 2.5,
+  maxInterpolationDelay: 5,
   staleInputTicks: 15,
 });
 export const codePattern = /^[A-HJ-NP-Z2-9]{6}$/;

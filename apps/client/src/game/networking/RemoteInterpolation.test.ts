@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest';
-import type { PublicPlayer, RoomView } from '@breakpoint/shared/network';
+import {
+  networkConfig,
+  type PublicPlayer,
+  type RoomView,
+} from '@breakpoint/shared/network';
 import { lerpAngle, RemoteInterpolation } from './RemoteInterpolation';
 import { matchDefaults } from '@breakpoint/shared/match';
 
@@ -47,23 +51,64 @@ const view = (tick: number, x: number): RoomView => ({
     { ...player, id: 'self' },
   ],
 });
-it('interpolates at 100 ms delay, clamps stalls and removes departed players', () => {
+const tickMs = 1000 / networkConfig.tickRate;
+
+it('interpolates at the short baseline delay, clamps stalls and removes departed players', () => {
   const buffer = new RemoteInterpolation();
-  buffer.push(view(6, 0), 100);
-  buffer.push(view(12, 6), 200);
+  buffer.push(view(6, 0), 6 * tickMs);
+  buffer.push(view(8, 2), 8 * tickMs);
+  buffer.push(view(10, 4), 10 * tickMs);
+  expect(buffer.delaySeconds * 1000).toBeCloseTo(41.667);
   let sampled = player;
-  buffer.sample(250, (p) => {
+  buffer.sample(10 * tickMs, (p) => {
     sampled = p;
   });
-  expect(sampled.x).toBeCloseTo(3);
+  expect(sampled.x).toBeCloseTo(1.5);
+  buffer.sample(11 * tickMs, (p) => {
+    sampled = p;
+  });
+  expect(sampled.x).toBeCloseTo(2.5);
   buffer.sample(2000, (p) => {
     sampled = p;
   });
-  expect(sampled.x).toBe(6);
+  expect(sampled.x).toBe(4);
   buffer.push({ ...view(13, 0), players: [] }, 2100);
   buffer.sample(2200, () => {
     throw new Error('Departed avatar remained.');
   });
+});
+
+it('adds bounded delay under jitter and advances smoothly through burst arrivals', () => {
+  const buffer = new RemoteInterpolation();
+  buffer.push(view(10, 10), 0);
+  buffer.push(view(12, 12), 2 * tickMs);
+  let x = 0;
+  const consume = (sample: PublicPlayer) => {
+    x = sample.x;
+  };
+  buffer.sample(50, consume);
+  const before = x;
+  buffer.push(view(14, 14), 51);
+  buffer.sample(52, consume);
+  expect(x).toBeGreaterThanOrEqual(before);
+  expect(x - before).toBeLessThan(0.16);
+  for (let i = 1; i <= 10; i++)
+    buffer.push(view(14 + i * 2, 14 + i * 2), 51 + i * 150);
+  expect(buffer.delaySeconds).toBe(
+    networkConfig.maxInterpolationDelay / networkConfig.tickRate,
+  );
+  buffer.clear();
+  expect(buffer.delaySeconds).toBeCloseTo(
+    networkConfig.interpolationDelay / networkConfig.tickRate,
+  );
+});
+
+it('learns the slower snapshot cadence of an older server', () => {
+  const buffer = new RemoteInterpolation();
+  for (let tick = 0; tick <= 45; tick += 3)
+    buffer.push(view(tick, tick), tick * tickMs);
+  expect(buffer.delaySeconds).toBeGreaterThan(0.05);
+  expect(buffer.delaySeconds).toBeLessThan(0.06);
 });
 it('takes the short arc across wrapped yaw', () => {
   expect(Math.abs(lerpAngle(Math.PI - 0.1, -Math.PI + 0.1, 0.5))).toBeCloseTo(
@@ -75,16 +120,16 @@ it('interpolates server-owned gait across a wrapped animation cycle', () => {
   const buffer = new RemoteInterpolation();
   buffer.push(
     {
-      ...view(6, 0),
+      ...view(10, 0),
       players: [{ ...player, gaitPhase: 2 * Math.PI - 0.1, gaitAmount: 0.2 }],
     },
-    100,
+    10 * tickMs,
   );
   buffer.push(
     { ...view(12, 6), players: [{ ...player, gaitPhase: 0.1, gaitAmount: 1 }] },
-    200,
+    12 * tickMs,
   );
-  buffer.sample(250, (sample) => {
+  buffer.sample(13.5 * tickMs, (sample) => {
     expect(sample.gaitPhase).toBeCloseTo(2 * Math.PI);
     expect(sample.gaitAmount).toBeCloseTo(0.6);
   });

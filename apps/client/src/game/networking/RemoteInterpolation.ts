@@ -9,6 +9,9 @@ interface Sample {
   tick: number;
   player: PublicPlayer;
 }
+
+const tickMs = 1000 / networkConfig.tickRate;
+
 export function lerpAngle(a: number, b: number, t: number): number {
   const delta = Math.atan2(Math.sin(b - a), Math.cos(b - a));
   return a + delta * t;
@@ -18,11 +21,38 @@ export function lerpAngle(a: number, b: number, t: number): number {
 export class RemoteInterpolation {
   private readonly histories = new Map<string, Sample[]>();
   private latestTick = 0;
-  private receivedAt = 0;
+  private receivedAt?: number;
+  private jitterMs = 0;
+  private snapshotSpacing: number = networkConfig.snapshotTicks;
+  private renderedTick = 0;
+  private renderedAt?: number;
+
+  get delaySeconds(): number {
+    const ticks = Math.min(
+      networkConfig.maxInterpolationDelay,
+      Math.max(networkConfig.interpolationDelay, this.snapshotSpacing + 0.5) +
+        (2 * this.jitterMs) / tickMs,
+    );
+    return ticks / networkConfig.tickRate;
+  }
 
   push(view: RoomView, now: number): void {
-    this.latestTick = view.tick;
-    this.receivedAt = now;
+    if (view.tick < this.latestTick) return;
+    if (this.receivedAt === undefined || view.tick > this.latestTick) {
+      if (this.receivedAt !== undefined) {
+        const arrivalGap = now - this.receivedAt;
+        const tickGap = view.tick - this.latestTick;
+        const serverGap = tickGap * tickMs;
+        const variation = Math.min(100, Math.abs(arrivalGap - serverGap));
+        this.jitterMs += (variation - this.jitterMs) / 8;
+        this.snapshotSpacing +=
+          (Math.min(networkConfig.maxInterpolationDelay, tickGap) -
+            this.snapshotSpacing) /
+          8;
+      }
+      this.latestTick = view.tick;
+      this.receivedAt = now;
+    }
     const ids = new Set(
       view.players.filter((p) => p.id !== view.selfId).map((p) => p.id),
     );
@@ -45,10 +75,28 @@ export class RemoteInterpolation {
   }
 
   sample(now: number, consume: (player: PublicPlayer) => void): void {
-    const tick =
+    if (this.receivedAt === undefined) return;
+    const target = Math.min(
+      this.latestTick,
       this.latestTick +
-      (Math.max(0, now - this.receivedAt) * networkConfig.tickRate) / 1000 -
-      networkConfig.interpolationDelay;
+        Math.max(0, now - this.receivedAt) / tickMs -
+        this.delaySeconds * networkConfig.tickRate,
+    );
+    const delta = now - (this.renderedAt ?? now);
+    if (this.renderedAt === undefined || delta > 100) {
+      this.renderedTick = Math.max(this.renderedTick, target);
+    } else if (delta > 0) {
+      // Ease clock corrections so packet spacing cannot rewind or jump an avatar.
+      const advance = delta / tickMs;
+      const error = target - (this.renderedTick + advance);
+      const rate = Math.max(0.75, Math.min(1.25, 1 + error / 6));
+      this.renderedTick = Math.min(
+        this.latestTick,
+        this.renderedTick + advance * rate,
+      );
+    }
+    this.renderedAt = now;
+    const tick = this.renderedTick;
     for (const history of this.histories.values()) {
       while (history.length > 2 && history[1]!.tick <= tick) history.shift();
       const a = history[0]!;
@@ -90,5 +138,8 @@ export class RemoteInterpolation {
 
   clear(): void {
     this.histories.clear();
+    this.latestTick = this.jitterMs = this.renderedTick = 0;
+    this.snapshotSpacing = networkConfig.snapshotTicks;
+    this.receivedAt = this.renderedAt = undefined;
   }
 }
