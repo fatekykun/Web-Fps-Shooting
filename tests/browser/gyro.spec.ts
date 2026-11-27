@@ -110,11 +110,14 @@ test('requests permission, saves gyro settings, and applies horizontal inversion
   await expect.poll(heading).toBeCloseTo(0);
   const tilt = () =>
     page.evaluate(() => {
+      const start = performance.now() - 1000;
       for (const time of [1000, 1020, 1040]) {
         const event = new DeviceMotionEvent('devicemotion', {
           rotationRate: { alpha: 0, beta: 15, gamma: 0 },
         });
-        Object.defineProperty(event, 'timeStamp', { value: time });
+        Object.defineProperty(event, 'timeStamp', {
+          value: start + time - 1000,
+        });
         window.dispatchEvent(event);
       }
     });
@@ -202,15 +205,24 @@ test.describe('Android gyro', () => {
       await expect(page.getByTestId('minimap-player')).toBeVisible();
       await page.evaluate((screenAngle) => {
         const side = screenAngle === 90 ? 1 : -1;
+        const start = performance.now() - 1000;
         for (const time of [1000, 1020, 1040, 1060]) {
           const event = new DeviceMotionEvent('devicemotion', {
             rotationRate: { alpha: 0, beta: -60 * side, gamma: 0 },
             accelerationIncludingGravity: { x: 7.8 * side, y: 4.8, z: 3.5 },
           });
-          Object.defineProperty(event, 'timeStamp', { value: time });
+          Object.defineProperty(event, 'timeStamp', {
+            value: start + time - 1000,
+          });
           window.dispatchEvent(event);
         }
       }, angle);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
       await page.getByRole('button', { name: 'Pause game' }).tap();
       await openSensitivity(page);
       await diagnostics.tap();

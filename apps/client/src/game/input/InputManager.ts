@@ -16,6 +16,7 @@ import { KeyboardInput } from './KeyboardInput';
 import { MouseInput } from './MouseInput';
 import { TouchInput } from './TouchInput';
 import { GyroInput, requestGyroAccess, type GyroSample } from './GyroInput';
+import { GyroFrameAim } from './GyroFrameAim';
 import { gyroTurnScale, type GyroAimMode } from './gyroSensitivity';
 import { readDevice } from './deviceCapabilities';
 
@@ -94,7 +95,12 @@ export class InputManager {
   private settings = defaultUserSettings();
   private readonly keyboard: KeyboardInput;
   private readonly mouse: MouseInput;
-  private readonly gyro = new GyroInput((sample) => this.gyroLook(sample));
+  private readonly gyroFrames = new GyroFrameAim();
+  private readonly gyroDelta = { yaw: 0, pitch: 0 };
+  private readonly gyro = new GyroInput(
+    (sample) => this.gyroLook(sample),
+    () => this.gyroFrames.reset(),
+  );
   private gyroMeasurement: GyroMeasurement | null = null;
   private touch: TouchInput | null = null;
   private readonly controlClicks = new Set<number>();
@@ -167,6 +173,8 @@ export class InputManager {
     );
     const touchAdsModeChanged =
       this.settings.touchAdsMode !== settings.touchAdsMode;
+    if (this.settings.gyroActivation !== settings.gyroActivation)
+      this.gyro.reset();
     this.settings = settings;
     this.weapon.autoReload = settings.autoReload;
     if (bindingsChanged || touchAdsModeChanged) this.clear();
@@ -457,6 +465,25 @@ export class InputManager {
   getGyroMeasurement(): GyroMeasurement | null {
     return this.gyroMeasurement ? { ...this.gyroMeasurement } : null;
   }
+
+  updateGyroLook(time: number): void {
+    if (this.settings.gyroActivation === 'ads' && !this.weapon.aim) {
+      this.gyroFrames.reset();
+      return;
+    }
+    if (!this.gyroFrames.sample(time, this.gyroDelta)) return;
+    const { yaw, pitch } = this.gyroDelta;
+    const beforePitch = this.pitch;
+    this.look(-yaw, -pitch, false);
+    if (Math.abs(beforePitch + pitch) > lookLimit) this.gyroFrames.clampPitch();
+    const measurement = this.gyroMeasurement;
+    if (measurement) {
+      measurement.cameraYaw += yaw;
+      measurement.cameraYawTravel += Math.abs(yaw);
+      measurement.cameraPitch += this.pitch - beforePitch;
+    }
+  }
+
   private gyroLook(sample: GyroSample): void {
     const weapon = this.getWeapon();
     const ads = weapon ? weapon.ads : Number(this.weapon.aim);
@@ -481,17 +508,18 @@ export class InputManager {
     if (!Number.isFinite(deltaYaw) || !Number.isFinite(deltaPitch)) return;
     if (Math.hypot(deltaYaw, deltaPitch) >= 0.0025)
       this.aimAssistPause = manualAimPause;
-    const beforePitch = this.pitch;
-    if (deltaYaw || deltaPitch) this.look(-deltaYaw, -deltaPitch, false);
+    this.gyroFrames.addSample(
+      sample.timestampMs,
+      sample.intervalMs,
+      deltaYaw,
+      deltaPitch,
+    );
 
     const measurement = this.gyroMeasurement;
     if (measurement) {
       measurement.sample = sample;
       measurement.physicalYaw += sample.yaw;
       measurement.physicalPitch += sample.pitch;
-      measurement.cameraYaw += deltaYaw;
-      measurement.cameraYawTravel += Math.abs(deltaYaw);
-      measurement.cameraPitch += this.pitch - beforePitch;
       measurement.aim = {
         mode,
         ads,

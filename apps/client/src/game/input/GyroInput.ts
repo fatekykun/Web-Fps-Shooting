@@ -35,6 +35,7 @@ function axis(value: number | null | undefined): number {
 }
 
 export interface GyroSample {
+  timestampMs: number;
   intervalMs: number;
   yawRate: number;
   pitchRate: number;
@@ -49,7 +50,10 @@ export class GyroInput {
   private previousTime?: number;
   private screenAngle?: number;
 
-  constructor(private readonly look: (sample: GyroSample) => void) {}
+  constructor(
+    private readonly look: (sample: GyroSample) => void,
+    private readonly resetLook: () => void,
+  ) {}
 
   setActive(active: boolean): void {
     active = active && gyroAvailable();
@@ -73,6 +77,7 @@ export class GyroInput {
   readonly reset = (): void => {
     this.previousTime = undefined;
     this.screenAngle = undefined;
+    this.resetLook();
   };
 
   private readonly onMotion = (event: DeviceMotionEvent): void => {
@@ -95,7 +100,10 @@ export class GyroInput {
     if (!rotated && this.previousTime !== undefined && elapsed <= 0) return;
     this.previousTime = event.timeStamp;
     this.screenAngle = angle;
-    if (rotated || !(elapsed > 0 && elapsed <= maximumSampleGap)) return;
+    if (rotated || !(elapsed > 0 && elapsed <= maximumSampleGap)) {
+      this.resetLook();
+      return;
+    }
 
     const aroundX = axis(this.chromiumRateOrder ? rates.alpha : rates.beta);
     const aroundY = axis(this.chromiumRateOrder ? rates.beta : rates.gamma);
@@ -126,6 +134,7 @@ export class GyroInput {
     }
     const scale = (elapsed / 1000) * radiansPerDegree;
     this.look({
+      timestampMs: event.timeStamp,
       intervalMs: elapsed,
       yawRate,
       pitchRate,
