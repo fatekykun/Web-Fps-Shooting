@@ -1,10 +1,11 @@
 import { isAntiAliasingMode, type AntiAliasingMode } from './antiAliasing';
 
 export const graphicsPresets = {
-  performance: { label: 'Performance', width: 640, height: 360 },
-  balanced: { label: 'Balanced', width: 960, height: 540 },
-  quality: { label: 'Quality', width: 1280, height: 720 },
-  ultra: { label: 'Ultra (1080p)', width: 1920, height: 1080 },
+  performance: { label: 'Low', width: 960, height: 540, dpr: 1 },
+  balanced: { label: 'Medium', width: 1280, height: 720, dpr: 1.5 },
+  quality: { label: 'High', width: 1600, height: 900, dpr: 1.75 },
+  hd: { label: 'HD', width: 1920, height: 1080, dpr: 2 },
+  ultra: { label: 'Ultra', width: 2560, height: 1440, dpr: 2 },
 } as const;
 
 export type GraphicsPreset = keyof typeof graphicsPresets;
@@ -12,26 +13,49 @@ export const presetOrder: readonly GraphicsPreset[] = [
   'performance',
   'balanced',
   'quality',
+  'hd',
   'ultra',
 ];
 export interface GraphicsSettings {
   antiAliasing: AntiAliasingMode;
   preset: GraphicsPreset;
   adaptive: boolean;
-  textureQuality: 'low' | 'high';
-  shadowQuality: 'off' | 'low' | 'high';
+  textureQuality: 'low' | 'high' | 'hd';
+  shadowQuality: 'off' | 'low' | 'high' | 'ultra';
   viewDistance: 40 | 60 | 80;
   renderScale: 0.5 | 0.75 | 1;
 }
-export const defaultGraphics: Readonly<GraphicsSettings> = {
-  antiAliasing: 'off',
-  preset: 'balanced',
-  adaptive: true,
-  textureQuality: 'high',
-  shadowQuality: 'off',
-  viewDistance: 60,
-  renderScale: 1,
-};
+const qualityProfiles = {
+  performance: ['off', 'low', 'off', 40],
+  balanced: ['fxaa', 'high', 'low', 60],
+  quality: ['msaa2', 'high', 'high', 80],
+  hd: ['smaa', 'hd', 'high', 80],
+  ultra: ['msaa4', 'hd', 'ultra', 80],
+} as const;
+
+export function settingsForPreset(preset: GraphicsPreset): GraphicsSettings {
+  const [antiAliasing, textureQuality, shadowQuality, viewDistance] =
+    qualityProfiles[preset];
+  return {
+    preset,
+    antiAliasing,
+    textureQuality,
+    shadowQuality,
+    viewDistance,
+    adaptive: false,
+    renderScale: 1,
+  };
+}
+
+export const defaultGraphics: Readonly<GraphicsSettings> =
+  settingsForPreset('balanced');
+
+export const shadowMapSizes = {
+  off: 0,
+  low: 1024,
+  high: 2048,
+  ultra: 4096,
+} as const;
 export const graphicsStorageKey = 'breakpoint.graphics.v2';
 export const adaptiveConfig = Object.freeze({
   warmupMs: 2000,
@@ -45,12 +69,7 @@ export const adaptiveConfig = Object.freeze({
 });
 
 export function isGraphicsPreset(value: unknown): value is GraphicsPreset {
-  return (
-    value === 'performance' ||
-    value === 'balanced' ||
-    value === 'quality' ||
-    value === 'ultra'
-  );
+  return typeof value === 'string' && Object.hasOwn(graphicsPresets, value);
 }
 
 export function loadGraphicsSettings(): GraphicsSettings {
@@ -73,19 +92,53 @@ export function normalizeGraphicsSettings(value: unknown): GraphicsSettings {
   const v = value as Record<string, unknown>;
   if (!isGraphicsPreset(v.preset) || typeof v.adaptive !== 'boolean')
     return { ...defaultGraphics };
+  const profile = settingsForPreset(v.preset);
   return {
-    antiAliasing: isAntiAliasingMode(v.antiAliasing) ? v.antiAliasing : 'off',
+    antiAliasing: isAntiAliasingMode(v.antiAliasing)
+      ? v.antiAliasing
+      : profile.antiAliasing,
     preset: v.preset,
     adaptive: v.adaptive,
-    textureQuality: v.textureQuality === 'low' ? 'low' : 'high',
+    textureQuality:
+      v.textureQuality === 'low' ||
+      v.textureQuality === 'high' ||
+      v.textureQuality === 'hd'
+        ? v.textureQuality
+        : profile.textureQuality,
     shadowQuality:
-      v.shadowQuality === 'low' || v.shadowQuality === 'high'
+      v.shadowQuality === 'off' ||
+      v.shadowQuality === 'low' ||
+      v.shadowQuality === 'high' ||
+      v.shadowQuality === 'ultra'
         ? v.shadowQuality
-        : 'off',
+        : profile.shadowQuality,
     viewDistance:
-      v.viewDistance === 40 || v.viewDistance === 80 ? v.viewDistance : 60,
+      v.viewDistance === 40 || v.viewDistance === 60 || v.viewDistance === 80
+        ? v.viewDistance
+        : profile.viewDistance,
     renderScale:
       v.renderScale === 0.5 || v.renderScale === 0.75 ? v.renderScale : 1,
+  };
+}
+
+/** Match device pixels within the selected quality budget, keeping CSS dimensions independent. */
+export function calculateOutputResolution(
+  preset: GraphicsPreset,
+  width: number,
+  height: number,
+  dpr: number,
+) {
+  width = Math.max(1, Math.floor(width));
+  height = Math.max(1, Math.floor(height));
+  const profile = graphicsPresets[preset];
+  const density = Math.min(
+    Number.isFinite(dpr) && dpr > 0 ? dpr : 1,
+    profile.dpr,
+    Math.max(1, Math.sqrt((profile.width * profile.height) / (width * height))),
+  );
+  return {
+    width: Math.max(1, Math.floor(width * density)),
+    height: Math.max(1, Math.floor(height * density)),
   };
 }
 
@@ -114,6 +167,8 @@ export function calculateResolution(
   renderScale = Number.isFinite(renderScale)
     ? Math.max(0.5, Math.min(1, renderScale))
     : 1;
+  if (outputWidth * outputHeight <= base.width * base.height * renderScale ** 2)
+    return { width: outputWidth, height: outputHeight };
   let width: number = base.width * renderScale;
   let height: number = base.height * renderScale;
   if (Math.abs(aspect - 16 / 9) > 0.005) {

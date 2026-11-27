@@ -241,7 +241,7 @@ export class Game {
     this.audio.configure(preferences);
     this.soulRequiem.configure(preferences.eliminationQuality);
     this.rendering = new GameRenderer(host, settings);
-    this.arena = new TrainingArena(this.scene);
+    this.arena = new TrainingArena(this.scene, settings);
     this.remotes = new RemotePlayers(this.scene);
     this.trails = new ShotTrails(this.scene);
     this.physics = new PhysicsWorld(arenas.depot.colliders, spawn);
@@ -842,8 +842,7 @@ export class Game {
     this.physics.setArena(arenas[id].colliders);
     this.arena.dispose();
     const Arena = arenaRenderers[id];
-    this.arena = new Arena(this.scene);
-    this.arena.configure(this.graphicsSettings);
+    this.arena = new Arena(this.scene, this.graphicsSettings);
     this.rendering.renderer.domElement.setAttribute(
       'aria-label',
       `${arenas[id].name} ${arenas[id].venue}`,

@@ -6,7 +6,7 @@ import {
   InstancedMesh,
   Matrix4,
   Mesh,
-  NearestFilter,
+  LinearFilter,
   Vector3,
 } from 'three';
 import { WeaponViewmodel } from './WeaponViewmodel';
@@ -243,7 +243,7 @@ it('pools the sniper into one draw with sharp textures and animates its bolt wit
       expect(model.scene.getObjectByName(`weapon-${id}`)!.visible).toBe(false);
     expect(
       Array.isArray(mesh.material) ? mesh.material[0]! : mesh.material,
-    ).toHaveProperty('map.magFilter', NearestFilter);
+    ).toHaveProperty('map.magFilter', LinearFilter);
   } finally {
     model.dispose();
   }

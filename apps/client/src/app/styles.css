@@ -491,9 +491,6 @@ a:focus-visible {
   position: absolute;
   inset: 0;
 }
-.viewport canvas {
-  image-rendering: pixelated;
-}
 .edge-shade {
   position: absolute;
   inset: 0;

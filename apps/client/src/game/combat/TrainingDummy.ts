@@ -1,11 +1,11 @@
 import {
-  BoxGeometry,
   Color,
   InstancedMesh,
   Matrix4,
-  MeshBasicMaterial,
+  MeshStandardMaterial,
   type Scene,
 } from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { combatConfig, type HitRegion } from '@breakpoint/shared';
 import { avatarParts } from '@breakpoint/shared/avatar';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
@@ -18,8 +18,11 @@ export class TrainingDummy {
   private resetTimer = 0;
   private flash = 0;
   private readonly regions = new Map<number, HitRegion>();
-  private readonly geometry = new BoxGeometry(1, 1, 1);
-  private readonly material = new MeshBasicMaterial();
+  private readonly geometry = new RoundedBoxGeometry(1, 1, 1, 1, 0.14);
+  private readonly material = new MeshStandardMaterial({
+    roughness: 0.62,
+    metalness: 0.11,
+  });
   private readonly mesh: InstancedMesh;
   private readonly poseMatrix = new Matrix4();
   private readonly poseColor = new Color();
@@ -69,6 +72,7 @@ export class TrainingDummy {
         );
     });
     this.mesh.computeBoundingSphere();
+    this.mesh.receiveShadow = true;
     scene.add(this.mesh);
   }
 

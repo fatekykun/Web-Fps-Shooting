@@ -10,7 +10,7 @@ import {
   InstancedMesh,
   Matrix4,
   MeshBasicMaterial,
-  MeshLambertMaterial,
+  MeshStandardMaterial,
   Quaternion,
   Vector3,
   type BufferGeometry,
@@ -18,8 +18,17 @@ import {
   type Scene,
 } from 'three';
 import type { ArenaBox } from '@breakpoint/shared/maps';
-import { createAtlasMaterial, createPixelAtlas } from '../rendering/PixelAtlas';
-import type { GraphicsSettings } from '../rendering/graphicsConfig';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { ArenaSurfaces } from '../rendering/SurfaceAtlas';
+import {
+  createArenaSky,
+  createContactOcclusion,
+} from '../rendering/ArenaLighting';
+import {
+  defaultGraphics,
+  shadowMapSizes,
+  type GraphicsSettings,
+} from '../rendering/graphicsConfig';
 
 export type ArenaPart = ArenaBox;
 export type ArenaSurface = ArenaPart & { tile: number };
@@ -48,21 +57,32 @@ export class BatchedArena {
   private readonly root = new Group();
   private readonly box = new BoxGeometry();
   private readonly drum = new CylinderGeometry(0.5, 0.5, 1, 12);
-  private readonly atlas;
-  private readonly lowAtlas;
-  private readonly surfaces: MeshLambertMaterial;
-  private readonly metal = new MeshLambertMaterial({ flatShading: true });
+  private readonly trimBox = new RoundedBoxGeometry(1, 1, 1, 1, 0.035);
+  private readonly sky;
+  private readonly contactOcclusion;
+  private readonly surfaces: ArenaSurfaces;
+  private readonly metal = new MeshStandardMaterial({
+    roughness: 0.61,
+    metalness: 0.17,
+  });
   private readonly lamp = new MeshBasicMaterial();
   private readonly daylight?: MeshBasicMaterial;
   private readonly batches: InstancedMesh[] = [];
+  private readonly trimBatch: InstancedMesh;
   private shadowQuality: GraphicsSettings['shadowQuality'] = 'off';
 
   get textureTileSize(): number {
-    return this.surfaces.userData.tilePixels.value;
+    return this.surfaces.tileSize;
   }
 
-  constructor(scene: Scene, parts: ArenaBatches, light: ArenaLight) {
-    scene.background = new Color(light.sky);
+  constructor(
+    scene: Scene,
+    parts: ArenaBatches,
+    light: ArenaLight,
+    settings = defaultGraphics,
+  ) {
+    this.sky = createArenaSky(light.sky);
+    scene.background = this.sky;
     this.fog = scene.fog = new Fog(light.sky, 38, 62);
     scene.add(this.root);
     this.root.add(new HemisphereLight(...light.fill));
@@ -80,17 +100,21 @@ export class BatchedArena {
     this.keyLight.shadow.bias = -0.0006;
     this.keyLight.shadow.normalBias = light.normalBias;
     this.keyLight.shadow.autoUpdate = false;
+    this.keyLight.shadow.radius = 2;
     this.root.add(this.keyLight);
 
-    this.atlas = createPixelAtlas(32, light.textureTheme);
-    this.lowAtlas = createPixelAtlas(16, light.textureTheme);
-    this.surfaces = createAtlasMaterial(
-      this.atlas,
+    this.surfaces = new ArenaSurfaces(
       this.box,
       parts.solids.map(({ tile }) => tile),
+      light.textureTheme ?? 'warehouse',
     );
-    this.batch(this.box, this.surfaces, parts.solids, true);
-    this.batch(this.box, this.metal, parts.trim, true);
+    this.contactOcclusion = createContactOcclusion([
+      ...parts.solids,
+      ...parts.barrels,
+    ]);
+    this.root.add(this.contactOcclusion);
+    this.batch(this.box, this.surfaces.material, parts.solids, true);
+    this.trimBatch = this.batch(this.trimBox, this.metal, parts.trim, true);
     this.batch(this.drum, this.metal, parts.barrels, true);
     this.batch(this.box, this.lamp, parts.paint, false);
     if (parts.overhead) this.batch(this.box, this.metal, parts.overhead, false);
@@ -102,6 +126,7 @@ export class BatchedArena {
       });
       this.batch(this.box, this.daylight, parts.daylight, false);
     }
+    this.configure(settings);
   }
 
   private batch(
@@ -109,7 +134,7 @@ export class BatchedArena {
     material: Material,
     parts: ArenaPart[],
     shadow: boolean,
-  ): void {
+  ): InstancedMesh {
     const mesh = new InstancedMesh(geometry, material, parts.length);
     const matrix = new Matrix4(),
       position = new Vector3(),
@@ -132,13 +157,14 @@ export class BatchedArena {
     mesh.castShadow = mesh.receiveShadow = shadow;
     this.batches.push(mesh);
     this.root.add(mesh);
+    return mesh;
   }
 
   configure(settings: GraphicsSettings): void {
-    const atlas =
-      settings.textureQuality === 'low' ? this.lowAtlas : this.atlas;
-    this.surfaces.map = atlas;
-    this.surfaces.userData.tilePixels.value = atlas.image.width / 4;
+    this.surfaces.configure(settings.textureQuality);
+    this.contactOcclusion.visible = settings.preset !== 'performance';
+    this.trimBatch.geometry =
+      settings.preset === 'performance' ? this.box : this.trimBox;
     this.fog.near = settings.viewDistance * 0.65;
     this.fog.far = settings.viewDistance * 0.95;
     if (settings.shadowQuality === this.shadowQuality) return;
@@ -146,7 +172,7 @@ export class BatchedArena {
     this.keyLight.shadow.map = null;
     this.keyLight.castShadow = settings.shadowQuality !== 'off';
     this.keyLight.shadow.mapSize.setScalar(
-      settings.shadowQuality === 'high' ? 1024 : 512,
+      shadowMapSizes[settings.shadowQuality] || 1024,
     );
     this.keyLight.shadow.needsUpdate = this.keyLight.castShadow;
     this.shadowQuality = settings.shadowQuality;
@@ -158,8 +184,11 @@ export class BatchedArena {
     for (const mesh of this.batches) mesh.dispose();
     this.box.dispose();
     this.drum.dispose();
-    this.atlas.dispose();
-    this.lowAtlas.dispose();
+    this.trimBox.dispose();
+    this.sky.dispose();
+    this.contactOcclusion.geometry.dispose();
+    this.contactOcclusion.material.dispose();
+    this.contactOcclusion.dispose();
     this.keyLight.shadow.dispose();
     this.surfaces.dispose();
     this.metal.dispose();

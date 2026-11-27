@@ -1,7 +1,6 @@
 import {
   LinearFilter,
   LinearSRGBColorSpace,
-  NearestFilter,
   WebGLRenderTarget,
   type Texture,
   type WebGLRenderer,
@@ -83,14 +82,13 @@ export class WorldAntiAliasing {
       this.target.samples = samples;
       this.target.dispose(); // Reallocate attachments even if dimensions did not change.
     }
-    this.filterSource(false);
     if (next === 'fxaa' || next === 'smaa') {
       this.output = new WebGLRenderTarget(
         this.target.width,
         this.target.height,
         {
-          minFilter: NearestFilter,
-          magFilter: NearestFilter,
+          minFilter: LinearFilter,
+          magFilter: LinearFilter,
           depthBuffer: false,
           stencilBuffer: false,
           generateMipmaps: false,
@@ -143,23 +141,13 @@ export class WorldAntiAliasing {
 
   prepare(): void {
     if (this.smaa?.failed) this.disableSmaa();
-    // Apply sampler changes before drawing: Three does not re-upload sampler
-    // parameters on render-target textures in response to needsUpdate alone.
-    this.filterSource(!!this.pass && (!this.smaa || this.smaa.ready));
   }
 
   render(): Texture {
     if (!this.pass || !this.output || (this.smaa && !this.smaa.ready))
       return this.target.texture;
     this.pass.render(this.renderer, this.output, this.target, 0, false);
-    return this.output.texture; // Nearest presentation preserves the intentional pixel scale.
-  }
-
-  private filterSource(linear: boolean): void {
-    const filter = linear ? LinearFilter : NearestFilter;
-    if (this.target.texture.magFilter === filter) return;
-    this.target.texture.minFilter = this.target.texture.magFilter = filter;
-    this.target.dispose(); // Rebuild with the new filter before the next world draw.
+    return this.output.texture;
   }
   private disableSmaa(): void {
     this.supported = this.supported.filter((mode) => mode !== 'smaa');

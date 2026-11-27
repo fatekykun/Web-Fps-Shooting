@@ -66,10 +66,10 @@ it('matches every Three.Bone world transform to authoritative server joint evalu
   }
 });
 
-it('uses a bounded faceted mesh with outward normals, UVs, and only 48 triangles', () => {
+it('uses bounded rounded segments with outward normals, UVs, and 72 triangles', () => {
   const geometry = createTacticalGeometry();
   try {
-    expect(geometry.getAttribute('position').count / 3).toBe(48);
+    expect(geometry.getAttribute('position').count / 3).toBe(72);
     const point = new Vector3(),
       normal = new Vector3();
     const position = geometry.getAttribute('position'),

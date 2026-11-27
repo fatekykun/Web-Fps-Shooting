@@ -1,4 +1,5 @@
 import type { Scene } from 'three';
+import type { GraphicsSettings } from '../rendering/graphicsConfig';
 import { arenas } from '@breakpoint/shared/maps';
 import {
   BatchedArena,
@@ -169,7 +170,7 @@ function palletSlats(model: ArenaPart, trim: ArenaPart[]): void {
 export class KillhouseArena extends BatchedArena {
   private readonly removeSigns: () => void;
 
-  constructor(scene: Scene) {
+  constructor(scene: Scene, settings?: GraphicsSettings) {
     const solids: ArenaSurface[] = [];
     const trim: ArenaPart[] = [...house.roomTrim];
     const barrels: ArenaPart[] = [];
@@ -370,6 +371,7 @@ export class KillhouseArena extends BatchedArena {
         normalBias: 0.035,
         textureTheme: 'warehouse',
       },
+      settings,
     );
     this.removeSigns = addKillhouseSigns(scene);
   }

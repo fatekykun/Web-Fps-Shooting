@@ -11,15 +11,12 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
-  MeshLambertMaterial,
-  NearestFilter,
-  NearestMipmapNearestFilter,
+  MeshStandardMaterial,
+  InstancedBufferAttribute,
   Object3D,
   PerspectiveCamera,
   Quaternion,
-  RGBAFormat,
   Scene,
-  SRGBColorSpace,
   Vector3,
 } from 'three';
 import {
@@ -36,6 +33,8 @@ import {
 } from '@breakpoint/shared/weapons/loadouts';
 import { weaponAsset } from './WeaponAssets';
 import type { WeaponController } from './WeaponController';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { createEquipmentTexture } from '../rendering/EquipmentSurface';
 import { createReadableMaterial } from '../rendering/ReadableMaterial';
 import type { GraphicsSettings } from '../rendering/graphicsConfig';
 import type { ScopeStyle } from '../settings/userSettings';
@@ -137,7 +136,13 @@ export class WeaponViewmodel {
   private readonly geometry = new BoxGeometry(1, 1, 1);
   private readonly texture: DataTexture;
   private readonly lowTexture: DataTexture;
-  private readonly material: MeshLambertMaterial;
+  private readonly material: MeshStandardMaterial;
+  private readonly fabric = createEquipmentTexture(256, true);
+  private readonly fabricMaterial = createReadableMaterial(
+    { map: this.fabric, roughness: 0.87, metalness: 0.025 },
+    0.13,
+  );
+  private hdTexture?: DataTexture;
   private readonly arms: FirstPersonArms;
   private readonly meleeModel = new Group();
   private readonly freeHandTilt = new Euler(0, 0, 0, 'ZYX');
@@ -192,44 +197,46 @@ export class WeaponViewmodel {
   private inspectTime: number | null = null;
 
   constructor() {
-    const pixels = new Uint8Array(32 * 32 * 4);
-    for (let y = 0; y < 32; y++)
-      for (let x = 0; x < 32; x++) {
-        const value =
-          (Math.floor(x / 4) * 7 + Math.floor(y / 4) * 11) % 13 < 2 ? 225 : 248;
-        const offset = (y * 32 + x) * 4;
-        pixels[offset] = value;
-        pixels[offset + 1] = value;
-        pixels[offset + 2] = value - 8;
-        pixels[offset + 3] = 255;
-      }
-    this.texture = new DataTexture(pixels, 32, 32, RGBAFormat);
-    this.texture.colorSpace = SRGBColorSpace;
-    this.texture.minFilter = NearestMipmapNearestFilter;
-    this.texture.magFilter = NearestFilter;
-    this.texture.generateMipmaps = true;
-    this.texture.needsUpdate = true;
-    const lowPixels = new Uint8Array(16 * 16 * 4);
-    for (let y = 0; y < 16; y++)
-      for (let x = 0; x < 16; x++)
-        for (let c = 0; c < 4; c++)
-          lowPixels[(y * 16 + x) * 4 + c] =
-            pixels[(y * 2 * 32 + x * 2) * 4 + c]!;
-    this.lowTexture = new DataTexture(lowPixels, 16, 16, RGBAFormat);
-    this.lowTexture.colorSpace = SRGBColorSpace;
-    this.lowTexture.minFilter = NearestMipmapNearestFilter;
-    this.lowTexture.magFilter = NearestFilter;
-    this.lowTexture.generateMipmaps = true;
-    this.lowTexture.needsUpdate = true;
-    this.material = createReadableMaterial({ map: this.texture }, 0.12);
-    this.arms = new FirstPersonArms(this.material);
+    this.texture = createEquipmentTexture(512);
+    this.lowTexture = createEquipmentTexture(128);
+    this.material = createReadableMaterial({ map: this.texture }, 0.15);
+    const readable = this.material.onBeforeCompile;
+    this.material.onBeforeCompile = (shader, renderer) => {
+      readable.call(this.material, shader, renderer);
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nattribute float equipmentFinish;\nvarying float vEquipmentFinish;',
+        )
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvEquipmentFinish = equipmentFinish;',
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nvarying float vEquipmentFinish;',
+        )
+        .replace(
+          '#include <metalnessmap_fragment>',
+          '#include <metalnessmap_fragment>\nmetalnessFactor = vEquipmentFinish;',
+        )
+        .replace(
+          '#include <roughnessmap_fragment>',
+          '#include <roughnessmap_fragment>\nroughnessFactor = clamp(0.83 - 0.66 * vEquipmentFinish + (diffuseColor.g - 0.23) * 0.08, 0.27, 0.91);',
+        );
+    };
+    this.material.customProgramCacheKey = () => 'breakpoint-equipment-finish';
+    this.arms = new FirstPersonArms(this.fabricMaterial);
     this.root.add(this.arms.root);
     this.meleeModel.name = 'melee-model';
     this.meleeModel.visible = false;
     this.root.add(this.meleeModel);
-    const key = new DirectionalLight(0xfff0d9, 1.5);
+    const key = new DirectionalLight(0xffe8d0, 2.25);
     key.position.set(-2, 4, 3);
-    this.scene.add(new HemisphereLight(0xf1f0dc, 0x8b9e8e, 2.1), key);
+    const rim = new DirectionalLight(0x9ac7ef, 0.8);
+    rim.position.set(3, 1, -2);
+    this.scene.add(new HemisphereLight(0xe6eff8, 0x889488, 1.65), key, rim);
     for (const id of weaponOrder) this.build(id);
     const transform = new Matrix4();
     this.flash.setMatrixAt(0, transform.makeScale(0.12, 0.035, 0.02));
@@ -265,6 +272,58 @@ export class WeaponViewmodel {
       ],
       [0, -0.08, 0.025, 0.018, 0.035, 0.07, 0xc8c8ab],
     ];
+    const finishes = [0.23, 0.68, 0.08, 0.03, 0.31, 0.51, 0.66, 0.29, 0.55];
+    const detail = (part: WeaponPart, finish: number) => {
+      parts.push(part);
+      finishes.push(finish);
+    };
+    for (const side of [-1, 1]) {
+      detail([side * 0.064, -0.025, 0.015, 0.01, 0.045, 0.25, 0x41494a], 0.12);
+      for (const z of [-0.15, 0.12])
+        detail([side * 0.073, 0.014, z, 0.014, 0.019, 0.019, 0x9ca69d], 0.65);
+      for (let notch = 0; notch < 5; notch++)
+        detail(
+          [
+            side * 0.038,
+            -0.096 - notch * 0.022,
+            0.116,
+            0.012,
+            0.011,
+            0.068,
+            0x3c4440,
+          ],
+          0.045,
+        );
+    }
+    for (let lug = 0; lug < 6; lug++)
+      detail(
+        [0, 0.069, -0.15 + lug * 0.043, 0.09, 0.013, 0.018, 0x596562],
+        0.55,
+      );
+    detail(
+      [
+        0,
+        0.025,
+        barrelZ - barrelLength / 2 + 0.028,
+        0.061,
+        0.059,
+        0.05,
+        0x343e44,
+      ],
+      0.66,
+    );
+    detail(
+      [
+        0,
+        0.025,
+        barrelZ + barrelLength / 2 - 0.017,
+        0.055,
+        0.055,
+        0.028,
+        0x515c60,
+      ],
+      0.62,
+    );
     if (id === 'shotgun')
       parts.push([0, -0.02, -0.33, 0.085, 0.075, 0.2, 0x6c7850]);
     if (id === 'sniper') {
@@ -280,7 +339,15 @@ export class WeaponViewmodel {
       this.boltIndex = parts.length;
       parts.push([0.115, 0.045, 0.095, 0.1, 0.035, 0.035, 0x9ca89c]);
     }
-    const mesh = new InstancedMesh(this.geometry, this.material, parts.length);
+    const geometry = new RoundedBoxGeometry(1, 1, 1, 1, 0.065);
+    geometry.setAttribute(
+      'equipmentFinish',
+      new InstancedBufferAttribute(
+        Float32Array.from(parts, (_, index) => finishes[index] ?? 0.35),
+        1,
+      ),
+    );
+    const mesh = new InstancedMesh(geometry, this.material, parts.length);
     mesh.name = `weapon-${id}`;
     const matrix = new Matrix4();
     const color = new Color();
@@ -323,7 +390,13 @@ export class WeaponViewmodel {
   }
 
   configureTexture(quality: GraphicsSettings['textureQuality']): void {
-    this.material.map = quality === 'low' ? this.lowTexture : this.texture;
+    if (quality === 'hd') this.hdTexture ??= createEquipmentTexture(1024);
+    this.material.map =
+      quality === 'low'
+        ? this.lowTexture
+        : quality === 'hd'
+          ? this.hdTexture!
+          : this.texture;
     this.cinder?.configureTexture(this.material.map);
   }
 
@@ -971,7 +1044,10 @@ export class WeaponViewmodel {
     this.blaze?.dispose();
     this.neonRequest?.abort();
     this.neon?.dispose();
-    for (const mesh of this.models.values()) mesh.dispose();
+    for (const mesh of this.models.values()) {
+      mesh.geometry.dispose();
+      mesh.dispose();
+    }
     this.flash.dispose();
     this.dotGeometry.dispose();
     this.dotMaterial.dispose();
@@ -980,6 +1056,9 @@ export class WeaponViewmodel {
     this.flashMaterial.dispose();
     this.texture.dispose();
     this.lowTexture.dispose();
+    this.hdTexture?.dispose();
+    this.fabricMaterial.dispose();
+    this.fabric.dispose();
     this.scene.clear();
   }
 }

@@ -4,8 +4,8 @@ import {
   Float32BufferAttribute,
   Mesh,
   MeshBasicMaterial,
-  NearestFilter,
-  NearestMipmapNearestFilter,
+  LinearFilter,
+  LinearMipmapLinearFilter,
   SRGBColorSpace,
   type Scene,
 } from 'three';
@@ -76,8 +76,9 @@ export function addKillhouseSigns(scene: Scene): () => void {
   });
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
-  texture.minFilter = NearestMipmapNearestFilter;
-  texture.magFilter = NearestFilter;
+  texture.minFilter = LinearMipmapLinearFilter;
+  texture.magFilter = LinearFilter;
+  texture.anisotropy = 8;
   const positions: number[] = [];
   const uv: number[] = [];
   const corners = [

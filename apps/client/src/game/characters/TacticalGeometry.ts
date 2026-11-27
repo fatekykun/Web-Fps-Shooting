@@ -1,38 +1,47 @@
 import { BufferGeometry, Float32BufferAttribute } from 'three';
 
-/** Forty-eight flat-shaded triangles: rounded cross-section and tapered ends. */
+/** Rounded, tapered armor segments with shared smooth normals along the sides. */
 export function createTacticalGeometry(): BufferGeometry {
+  const sides = 12;
+  const radii = [0.41, 0.5, 0.43] as const;
   const positions: number[] = [];
-  const ring = (level: number, index: number): [number, number, number] => {
-    const radius = [0.41, 0.5, 0.43][level]!;
-    const angle = (index * Math.PI) / 4 + Math.PI / 8;
-    return [
-      Math.sin(angle) * radius,
-      [-0.5, 0, 0.5][level]!,
-      Math.cos(angle) * radius,
-    ];
-  };
-  const triangle = (a: number[], b: number[], c: number[]) =>
-    positions.push(...a, ...b, ...c);
-  for (let side = 0; side < 8; side++) {
-    for (let level = 0; level < 2; level++) {
-      const a = ring(level, side),
-        b = ring(level, side + 1),
-        c = ring(level + 1, side),
-        d = ring(level + 1, side + 1);
-      triangle(a, b, c);
-      triangle(b, d, c);
+  const normals: number[] = [];
+  const uv: number[] = [];
+  function push(level: number, index: number, cap = 0): void {
+    const angle = (index / sides) * Math.PI * 2;
+    const x = Math.sin(angle);
+    const z = Math.cos(angle);
+    positions.push(x * radii[level]!, level / 2 - 0.5, z * radii[level]!);
+    if (cap) normals.push(0, cap, 0);
+    else {
+      const tilt = [-0.18, -0.02, 0.14][level]!;
+      const length = Math.hypot(1, tilt);
+      normals.push(x / length, tilt / length, z / length);
     }
-    triangle([0, -0.5, 0], ring(0, side + 1), ring(0, side));
-    triangle([0, 0.5, 0], ring(2, side), ring(2, side + 1));
+    uv.push(index / sides, level / 2);
+  }
+  for (let side = 0; side < sides; side++) {
+    for (let level = 0; level < 2; level++) {
+      push(level, side);
+      push(level, side + 1);
+      push(level + 1, side);
+      push(level, side + 1);
+      push(level + 1, side + 1);
+      push(level + 1, side);
+    }
+    for (const cap of [-1, 1]) {
+      const level = cap < 0 ? 0 : 2;
+      positions.push(0, cap * 0.5, 0);
+      normals.push(0, cap, 0);
+      uv.push((side + 0.5) / sides, 0.5);
+      push(level, cap < 0 ? side + 1 : side, cap);
+      push(level, cap < 0 ? side : side + 1, cap);
+    }
   }
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  const uv: number[] = [];
-  for (let i = 0; i < positions.length; i += 3)
-    uv.push(positions[i]! + 0.5, positions[i + 1]! + 0.5);
+  geometry.setAttribute('normal', new Float32BufferAttribute(normals, 3));
   geometry.setAttribute('uv', new Float32BufferAttribute(uv, 2));
-  geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
   return geometry;
 }
